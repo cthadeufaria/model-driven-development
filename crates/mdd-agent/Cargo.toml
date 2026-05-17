@@ -1,0 +1,8 @@
+[package]
+name = "mdd-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mdd-core = { path = "../mdd-core" }

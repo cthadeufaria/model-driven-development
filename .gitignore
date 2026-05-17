@@ -1,0 +1,7 @@
+/target/
+/dist/
+/third_party/plantuml/plantuml.jar
+/.DS_Store
+/.idea/
+/.vscode/
+*.log

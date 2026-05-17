@@ -1,0 +1,37 @@
+@startuml
+' @id(USE-VIEW-DIAGRAMS)
+' Objective-side use-case view: same logical use case as current, but its
+' acceptance now requires that diagram TEXT is legible on the canvas.
+title mdd view — diagram viewer (objective)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas" as PanZoom
+  usecase "Inspect trace graph" as Graph
+  usecase "Inspect model IDs and trace links" as Trace
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Graph
+Dev --> Trace
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+Graph ..> Trace : <<include>>
+
+note bottom of View
+  Objective: every label, actor, message and
+  note in a rendered diagram is visible in the
+  in-app canvas — not only in an external SVG
+  viewer. Realized by SEQ-RENDER-DIAGRAM-PAGE
+  which must consult a populated font database
+  (DOM-FONT-DATABASE) before rasterizing.
+end note
+@enduml

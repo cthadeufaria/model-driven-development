@@ -1,0 +1,89 @@
+@startuml
+' @id(DOM-CYCLE)
+' @id(DOM-CYCLE-DIFF)
+' @id(DOM-ELEMENT-DESCRIPTION)
+' @id(DOM-CYCLE-REGISTRY)
+'
+' Current-side domain, derived from crates/mdd-core/src/cycle.rs and the
+' extract_descs / Project::descriptions read path. Closes the parity gap
+' with the objective domain model.
+'
+' @desc(DOM-CYCLE, "Implemented as cycle::Cycle + CycleManifest (serde-read manifest.yml): number, slug, entry, description, status, timestamps, touched_files, snapshot dirs.")
+' @desc(DOM-CYCLE-DIFF, "Implemented as cycle::CycleDiff: per-diagram unchanged/added/removed element keys, disjoint by set construction.")
+' @desc(DOM-ELEMENT-DESCRIPTION, "Implemented as the @desc(<ID>,\"text\") marker parsed by extract_descs into Project::descriptions().")
+' @desc(DOM-CYCLE-REGISTRY, "Implemented as cycle::CycleRegistry::scan: reads .mdd/cycles/*/manifest.yml into an ordered Vec<Cycle>.")
+title Cycle tracking domain (current)
+
+enum EntryPoint {
+  Generate
+  Map
+}
+
+enum CycleStatus {
+  Open
+  Closed
+  Aborted
+}
+
+class CycleManifest {
+  + number : u32
+  + slug : String
+  + entry : EntryPoint
+  + description : String
+  + status : CycleStatus
+  + opened_at : String
+  + closed_at : Option<String>
+  + touched_files : Vec<String>
+}
+
+class Cycle {
+  + manifest : CycleManifest
+  + dir : PathBuf
+  + before_dir : PathBuf
+  + after_dir : Option<PathBuf>
+  + number() : u32
+  + is_closed() : bool
+  + label() : String
+}
+
+class CycleDiff {
+  + diagram : String
+  + unchanged : Vec<String>
+  + added : Vec<String>
+  + removed : Vec<String>
+  + is_empty() : bool
+}
+
+class CycleRegistry {
+  + cycles : Vec<Cycle>
+  + scan(root) : CycleRegistry
+  + cycle(number) : Option<Cycle>
+  + latest() : Option<Cycle>
+}
+
+class ElementDescription {
+  + targetId : String
+  + text : String
+}
+
+CycleRegistry "1" o-- "*" Cycle : scans >
+Cycle "1" *-- "1" CycleManifest
+Cycle "1" o-- "*" CycleDiff : cycle_diffs() >
+Cycle --> CycleStatus
+CycleManifest --> EntryPoint
+ElementDescription "*" ..> "1" Cycle : authored during
+
+note bottom of CycleDiff
+  diff_documents() builds unchanged/added/removed
+  from element_keys (every @id plus declared
+  element aliases/labels); the three sets are
+  pairwise disjoint (OCL-CYCLE-DIFF-PARTITION).
+end note
+
+note bottom of ElementDescription
+  Not a stored struct: the @desc marker is
+  parsed by extract_descs() and exposed as a
+  BTreeMap<id,text> via Project::descriptions().
+  Constrained by OCL-ELEMENT-DESC-NONEMPTY.
+end note
+@enduml

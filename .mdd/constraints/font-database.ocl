@@ -1,0 +1,10 @@
+-- @id(OCL-FONTDB-POPULATED)
+-- @ref(DOM-FONT-DATABASE)
+-- The font database consulted by the SVG rasterizer must contain at
+-- least one font whenever a diagram is rasterized; otherwise PlantUML
+-- <text> glyphs cannot be resolved and diagram text is dropped.
+context FontDatabase
+inv SystemFontsLoaded: self.fontCount > 0
+
+context SvgRasterizer
+inv RasterizerHasFonts: self.fontDatabase.fontCount > 0

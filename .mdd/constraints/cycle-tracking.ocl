@@ -1,0 +1,36 @@
+-- @id(OCL-CYCLE-CLOSED-HAS-SNAPSHOTS)
+-- @ref(DOM-CYCLE)
+-- A closed cycle must have captured its after-snapshot and produced at
+-- least one diff; otherwise the before/after diff view has nothing to show.
+context Cycle
+inv ClosedHasAfterSnapshot:
+  self.status = CycleStatus::Closed implies
+    (self.afterDir->notEmpty() and self.diffs->size() >= 1)
+
+-- @id(OCL-CYCLE-ENTRY-VALID)
+-- @ref(DOM-CYCLE)
+-- Entry point is Generate exactly when the run was started from a
+-- non-empty description, and Map otherwise (the no-description path
+-- behaves as /mdd-map with no comments).
+context Cycle
+inv EntryMatchesDescription:
+  (self.description <> '' implies self.entry = EntryPoint::Generate)
+  and (self.description = '' implies self.entry = EntryPoint::Map)
+
+-- @id(OCL-CYCLE-DIFF-PARTITION)
+-- @ref(DOM-CYCLE-DIFF)
+-- The three element buckets of a diff are pairwise disjoint, so every
+-- element is shown exactly once (shared, added, or removed).
+context CycleDiff
+inv DisjointBuckets:
+  self.unchanged->intersection(self.added)->isEmpty()
+  and self.unchanged->intersection(self.removed)->isEmpty()
+  and self.added->intersection(self.removed)->isEmpty()
+
+-- @id(OCL-ELEMENT-DESC-NONEMPTY)
+-- @ref(DOM-ELEMENT-DESCRIPTION)
+-- Every element description carries non-empty text and points at a
+-- model id that exists on the same side.
+context ElementDescription
+inv NonEmptyAndResolves:
+  self.text <> '' and self.targetId <> ''

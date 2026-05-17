@@ -1,0 +1,42 @@
+@startuml
+' @id(STM-CYCLE-LIFECYCLE)
+' @ref(DOM-CYCLE)
+'
+' Objective-side lifecycle of a tracked MDD cycle. Non-trivial: four
+' reachable states with externally triggered transitions (skill entry,
+' user clarification, /mdd-review parity, user abort).
+'
+' @desc(STM-CYCLE-LIFECYCLE, "Lifecycle of one Cycle record: Open on entry, looping through clarification and implement/review, Closed only when /mdd-review parity matches.")
+title Cycle lifecycle (objective)
+
+[*] --> Open : USE-RUN-CYCLE picks entry\n(generate if description,\nmap-no-comments if none)
+
+state Open {
+  [*] --> Modeling
+  Modeling --> Implementing : /mdd-validate clean
+  Implementing --> Modeling : /mdd-map refreshes current
+}
+
+Open --> AwaitingClarification : ambiguous decision\n(skill must ask, never guess)
+AwaitingClarification --> Open : user answers
+
+Open --> Closed : /mdd-review parity matches\n(snapshot after/ + write .diff.puml)
+Open --> Aborted : user cancels the run
+
+Closed --> [*]
+Aborted --> [*]
+
+note right of Open
+  While Open: the cycle owns the active
+  snapshot. before/ was captured at entry.
+  Each implement->map->validate->review
+  mismatch loops back here.
+end note
+
+note right of Closed
+  Terminal success. .mdd/cycles/<n>/ now holds
+  the manifest, before/, after/, and the
+  annotated <diagram>.diff.puml artifacts that
+  USE-CYCLE-DIFF-VIEW renders.
+end note
+@enduml

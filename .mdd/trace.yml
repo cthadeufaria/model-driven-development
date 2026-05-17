@@ -1,0 +1,166 @@
+version: 1
+links:
+  - from: USE-VIEW-DIAGRAMS
+    to: SEQ-RENDER-DIAGRAM-PAGE
+    relation: realizes
+  - from: USE-VIEW-DIAGRAMS
+    to: CMP-VIEWER-RENDER-PIPELINE
+    relation: realized_by
+  - from: SEQ-RENDER-DIAGRAM-PAGE
+    to: DOM-FONT-DATABASE
+    relation: depends_on
+  - from: OCL-FONTDB-POPULATED
+    to: DOM-FONT-DATABASE
+    relation: constrains
+  - from: USE-RUN-CYCLE
+    to: SEQ-RUN-CYCLE
+    relation: realizes
+  - from: USE-BROWSE-TREE
+    to: SEQ-BROWSE-TREE
+    relation: realizes
+  - from: USE-GROUP-BY-CYCLE
+    to: SEQ-BROWSE-TREE
+    relation: realizes
+  - from: USE-CYCLE-DIFF-VIEW
+    to: SEQ-RENDER-CYCLE-DIFF
+    relation: realizes
+  - from: USE-ELEMENT-DESC
+    to: SEQ-ELEMENT-DESC
+    relation: realizes
+  - from: USE-RUN-CYCLE
+    to: CMP-CYCLE-ORCHESTRATOR
+    relation: realized_by
+  - from: USE-RUN-CYCLE
+    to: CMP-CYCLE-STORE
+    relation: realized_by
+  - from: USE-BROWSE-TREE
+    to: CMP-VIEWER-CYCLE-UI
+    relation: realized_by
+  - from: USE-CYCLE-DIFF-VIEW
+    to: CMP-VIEWER-CYCLE-UI
+    relation: realized_by
+  - from: USE-ELEMENT-DESC
+    to: CMP-VIEWER-CYCLE-UI
+    relation: realized_by
+  - from: CMP-VIEWER-CYCLE-UI
+    to: CMP-CORE-CYCLE-MODEL
+    relation: depends_on
+  - from: CMP-CORE-CYCLE-MODEL
+    to: CMP-CYCLE-STORE
+    relation: depends_on
+  - from: SEQ-RUN-CYCLE
+    to: DOM-CYCLE
+    relation: depends_on
+  - from: SEQ-RENDER-CYCLE-DIFF
+    to: DOM-CYCLE-DIFF
+    relation: depends_on
+  - from: SEQ-BROWSE-TREE
+    to: DOM-CYCLE-REGISTRY
+    relation: depends_on
+  - from: SEQ-ELEMENT-DESC
+    to: DOM-ELEMENT-DESCRIPTION
+    relation: depends_on
+  - from: STM-CYCLE-LIFECYCLE
+    to: DOM-CYCLE
+    relation: models_lifecycle_of
+  - from: USE-RUN-CYCLE
+    to: STM-CYCLE-LIFECYCLE
+    relation: triggers_transition
+  - from: OCL-CYCLE-CLOSED-HAS-SNAPSHOTS
+    to: DOM-CYCLE
+    relation: constrains
+  - from: OCL-CYCLE-ENTRY-VALID
+    to: DOM-CYCLE
+    relation: constrains
+  - from: OCL-CYCLE-DIFF-PARTITION
+    to: DOM-CYCLE-DIFF
+    relation: constrains
+  - from: OCL-ELEMENT-DESC-NONEMPTY
+    to: DOM-ELEMENT-DESCRIPTION
+    relation: constrains
+  - from: MCK-VIEWER-CYCLE-UI
+    to: USE-BROWSE-TREE
+    relation: realizes
+generated_tests:
+  - id: AT-USE-VIEW-DIAGRAMS
+    path: .mdd/tests/acceptance/use-view-diagrams.feature
+    model_id: USE-VIEW-DIAGRAMS
+  - id: AT-USE-RUN-CYCLE
+    path: .mdd/tests/acceptance/use-run-cycle.feature
+    model_id: USE-RUN-CYCLE
+  - id: AT-USE-BROWSE-TREE
+    path: .mdd/tests/acceptance/use-browse-tree.feature
+    model_id: USE-BROWSE-TREE
+  - id: AT-USE-CYCLE-DIFF-VIEW
+    path: .mdd/tests/acceptance/use-cycle-diff-view.feature
+    model_id: USE-CYCLE-DIFF-VIEW
+  - id: AT-USE-ELEMENT-DESC
+    path: .mdd/tests/acceptance/use-element-desc.feature
+    model_id: USE-ELEMENT-DESC
+generated_ui_tests: []
+source_links:
+  - model_id: USE-VIEW-DIAGRAMS
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer
+  - model_id: SEQ-RENDER-DIAGRAM-PAGE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: DiagramPage::rebuild
+  - model_id: CMP-VIEWER-RENDER-PIPELINE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: run
+  - model_id: DOM-FONT-DATABASE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: shared_fontdb
+  - model_id: USE-RUN-CYCLE
+    path: .claude/skills/mdd-cycle/SKILL.md
+  - model_id: SEQ-RUN-CYCLE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_CYCLE_SKILL
+  - model_id: USE-BROWSE-TREE
+    path: crates/mdd-viewer/src/tree.rs
+    symbol: TreeNode
+  - model_id: USE-GROUP-BY-CYCLE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: RailMode
+  - model_id: SEQ-BROWSE-TREE
+    path: crates/mdd-viewer/src/tree.rs
+    symbol: TreeNode::build
+  - model_id: USE-CYCLE-DIFF-VIEW
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::diff_ui
+  - model_id: SEQ-RENDER-CYCLE-DIFF
+    path: crates/mdd-core/src/cycle.rs
+    symbol: cycle_diffs
+  - model_id: USE-ELEMENT-DESC
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer
+  - model_id: SEQ-ELEMENT-DESC
+    path: crates/mdd-core/src/lib.rs
+    symbol: extract_descs
+  - model_id: DOM-CYCLE
+    path: crates/mdd-core/src/cycle.rs
+    symbol: Cycle
+  - model_id: DOM-CYCLE-DIFF
+    path: crates/mdd-core/src/cycle.rs
+    symbol: CycleDiff
+  - model_id: DOM-CYCLE-REGISTRY
+    path: crates/mdd-core/src/cycle.rs
+    symbol: CycleRegistry
+  - model_id: DOM-ELEMENT-DESCRIPTION
+    path: crates/mdd-core/src/lib.rs
+    symbol: extract_descs
+  - model_id: STM-CYCLE-LIFECYCLE
+    path: crates/mdd-core/src/cycle.rs
+    symbol: CycleStatus
+  - model_id: CMP-CYCLE-ORCHESTRATOR
+    path: .codex/skills/mdd-cycle/SKILL.md
+  - model_id: CMP-CYCLE-STORE
+    path: crates/mdd-core/src/cycle.rs
+    symbol: CYCLES_DIR
+  - model_id: CMP-CORE-CYCLE-MODEL
+    path: crates/mdd-core/src/cycle.rs
+  - model_id: CMP-VIEWER-CYCLE-UI
+    path: crates/mdd-viewer/src/tree.rs
+  - model_id: MCK-VIEWER-CYCLE-UI
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::update

@@ -1,0 +1,19 @@
+[package]
+name = "mdd-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+mdd-core = { path = "../mdd-core" }
+mdd-viewer = { path = "../mdd-viewer" }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+
+[[bin]]
+name = "mdd"
+path = "src/main.rs"

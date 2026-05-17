@@ -1,0 +1,60 @@
+@startsalt
+' @id(MCK-VIEWER-CYCLE-UI)
+' @ref(USE-BROWSE-TREE)
+' @ui-viewport(desktop,1280,800)
+'
+' Current-side as-built layout of the mdd-viewer after the cycle-tracking
+' implementation. Native eframe/egui app: deliberately NO @ui-route and
+' no @ui-element (UIC- ids are workspace-unique and declared on the
+' objective mockup); this is a layout reference for visual review.
+'
+' @desc(MCK-VIEWER-CYCLE-UI, "As-built viewer layout: MODELS tree rail with Directory/By-cycle toggle, Diagram/Graph/Diff tabs, and a DESCRIPTION block in the MODEL CONTEXT card.")
+title mdd viewer — cycle-aware layout (current)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "MODELS"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        +++ use-cases
+        ++++ cycle-tracking.puml
+        +++ sequences
+        ++ objective
+        + Cycle 0001 — slug (closed)
+        ++ use-cases/cycle-tracking.puml
+        + Unassigned
+      }
+    } |
+    {
+      { [Diagram] | [Graph] | [*Diff] }
+      --
+      "CYCLE  [0001 — slug (closed)]"
+      --
+      "diagram name — N shared · N added · N removed"
+      {
+        "  shared element"
+        "<color:green>+ added by this cycle</color>"
+        "<color:red>- removed by this cycle</color>"
+      }
+    } |
+    {
+      "MODEL CONTEXT"
+      --
+      "file" | { cycle-tracking.puml }
+      "kind" | { use case }
+      {^"DESCRIPTION"
+        "USE-RUN-CYCLE"
+        "Implemented as the /mdd-cycle skill:"
+        "one-shot orchestration of the whole"
+        "MDD loop from a single description."
+      }
+      "IDS" | { USE-RUN-CYCLE | ... }
+      "TRACE" | { USE-RUN-CYCLE -> realizes -> SEQ-RUN-CYCLE }
+    }
+  }
+}
+@endsalt

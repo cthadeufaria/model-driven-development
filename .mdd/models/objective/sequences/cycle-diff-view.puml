@@ -1,0 +1,54 @@
+@startuml
+' @id(SEQ-RENDER-CYCLE-DIFF)
+' @ref(USE-CYCLE-DIFF-VIEW)
+'
+' Objective-side flow for the new superposed before/after diff view.
+' The viewer reads a closed cycle's snapshots and renders one diagram
+' with shared elements drawn once, additions green, removals red.
+'
+' @desc(SEQ-RENDER-CYCLE-DIFF, "How the viewer builds a cycle's superposed diff: read before/ and after/ snapshots, partition elements into unchanged/added/removed, paint added green and removed red.")
+title Render a cycle's superposed before/after diff (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "CycleRegistry\n(mdd-core)" as Reg
+database ".mdd/cycles/<n>/\nbefore/ , after/" as Store
+participant "DiffEngine\n(element set partition)" as Diff
+participant "egui painter" as Painter
+
+Dev -> Viewer : select cycle N in rail, open Diff view
+Viewer -> Reg : cycle(N)
+Reg -> Store : read manifest + before/ + after/ puml
+Store --> Reg : before docs, after docs
+Reg --> Viewer : Cycle { before, after, diff refs }
+
+Viewer -> Diff : superpose(before_doc, after_doc)
+note right of Diff
+  Element identity = @id when present,
+  else the stable PlantUML alias/label.
+  unchanged = before INTERSECT after
+  added     = after  MINUS before  (green)
+  removed   = before MINUS after   (red)
+  Sets are disjoint (OCL-CYCLE-DIFF-PARTITION).
+end note
+Diff --> Viewer : { unchanged[], added[], removed[] }
+
+alt a pre-written <diagram>.diff.puml exists
+  Viewer -> Store : read <diagram>.diff.puml
+  Store --> Viewer : annotated puml (<<added>>/<<removed>>)
+else compute on the fly
+  Viewer -> Viewer : synthesize annotated puml
+end
+
+loop each painted frame
+  Viewer -> Painter : draw shared elements once (neutral)
+  Viewer -> Painter : draw added elements green
+  Viewer -> Painter : draw removed elements red
+  Painter --> Dev : superposed before/after diagram
+end
+
+opt cycle has no after/ yet (still Open)
+  Viewer -> Painter : text("Diff available after the cycle closes")
+  Painter --> Dev : placeholder
+end
+@enduml

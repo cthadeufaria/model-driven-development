@@ -1,0 +1,38 @@
+@startuml
+' @id(SEQ-ELEMENT-DESC)
+' @ref(USE-ELEMENT-DESC)
+'
+' Objective-side flow: selecting a diagram element shows its @desc text
+' in the right-hand MODEL CONTEXT card, distinctly styled.
+'
+' @desc(SEQ-ELEMENT-DESC, "How the viewer resolves the @desc text for a selected @id and renders it as a distinct description block in the MODEL CONTEXT card.")
+title Show a diagram element's description (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "ModelRegistry\n(mdd-core)" as Reg
+participant "DescIndex\n(@desc per @id)" as Desc
+participant "MODEL CONTEXT card\n(right SidePanel)" as Card
+
+Dev -> Viewer : select an element / @id\n(rail, IDs list, or graph node)
+Viewer -> Reg : file + ids for selection
+Reg --> Viewer : selected @id
+Viewer -> Desc : description_for(@id)
+note right of Desc
+  @desc(<ID>, "text") markers are extracted
+  from the model file at registry build time,
+  same pass as @id/@ref. One description per
+  significant element. Missing -> card shows
+  "No description" (a /mdd-validate readiness
+  warning, not a hard error).
+end note
+Desc --> Viewer : description text (or none)
+
+Viewer -> Card : render distinct DESCRIPTION block\n(above IDS / TRACE sections)
+Card --> Dev : element description shown
+
+opt no @desc for the selected id
+  Viewer -> Card : render weak "No description"
+  Card --> Dev : placeholder
+end
+@enduml

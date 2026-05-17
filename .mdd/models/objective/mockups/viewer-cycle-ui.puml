@@ -1,0 +1,68 @@
+@startsalt
+' @id(MCK-VIEWER-CYCLE-UI)
+' @ref(USE-BROWSE-TREE)
+' @ui-viewport(desktop,1280,800)
+' @ui-element(UIC-RAIL-TREE, role=tree, name="Model directory tree", required=true)
+' @ui-element(UIC-RAIL-ORGANIZE-TOGGLE, role=button, name="Toggle organize by directory or cycle", required=true)
+' @ui-element(UIC-VIEW-TAB-DIFF, role=tab, name="Diff", required=true)
+' @ui-element(UIC-DIFF-LEGEND, role=note, name="Diff legend added green removed red", required=true)
+' @ui-element(UIC-CONTEXT-DESCRIPTION, role=note, name="Selected element description", required=true)
+'
+' Native egui desktop app: deliberately NO @ui-route — this mockup is a
+' layout/contract reference for visual review, not a Playwright target
+' (Playwright cannot drive an eframe native window).
+'
+' @desc(MCK-VIEWER-CYCLE-UI, "Reference layout for the cycle-aware viewer: VSCode-style tree rail with directory/cycle toggle, a Diff tab with green/red legend, and a description block in the MODEL CONTEXT card.")
+title mdd viewer — cycle-aware layout (objective)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "DIAGRAMS"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        +++ use-cases
+        ++++ cycle-tracking.puml
+        +++ sequences
+        ++ objective
+        + Cycle 0002 (closed)
+        ++ use-cases/cycle-tracking.puml
+        ++ diff: use-cases.diff.puml
+      }
+    } |
+    {
+      { [Diagram] | [Graph] | [*Diff] }
+      --
+      "Cycle 0002 — before/after (superposed)"
+      {
+        "shared element (neutral)"
+        "<color:green>+ added by this cycle</color>"
+        "<color:red>- removed by this cycle</color>"
+      }
+      .
+      "[ superposed diagram canvas ]"
+    } |
+    {
+      "MODEL CONTEXT"
+      --
+      "file"
+      { cycle-tracking.puml }
+      "kind"
+      { use case }
+      {^"DESCRIPTION"
+        "USE-RUN-CYCLE"
+        "One-shot orchestration: run the whole"
+        "MDD loop from a single description,"
+        "pausing only for clarifying questions."
+      }
+      "IDS"
+      { USE-RUN-CYCLE | USE-BROWSE-TREE | ... }
+      "TRACE"
+      { USE-RUN-CYCLE -> realizes -> SEQ-RUN-CYCLE }
+    }
+  }
+}
+@endsalt

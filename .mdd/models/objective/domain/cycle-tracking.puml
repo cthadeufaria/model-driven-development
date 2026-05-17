@@ -1,0 +1,87 @@
+@startuml
+' @id(DOM-CYCLE)
+' @id(DOM-CYCLE-DIFF)
+' @id(DOM-ELEMENT-DESCRIPTION)
+' @id(DOM-CYCLE-REGISTRY)
+'
+' Objective-side domain model for cycle tracking. New concepts, absent on
+' the current side until /mdd-implement + /mdd-map close the parity gap.
+'
+' @desc(DOM-CYCLE, "One tracked MDD loop: its entry point, description, status, the model files it touched, and its before/after snapshot directories.")
+' @desc(DOM-CYCLE-DIFF, "Per-diagram element partition between a cycle's before and after current-side snapshots: unchanged, added, removed.")
+' @desc(DOM-ELEMENT-DESCRIPTION, "The @desc(<ID>, text) marker: a one-line human description attached to a model @id, surfaced in the MODEL CONTEXT card.")
+' @desc(DOM-CYCLE-REGISTRY, "Scans .mdd/cycles/ into an ordered list of Cycle records for the viewer rail and diff view; analogous to ModelRegistry.")
+title Cycle tracking domain (objective)
+
+enum EntryPoint {
+  Generate
+  Map
+}
+
+enum CycleStatus {
+  Open
+  Closed
+  Aborted
+}
+
+class Cycle {
+  + number : int
+  + slug : String
+  + entry : EntryPoint
+  + description : String
+  + status : CycleStatus
+  + openedAt : Timestamp
+  + closedAt : Timestamp?
+  + touchedFiles : List<String>
+  + beforeDir : Path
+  + afterDir : Path?
+}
+
+class CycleDiff {
+  + diagram : String
+  + unchanged : Set<ElementKey>
+  + added : Set<ElementKey>
+  + removed : Set<ElementKey>
+  + annotatedPuml : Path
+}
+
+class ElementDescription {
+  + targetId : String
+  + text : String
+}
+
+class CycleRegistry {
+  + cyclesDir : Path
+  + scan() : List<Cycle>
+  + cycle(number) : Cycle?
+  + latest() : Cycle?
+}
+
+CycleRegistry "1" o-- "*" Cycle : discovers >
+Cycle "1" o-- "*" CycleDiff : closes with >
+Cycle --> EntryPoint
+Cycle --> CycleStatus
+ElementDescription "*" ..> "1" Cycle : authored during
+
+note bottom of ElementDescription
+  targetId must resolve to an existing model
+  @id on the same side. One description per
+  significant element. Constrained by
+  OCL-ELEMENT-DESC-NONEMPTY.
+end note
+
+note bottom of CycleDiff
+  unchanged, added and removed are pairwise
+  disjoint (OCL-CYCLE-DIFF-PARTITION). Element
+  identity is the @id, or the stable PlantUML
+  alias/label when an element has no @id.
+end note
+
+note bottom of Cycle
+  A Closed cycle must have a non-null afterDir
+  and at least one CycleDiff
+  (OCL-CYCLE-CLOSED-HAS-SNAPSHOTS). entry is
+  Generate iff the run started from a
+  description (OCL-CYCLE-ENTRY-VALID).
+end note
+@enduml

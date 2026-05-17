@@ -1,0 +1,24 @@
+<!-- mdd:begin -->
+<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"claude-entrypoint","content_sha256":"a08c8629d35f5b294e2d7d42a12acb5e47d735d688a807b3e996a3efd58ca881"} -->
+# Claude Code MDD Entry Point
+
+This repository uses agent-first MDD. Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md`.
+
+Workflow skills in `.claude/skills/`:
+
+- `/mdd-map` — derive current view from existing code into `.mdd/models/current/`.
+- `/mdd-generate` — derive objective view from a description into `.mdd/models/objective/`.
+- `/mdd-validate` — structural gate over current and objective sides.
+- `/mdd-implement` — close the gap between objective and current by writing code.
+- `/mdd-review` — strict structural match between current and objective; emits annotated diff PUMLs on mismatch.
+
+Orchestration skill (runs the whole loop from one description):
+
+- `/mdd-cycle` — selects the entry point, owns the cycle boundary under `.mdd/cycles/`, loops to parity, and pauses for clarification.
+
+Utility skill (on demand, not a workflow gate):
+
+- `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
+
+Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
+<!-- mdd:end -->

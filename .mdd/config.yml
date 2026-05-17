@@ -1,0 +1,6 @@
+version: 1
+model_source: plantuml
+constraint_source: ocl
+rendered_dir: .mdd/rendered
+security:
+  parity_check: error

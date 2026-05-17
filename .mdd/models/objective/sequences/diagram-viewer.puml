@@ -1,0 +1,40 @@
+@startuml
+' @id(SEQ-RENDER-DIAGRAM-PAGE)
+' @ref(USE-VIEW-DIAGRAMS)
+' Objective-side flow: system fonts are loaded into the usvg font
+' database BEFORE any SVG is parsed, so <text> glyphs are rasterized.
+title Render a diagram page to the canvas (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+database ".mdd/rendered/*.svg" as FS
+participant "FontDatabase\n(usvg fontdb)" as FontDb
+participant "usvg::Tree" as Usvg
+participant "resvg + tiny-skia" as Resvg
+participant "egui painter" as Painter
+
+Dev -> Viewer : open / select diagram file
+Viewer -> FontDb : load_system_fonts() (once, cached)
+note right of FontDb
+  Objective: the font database is populated
+  with the host's system fonts before the
+  first parse. usvg::Options.font_family is
+  set to a sane default. See OCL-FONTDB-POPULATED
+  and DOM-FONT-DATABASE.
+end note
+FontDb --> Viewer : fontCount > 0
+
+Viewer -> FS : read(.mdd/rendered/<page>.svg)
+FS --> Viewer : svg_bytes
+Viewer -> Usvg : parse_intrinsic_size(bytes, opts WITH fontdb)
+Usvg --> Viewer : intrinsic size
+
+loop each painted frame (zoom changed)
+  Viewer -> Usvg : Tree::from_data(bytes, opts WITH fontdb)
+  Viewer -> Resvg : render(tree, scale) -> Pixmap
+  Resvg --> Viewer : premultiplied RGBA (glyphs included)
+  Viewer -> Viewer : demultiply_rgba()
+  Viewer -> Painter : load_texture() + painter.image()
+  Painter --> Dev : diagram drawn WITH text
+end
+@enduml

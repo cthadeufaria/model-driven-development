@@ -1,0 +1,36 @@
+@startuml
+' @id(CMP-VIEWER-RENDER-PIPELINE)
+' @ref(USE-VIEW-DIAGRAMS)
+' Objective-side component view: the font database is an explicit,
+' populated dependency owned at the usvg boundary.
+title mdd-viewer render pipeline — ownership (objective)
+
+actor "Developer" as Dev
+
+component "mdd-viewer\nMddViewer (eframe::App)\nDiagramPage" as Viewer
+folder ".mdd/rendered/\n(pre-rendered SVG)" as Rendered
+
+package "SVG rasterization (external crates)" {
+  component "usvg 0.44\nOptions { fontdb, font_family }" as Usvg
+  component "FontDatabase\n(system fonts loaded)" as FontDb
+  component "resvg 0.44 +\ntiny-skia 0.11" as Resvg
+}
+component "eframe / egui 0.30\n(window, painter, textures)" as Egui
+
+Dev --> Viewer : mdd view
+Viewer --> Rendered : read SVG bytes
+Viewer --> FontDb : load_system_fonts() once
+Usvg --> FontDb : resolves <text> font families
+Viewer --> Usvg : Tree::from_data(opts WITH fontdb)
+Usvg --> Resvg : tree
+Resvg --> Viewer : RGBA pixmap (glyphs rasterized)
+Viewer --> Egui : texture + painter.image()
+Egui --> Dev : on-screen diagram with legible text
+
+note bottom of FontDb
+  Objective: the font database is a first-class,
+  populated dependency of the usvg/resvg boundary.
+  It is independent of egui's `default_fonts`.
+  Invariant: DOM-FONT-DATABASE / OCL-FONTDB-POPULATED.
+end note
+@enduml

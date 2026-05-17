@@ -1,0 +1,78 @@
+@startuml
+' @id(SEQ-RUN-CYCLE)
+' @ref(USE-RUN-CYCLE)
+'
+' Objective-side runtime flow of the new single-description orchestration
+' skill. It selects the entry point, owns the cycle boundary, and loops
+' the implement/review cycle to parity, pausing for clarification.
+'
+' @desc(SEQ-RUN-CYCLE, "How /mdd-cycle drives one full MDD loop: pick entry, open+snapshot the cycle, loop generate/map->validate->implement->map->validate->review until parity, then close+diff.")
+title Run a full MDD cycle from one description (objective)
+
+actor "Developer" as Dev
+participant "/mdd-cycle\n(orchestration skill)" as Orch
+database ".mdd/cycles/<n>/\n(manifest, before/, after/)" as Store
+participant "/mdd-generate\nor /mdd-map" as Entry
+participant "/mdd-validate" as Val
+participant "/mdd-implement" as Impl
+participant "/mdd-map" as Map
+participant "/mdd-review" as Rev
+
+Dev -> Orch : /mdd-cycle [description?]
+
+alt description provided
+  Orch -> Orch : entry = generate
+else no description
+  Orch -> Orch : entry = map\n(behave as /mdd-map with no comments)
+end
+
+Orch -> Store : open cycle N\nsnapshot .mdd/models/current/ -> before/
+Store --> Orch : cycle N opened (status=Open)
+
+Orch -> Entry : run entry skill (scoped to description)
+alt entry == generate
+  note right of Entry
+    Authors objective models + @desc per
+    significant @id. Marks ambiguity in the
+    model instead of inventing behavior.
+  end note
+end
+Entry --> Orch : models written
+
+loop until /mdd-review parity matches
+  Orch -> Val : /mdd-validate
+  alt validation errors
+    Val --> Orch : errors
+    Orch -> Impl : (only when both sides non-empty)
+  else clean
+    Val --> Orch : clean
+  end
+
+  opt decision is genuinely ambiguous
+    Orch -> Dev : ask clarifying question(s)
+    Dev --> Orch : answer
+    note right of Orch
+      Mandatory pause. The skill NEVER guesses
+      an ambiguous modeling/implementation
+      decision; it blocks on the user.
+    end note
+  end
+
+  Orch -> Impl : /mdd-implement (write code)
+  Impl --> Orch : code changed
+  Orch -> Map : /mdd-map (refresh current + @desc)
+  Map --> Orch : current refreshed
+  Orch -> Val : /mdd-validate
+  Val --> Orch : clean
+  Orch -> Rev : /mdd-review (ID + security parity)
+  alt mismatch
+    Rev --> Orch : .diff.puml / .security.diff.puml
+  else match
+    Rev --> Orch : parity closed
+  end
+end
+
+Orch -> Store : snapshot current/ -> after/\nwrite <diagram>.diff.puml\nclose cycle N (status=Closed)
+Store --> Orch : cycle N closed
+Orch --> Dev : cycle N complete (summary + diff ready)
+@enduml

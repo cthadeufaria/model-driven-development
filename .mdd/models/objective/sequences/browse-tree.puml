@@ -1,0 +1,43 @@
+@startuml
+' @id(SEQ-BROWSE-TREE)
+' @ref(USE-BROWSE-TREE)
+'
+' Objective-side flow for the VSCode-style directory tree rail, with an
+' alternate "group by cycle" organization (USE-GROUP-BY-CYCLE).
+'
+' @desc(SEQ-BROWSE-TREE, "How the left rail builds a collapsible directory tree from the model registry, with a toggle to instead group diagrams under the cycle that last touched them.")
+title Browse models in a directory tree (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "ModelRegistry\n(mdd-core)" as Reg
+participant "CycleRegistry\n(mdd-core)" as CReg
+participant "TreeModel\n(nested nodes)" as Tree
+participant "egui SidePanel\n(left rail)" as Rail
+
+Dev -> Viewer : open viewer
+Viewer -> Reg : model files
+Reg --> Viewer : files (path, kind, ids)
+
+alt organize = Directory (default)
+  Viewer -> Tree : build from file paths\n(.mdd/models/<side>/<kind>/<file>)
+  Tree --> Viewer : nested folder/file nodes
+else organize = By cycle
+  Viewer -> CReg : cycles + files touched per cycle
+  CReg --> Viewer : cycle -> [files]
+  Viewer -> Tree : build cycle-grouped nodes\n(Cycle N > kind > file)
+  Tree --> Viewer : nested cycle nodes
+end
+
+loop each painted frame
+  Viewer -> Rail : render collapsible tree\n(expand/collapse folders, selectable leaves)
+  Rail --> Dev : tree rail
+end
+
+Dev -> Rail : click a diagram leaf
+Rail -> Viewer : select file
+Viewer -> Viewer : load_file(selected)\n(keeps existing canvas/graph behavior)
+
+Dev -> Rail : toggle organize mode
+Rail -> Viewer : rebuild tree (other organization)
+@enduml

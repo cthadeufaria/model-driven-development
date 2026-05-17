@@ -1,0 +1,28 @@
+@startuml
+' @id(DOM-FONT-DATABASE)
+' Objective-only domain concept: the font database the SVG rasterizer
+' depends on. Absent on the current side (the code uses an empty default)
+' — this is the parity gap that /mdd-review surfaces and /mdd-implement closes.
+title Font database for SVG rasterization (objective)
+
+class SvgRasterizer {
+  + parse(bytes) : Tree
+  + render(tree, scale) : Pixmap
+}
+
+class FontDatabase {
+  + fontCount : int
+  + defaultFamily : String
+  + loadSystemFonts() : void
+}
+
+SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
+
+note bottom of FontDatabase
+  Populated once with the host's system fonts
+  before the first parse/render. Constrained by
+  OCL-FONTDB-POPULATED. When the code is fixed,
+  /mdd-map derives this class on the current side
+  and ID parity closes.
+end note
+@enduml
