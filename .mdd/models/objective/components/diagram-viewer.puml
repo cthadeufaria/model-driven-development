@@ -1,8 +1,13 @@
 @startuml
 ' @id(CMP-VIEWER-RENDER-PIPELINE)
+' @id(CMP-OCL-RENDER)
 ' @ref(USE-VIEW-DIAGRAMS)
+' @ref(USE-VIEW-OCL)
+' @desc(CMP-VIEWER-RENDER-PIPELINE, "mdd-viewer's pre-rendered-SVG consumer: reads SVG bytes and rasterizes them through usvg/resvg with a populated font database.")
+' @desc(CMP-OCL-RENDER, "mdd-render OCL synthesizer: turns an .ocl file into a PlantUML constraints diagram and rasterizes it to the deterministic .mdd/rendered/constraints/<name>.svg mirror, like the cycle diff renderer.")
 ' Objective-side component view: the font database is an explicit,
-' populated dependency owned at the usvg boundary.
+' populated dependency owned at the usvg boundary; OCL files get a
+' synthesized constraints diagram via mdd-render.
 title mdd-viewer render pipeline — ownership (objective)
 
 actor "Developer" as Dev
@@ -16,9 +21,15 @@ package "SVG rasterization (external crates)" {
   component "resvg 0.44 +\ntiny-skia 0.11" as Resvg
 }
 component "eframe / egui 0.30\n(window, painter, textures)" as Egui
+component "mdd-render\nsynthesize_ocl_puml +\nrender_ocl_diagrams" as OclRend
+folder ".mdd/constraints/\n*.ocl" as Ocl
 
 Dev --> Viewer : mdd view
 Viewer --> Rendered : read SVG bytes
+OclRend --> Ocl : read *.ocl
+OclRend --> Rendered : write constraints/<name>.svg (mirror)
+Viewer --> Rendered : load constraints/<name>.svg (OCL Diagram sub-mode)
+Viewer --> Ocl : read raw text (OCL Source sub-mode)
 Viewer --> FontDb : load_system_fonts() once
 Usvg --> FontDb : resolves <text> font families
 Viewer --> Usvg : Tree::from_data(opts WITH fontdb)

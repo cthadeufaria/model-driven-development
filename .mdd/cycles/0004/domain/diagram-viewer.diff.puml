@@ -1,0 +1,79 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-FONT-DATABASE)
+' @id(DOM-OCL-VIEW)
+' @desc(DOM-FONT-DATABASE, "Implemented: usvg::fontdb::Database built once by shared_fontdb() and Arc-cloned into usvg::Options at every parse site.")
+' @desc(DOM-OCL-VIEW, "Implemented as mdd-viewer OclView { sub_mode: OclSubMode, loaded, source, page }: state for a selected .ocl file — Source paints raw text, Diagram paints the synthesized constraints SVG.")
+' Current-side viewer domain: the font database the SVG rasterizer
+' depends on (populated by shared_fontdb), plus the OCL-view state.
+title Viewer domain — font database + OCL view (current)
+
+enum OclSubMode <<added>> {
+  Source
+  Diagram
+}
+
+class SvgRasterizer {
+  + parse_intrinsic_size(bytes) : Vec2
+  + rebuild(ctx, zoom) : Result
+}
+
+class FontDatabase {
+  + fontCount : int
+  + defaultFamily : String
+  + loadSystemFonts() : void
+}
+
+class OclView {
+  + sub_mode : OclSubMode
+  + loaded : Option<String>
+  + source : String
+  + page : Option<DiagramPage>
+}
+
+SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
+OclView --> OclSubMode
+
+note bottom of FontDatabase
+  Backed by usvg::fontdb::Database. Built once
+  in shared_fontdb() (static OnceLock), filled
+  by load_system_fonts(), then Arc-cloned into
+  usvg::Options.fontdb at every parse site.
+end note
+
+note bottom of OclView
+  MddViewer::ocl_ui: Source paints `source`
+  (read-only, @id/context/inv colored); Diagram
+  loads Project::rendered_svg_path(.ocl) via
+  DiagramPage and paints it with paint_canvas,
+  else a placeholder (OCL-OCL-VIEW-SUBMODE,
+  OCL-OCL-DIAGRAM-NEEDS-RENDER).
+end note
+@enduml

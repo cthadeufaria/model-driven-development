@@ -1,18 +1,22 @@
 @startsalt
 ' @id(MCK-VIEWER-CYCLE-UI)
 ' @ref(USE-BROWSE-TREE)
+' @ref(USE-DIFF-DIAGRAM)
 ' @ui-viewport(desktop,1280,800)
 ' @ui-element(UIC-RAIL-TREE, role=tree, name="Model directory tree", required=true)
 ' @ui-element(UIC-RAIL-ORGANIZE-TOGGLE, role=button, name="Toggle organize by directory or cycle", required=true)
 ' @ui-element(UIC-VIEW-TAB-DIFF, role=tab, name="Diff", required=true)
+' @ui-element(UIC-DIFF-TOGGLE-DIAGRAM, role=button, name="Diff sub-mode Diagram", required=true)
+' @ui-element(UIC-DIFF-TOGGLE-LIST, role=button, name="Diff sub-mode List", required=true)
 ' @ui-element(UIC-DIFF-LEGEND, role=note, name="Diff legend added green removed red", required=true)
+' @ui-element(UIC-DIFF-CANVAS, role=img, name="Superposed diff diagram canvas", required=true)
 ' @ui-element(UIC-CONTEXT-DESCRIPTION, role=note, name="Selected element description", required=true)
 '
 ' Native egui desktop app: deliberately NO @ui-route — this mockup is a
 ' layout/contract reference for visual review, not a Playwright target
 ' (Playwright cannot drive an eframe native window).
 '
-' @desc(MCK-VIEWER-CYCLE-UI, "Reference layout for the cycle-aware viewer: VSCode-style tree rail with directory/cycle toggle, a Diff tab with green/red legend, and a description block in the MODEL CONTEXT card.")
+' @desc(MCK-VIEWER-CYCLE-UI, "Reference layout for the cycle-aware viewer: tree rail with directory/cycle toggle; Diff mode bound to the selected cycle and the rail-selected file, with an inner Diagram/List toggle, a green/red legend, the superposed diagram canvas, and the MODEL CONTEXT card.")
 title mdd viewer — cycle-aware layout (objective)
 {
   { mdd | /path/to/project }
@@ -24,44 +28,45 @@ title mdd viewer — cycle-aware layout (objective)
       {T
         + .mdd/models
         ++ current
+        +++ domain
+        ++++ <b>canvas-view.puml  (selected)
         +++ use-cases
-        ++++ cycle-tracking.puml
-        +++ sequences
         ++ objective
-        + Cycle 0002 (closed)
-        ++ use-cases/cycle-tracking.puml
-        ++ diff: use-cases.diff.puml
       }
     } |
     {
-      { [Diagram] | [Graph] | [*Diff] }
+      { [Diagram] | [*Diff] }
+      "CYCLE:  [*0002 closed] | [0001 closed]"
+      "view:   [*Diagram] | [List]"
       --
-      "Cycle 0002 — before/after (superposed)"
+      "canvas-view.puml — cycle 0002 (superposed)"
       {
         "shared element (neutral)"
         "<color:green>+ added by this cycle</color>"
         "<color:red>- removed by this cycle</color>"
       }
       .
-      "[ superposed diagram canvas ]"
+      "[ superposed diff diagram canvas — pan/zoom ]"
+      .
+      "(List view here = added/removed/unchanged"
+      " text buckets for canvas-view.puml only)"
     } |
     {
       "MODEL CONTEXT"
       --
       "file"
-      { cycle-tracking.puml }
+      { current/domain/canvas-view.puml }
       "kind"
-      { use case }
+      { domain }
       {^"DESCRIPTION"
-        "USE-RUN-CYCLE"
-        "One-shot orchestration: run the whole"
-        "MDD loop from a single description,"
-        "pausing only for clarifying questions."
+        "DOM-CANVAS-VIEW"
+        "Code struct CanvasView: base zoom/pan"
+        "plus the center-fixed fisheye params."
       }
       "IDS"
-      { USE-RUN-CYCLE | USE-BROWSE-TREE | ... }
+      { DOM-CANVAS-VIEW }
       "TRACE"
-      { USE-RUN-CYCLE -> realizes -> SEQ-RUN-CYCLE }
+      { SEQ-CANVAS-FISHEYE -> depends_on -> DOM-CANVAS-VIEW }
     }
   }
 }

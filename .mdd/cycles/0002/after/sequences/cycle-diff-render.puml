@@ -1,0 +1,36 @@
+@startuml
+' @id(SEQ-RENDER-DIFF-SVG)
+' @ref(USE-DIFF-DIAGRAM)
+'
+' Current-side flow as implemented in mdd_render::render_cycle_diffs:
+' enumerate every .mdd/cycles/<N>/<rel>.diff.puml via
+' Project::cycle_diff_puml_files and rasterize each to its
+' Project::rendered_svg_path mirror with the resolved PlantUML command.
+'
+' @desc(SEQ-RENDER-DIFF-SVG, "As-built: render_cycle_diffs walks Project::cycle_diff_puml_files, then render_paths pipes each .diff.puml through PlantUmlCommand and writes the .mdd/rendered/cycles/<N>/<rel>.diff.svg mirror.")
+title Rasterize cycle diff pumls to SVG (current)
+
+actor "Developer" as Dev
+participant "/mdd-cycle close\nor /mdd-render" as Trigger
+participant "render_cycle_diffs\n(mdd-render)" as Rend
+participant "Project::cycle_diff_puml_files\n(WalkDir .mdd/cycles)" as Core
+participant "render_paths\n+ PlantUmlCommand" as Paths
+database ".mdd/cycles/<N>/\n<rel>.diff.puml" as Store
+database ".mdd/rendered/cycles/<N>/\n<rel>.diff.svg" as Out
+
+Dev -> Trigger : close cycle N (or /mdd-render)
+Trigger -> Rend : render_cycle_diffs(project)
+Rend -> Core : cycle_diff_puml_files()
+Core --> Rend : sorted Vec<PathBuf> of *.diff.puml
+opt no diff pumls yet
+  Rend --> Trigger : empty RenderReport (not an error)
+end
+Rend -> Paths : render_paths(project, plantuml, sources)
+loop each <rel>.diff.puml
+  Paths -> Store : read source
+  Paths -> Paths : out = Project::rendered_svg_path(rel)\n(.mdd/cycles/ -> .mdd/rendered/cycles/,\n.diff.puml -> .diff.svg)
+  Paths -> Out : java -jar plantuml -tsvg -pipe -> write mirror
+end
+Paths --> Rend : rendered project-relative paths
+Rend --> Dev : RenderReport { rendered }
+@enduml

@@ -1,54 +1,78 @@
 @startuml
 ' @id(SEQ-RENDER-CYCLE-DIFF)
 ' @ref(USE-CYCLE-DIFF-VIEW)
+' @ref(USE-DIFF-DIAGRAM)
 '
-' Objective-side flow for the new superposed before/after diff view.
-' The viewer reads a closed cycle's snapshots and renders one diagram
-' with shared elements drawn once, additions green, removals red.
+' Objective-side flow for Diff mode. The view is keyed on the rail-
+' selected file; the cycle is chosen only among cycles that actually
+' changed that file (no global picker), defaulting to the latest. An
+' inner toggle picks the Diagram sub-view (pre-rendered superposed
+' .diff.svg on the canvas) or the List sub-view (per-file buckets).
 '
-' @desc(SEQ-RENDER-CYCLE-DIFF, "How the viewer builds a cycle's superposed diff: read before/ and after/ snapshots, partition elements into unchanged/added/removed, paint added green and removed red.")
-title Render a cycle's superposed before/after diff (objective)
+' @desc(SEQ-RENDER-CYCLE-DIFF, "Diff mode lists only cycles that actually changed the rail-selected file — its CycleDiff has a non-empty added/removed set (a written .diff), not merely present-unchanged in the snapshot (default latest; caption if one; placeholder if none); Diagram paints that cycle's .diff.svg, List shows its buckets.")
+title Render the selected file's cycle diff (objective)
 
 actor "Developer" as Dev
 participant "MddViewer\n(eframe::App)" as Viewer
+participant "DiffView\n(selected cycle + file + sub-mode)" as DV
 participant "CycleRegistry\n(mdd-core)" as Reg
-database ".mdd/cycles/<n>/\nbefore/ , after/" as Store
-participant "DiffEngine\n(element set partition)" as Diff
+database ".mdd/cycles/<n>/\nmanifest, before/, after/,\n<kind>/<name>.diff.puml" as Store
+database ".mdd/rendered/cycles/<n>/\n<kind>/<name>.diff.svg" as Rendered
+participant "DiagramPage\n(usvg/resvg)" as Page
 participant "egui painter" as Painter
 
-Dev -> Viewer : select cycle N in rail, open Diff view
-Viewer -> Reg : cycle(N)
-Reg -> Store : read manifest + before/ + after/ puml
-Store --> Reg : before docs, after docs
-Reg --> Viewer : Cycle { before, after, diff refs }
-
-Viewer -> Diff : superpose(before_doc, after_doc)
-note right of Diff
-  Element identity = @id when present,
-  else the stable PlantUML alias/label.
-  unchanged = before INTERSECT after
-  added     = after  MINUS before  (green)
-  removed   = before MINUS after   (red)
-  Sets are disjoint (OCL-CYCLE-DIFF-PARTITION).
+Dev -> Viewer : select model file F in the rail
+Dev -> Viewer : open Diff mode
+Viewer -> Reg : cycles_with_diff_for(F)
+Reg -> Store : scan cycles + cycle_diffs per cycle
+note right of Reg
+  A cycle counts ONLY if it actually changed F —
+  its CycleDiff for key(F) has a non-empty added
+  or removed set (a written .diff.puml/.diff.svg).
+  A file merely present unchanged in a cycle's
+  before/after snapshot does NOT make the list.
 end note
-Diff --> Viewer : { unchanged[], added[], removed[] }
+Reg --> DV : [cycles that changed key(F)]\n(newest first)
+DV -> DV : key = kind(F) + "/" + name(F)
 
-alt a pre-written <diagram>.diff.puml exists
-  Viewer -> Store : read <diagram>.diff.puml
-  Store --> Viewer : annotated puml (<<added>>/<<removed>>)
-else compute on the fly
-  Viewer -> Viewer : synthesize annotated puml
+opt no cycle changed F
+  DV -> Painter : text("This diagram didn't change in any cycle")
+  Painter --> Dev : placeholder
 end
 
-loop each painted frame
-  Viewer -> Painter : draw shared elements once (neutral)
-  Viewer -> Painter : draw added elements green
-  Viewer -> Painter : draw removed elements red
-  Painter --> Dev : superposed before/after diagram
+alt exactly one such cycle
+  DV -> Dev : caption "Cycle NNNN" (no control)
+else several
+  DV -> Dev : chips of ONLY those cycles\n(default = latest); pick one = N
+end
+DV -> DV : bind(cycle = N, file = F)
+
+alt sub-mode = Diagram (default)
+  DV -> Rendered : resolve .mdd/rendered/cycles/N/<kind>/<name>.diff.svg
+  alt rendered SVG present
+    Rendered --> Page : svg bytes
+    Page -> Page : rasterize at base zoom (cached)
+    loop each painted frame
+      DV -> Painter : paint diff page (pan/zoom reused)
+      note right of Painter
+        SVG already carries <<added>> green
+        and <<removed>> red skinparams baked
+        in by SEQ-RENDER-DIFF-SVG.
+      end note
+      Painter --> Dev : superposed diff diagram
+    end
+  else rendered SVG missing
+    DV -> Painter : text("No rendered diff — run the render pipeline")
+    Painter --> Dev : placeholder
+  end
+else sub-mode = List
+  DV -> DV : take CycleDiff(F).{unchanged, added, removed}
+  DV -> Painter : shared neutral / added green / removed red (text)
+  Painter --> Dev : per-file element buckets
 end
 
-opt cycle has no after/ yet (still Open)
-  Viewer -> Painter : text("Diff available after the cycle closes")
+opt cycle still Open (no after/)
+  DV -> Painter : text("Diff available after the cycle closes")
   Painter --> Dev : placeholder
 end
 @enduml

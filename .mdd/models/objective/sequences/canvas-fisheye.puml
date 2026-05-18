@@ -1,0 +1,40 @@
+@startuml
+' @id(SEQ-CANVAS-FISHEYE)
+' @ref(USE-FISHEYE-FOCUS)
+' @desc(SEQ-CANVAS-FISHEYE, "Per-frame canvas flow: base scale from scroll zoom + drag pan, then a center-fixed fisheye remap of the rendered texture before it is painted; no toolbar zoom buttons exist.")
+' Objective-side flow for the focus+context canvas. The fisheye is a
+' display-time remap applied after the base zoom/pan placement.
+title Focus a diagram region with the center fisheye (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "CanvasView\n(zoom, pan, fisheye)" as CV
+participant "Diagram texture\n(rendered SVG)" as Tex
+participant "egui painter" as Painter
+
+Dev -> Viewer : scroll wheel over canvas
+Viewer -> CV : adjust base zoom at cursor
+Dev -> Viewer : drag canvas
+Viewer -> CV : pan += drag_delta
+note right of CV
+  No Reset / Zoom + / Zoom - buttons exist.
+  Zoom is scroll-only; pan is drag-only.
+  Focal point is FIXED at the canvas centre
+  (see OCL-FISHEYE-FOCAL-CENTER).
+end note
+
+loop each painted frame
+  Viewer -> CV : focal = canvas_rect.center()
+  Viewer -> Tex : sample base-placed texture (zoom * pan)
+  Viewer -> CV : fisheye_remap(point, focal, strength, radius)
+  note right of Viewer
+    Radial remap around the centre: distance d from
+    focal is warped so small d magnifies (bulge) and
+    large d compresses toward the edges. Strength is
+    bounded; at strength 0 the canvas is the plain
+    base placement.
+  end note
+  Viewer -> Painter : paint warped mesh / image with focal magnified
+  Painter --> Dev : centre bulges, edges curve away
+end
+@enduml

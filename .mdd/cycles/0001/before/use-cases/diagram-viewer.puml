@@ -1,0 +1,55 @@
+@startuml
+' @id(USE-VIEW-DIAGRAMS)
+' Current-side use-case view of the `mdd view` interactive diagram viewer.
+' Scope: the "writing in the UI" behavior — painting rendered model
+' diagrams (shapes + text) onto the screen. Text now renders.
+title mdd view — diagram viewer (current)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas" as PanZoom
+  usecase "Inspect trace graph" as Graph
+  usecase "Inspect model IDs and trace links" as Trace
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Graph
+Dev --> Trace
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+Graph ..> Trace : <<include>>
+
+note right of Browse
+  Today: a single flat, alphabetical scroll
+  list of every model file (left rail). No
+  directory tree, no cycle grouping, and no
+  before/after diff view exist in the code.
+end note
+
+note bottom of Trace
+  Right "MODEL CONTEXT" panel today: file path,
+  kind, a raw @id list, and mechanical trace
+  links (from → relation → to) plus test paths
+  for the selected id. There is NO human-readable
+  description of the action / cycle that created
+  a diagram element, and no per-element annotation
+  surfaced on clicking an element.
+end note
+
+note bottom of View
+  Reads pre-rendered SVGs from .mdd/rendered/.
+  If no models are mapped/rendered the canvas
+  shows "No rendered output". Text rendering is
+  realized by SEQ-RENDER-DIAGRAM-PAGE, which
+  consults a populated font database
+  (DOM-FONT-DATABASE) before rasterizing.
+end note
+@enduml

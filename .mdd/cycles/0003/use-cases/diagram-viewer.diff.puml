@@ -1,0 +1,98 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-VIEW-DIAGRAMS)
+' @desc(USE-VIEW-DIAGRAMS, "Developer views a rendered model diagram on the in-app canvas with shapes and text legible.")
+' @id(USE-FISHEYE-FOCUS)
+' @desc(USE-FISHEYE-FOCUS, "Developer focuses on part of a diagram via a center-fixed fisheye that magnifies the canvas centre and compresses content toward the edges, layered on the scroll global zoom.")
+' @id(USE-TOGGLE-PANELS)
+' @desc(USE-TOGGLE-PANELS, "Developer collapses or expands the left MODELS panel and the right MODEL CONTEXT panel via an inner-edge handle, reclaiming canvas width on demand.")
+' Current-side use-case view of the `mdd view` interactive diagram viewer,
+' refreshed from code: the canvas now applies a center-fixed fisheye over
+' the base scroll zoom, the side panels collapse, and the toolbar has no
+' zoom buttons.
+title mdd view — diagram viewer (current)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas\n(scroll zoom, drag pan)" as PanZoom
+  usecase "Focus via center fisheye" as Fisheye
+  usecase "Collapse / expand side panels" as Panels
+  usecase "Inspect model IDs and trace links" as Trace
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Fisheye
+Dev --> Panels
+Dev --> Trace
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+View ..> Fisheye : <<extend>>
+View ..> Panels : <<extend>>
+
+note bottom of Fisheye
+  Code (USE-FISHEYE-FOCUS): the canvas paints the
+  rendered texture through a center-fixed fisheye mesh
+  (CanvasView::fisheye_mesh / warp) — the centre bulges,
+  content compresses toward the edges, corners stay put.
+  Layered on the scroll-at-cursor base zoom; drag pans.
+  Realized by SEQ-CANVAS-FISHEYE.
+end note
+
+note bottom of PanZoom
+  The toolbar has no Reset / Zoom + / Zoom - buttons
+  (removed). Zoom is scroll-only at the cursor; pan is
+  drag-only. A small hint label replaces the buttons.
+end note
+
+note bottom of Panels
+  Code (USE-TOGGLE-PANELS): each SidePanel renders an
+  inner-edge chevron; clicking it sets PanelLayout
+  collapsed and the panel shrinks to an exact-width
+  sliver button that re-expands on click. Realized by
+  SEQ-PANEL-COLLAPSE.
+end note
+
+note bottom of View
+  Reads pre-rendered SVGs from .mdd/rendered/. If no
+  models are mapped/rendered the canvas shows "No
+  rendered output". Text rendering is realized by
+  SEQ-RENDER-DIAGRAM-PAGE, which consults a populated
+  font database (DOM-FONT-DATABASE) before rasterizing.
+end note
+card "Graph" as RemovedByCycle0 <<removed>>
+@enduml

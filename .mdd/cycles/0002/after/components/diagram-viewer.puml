@@ -1,0 +1,43 @@
+@startuml
+' @id(CMP-VIEWER-RENDER-PIPELINE)
+' @ref(USE-VIEW-DIAGRAMS)
+' Current-side component view after the font fix: the font database is a
+' populated dependency owned at the usvg boundary, fed by shared_fontdb().
+title mdd-viewer render pipeline — ownership (current)
+
+actor "Developer" as Dev
+
+component "mdd-cli\nCommands::View" as Cli
+component "mdd-viewer\nMddViewer (eframe::App)\nDiagramPage, shared_fontdb()" as Viewer
+component "mdd-core\nProject, ModelRegistry, Trace" as Core
+folder ".mdd/rendered/\n(pre-rendered SVG)" as Rendered
+folder ".mdd/models/, .mdd/trace.yml" as Models
+
+package "SVG rasterization (external crates)" {
+  component "usvg 0.44\nOptions { fontdb, font_family }" as Usvg
+  component "fontdb 0.22\n(system fonts loaded once)" as FontDb
+  component "resvg 0.44 +\ntiny-skia 0.11" as Resvg
+}
+component "eframe / egui 0.30\n(window, painter, textures)" as Egui
+
+Dev --> Cli : mdd view
+Cli --> Viewer : run(project)
+Cli --> Core : Project::discover
+Viewer --> Core : model_registry(), read_trace()
+Core --> Models : scan
+Viewer --> Rendered : read SVG bytes
+Viewer --> FontDb : shared_fontdb() (OnceLock, once)
+Usvg --> FontDb : resolves <text> font families
+Viewer --> Usvg : Tree::from_data(Options { fontdb, ..default() })
+Usvg --> Resvg : tree
+Resvg --> Viewer : RGBA pixmap (glyphs rasterized)
+Viewer --> Egui : texture + painter.image()
+Egui --> Dev : on-screen diagram with legible text
+
+note bottom of FontDb
+  The font database lives HERE, not in egui.
+  Loaded once via shared_fontdb()'s static
+  OnceLock and Arc-cloned per parse. egui's
+  `default_fonts` is a separate stack.
+end note
+@enduml

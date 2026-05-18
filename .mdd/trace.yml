@@ -81,6 +81,108 @@ links:
   - from: MCK-VIEWER-CYCLE-UI
     to: USE-BROWSE-TREE
     relation: realizes
+  - from: USE-FISHEYE-FOCUS
+    to: SEQ-CANVAS-FISHEYE
+    relation: realizes
+  - from: USE-TOGGLE-PANELS
+    to: SEQ-PANEL-COLLAPSE
+    relation: realizes
+  - from: USE-VIEW-DIAGRAMS
+    to: CMP-VIEWER-SHELL
+    relation: realized_by
+  - from: USE-FISHEYE-FOCUS
+    to: CMP-VIEWER-SHELL
+    relation: realized_by
+  - from: USE-TOGGLE-PANELS
+    to: CMP-VIEWER-SHELL
+    relation: realized_by
+  - from: SEQ-CANVAS-FISHEYE
+    to: DOM-CANVAS-VIEW
+    relation: depends_on
+  - from: SEQ-PANEL-COLLAPSE
+    to: DOM-PANEL-LAYOUT
+    relation: depends_on
+  - from: OCL-FISHEYE-FOCAL-CENTER
+    to: DOM-CANVAS-VIEW
+    relation: constrains
+  - from: OCL-PANEL-SLIVER-MIN
+    to: DOM-PANEL-LAYOUT
+    relation: constrains
+  - from: MCK-VIEWER-CANVAS
+    to: USE-TOGGLE-PANELS
+    relation: realizes
+  - from: USE-DIFF-DIAGRAM
+    to: SEQ-RENDER-CYCLE-DIFF
+    relation: realizes
+  - from: USE-DIFF-DIAGRAM
+    to: SEQ-RENDER-DIFF-SVG
+    relation: realizes
+  - from: USE-DIFF-DIAGRAM
+    to: CMP-VIEWER-CYCLE-UI
+    relation: realized_by
+  - from: USE-DIFF-DIAGRAM
+    to: CMP-DIFF-RENDER
+    relation: realized_by
+  - from: SEQ-RENDER-CYCLE-DIFF
+    to: DOM-DIFF-VIEW
+    relation: depends_on
+  - from: SEQ-RENDER-DIFF-SVG
+    to: DOM-CYCLE-DIFF
+    relation: depends_on
+  - from: CMP-DIFF-RENDER
+    to: CMP-CYCLE-STORE
+    relation: depends_on
+  - from: OCL-DIFF-SVG-PATH-DERIVED
+    to: DOM-CYCLE-DIFF
+    relation: constrains
+  - from: OCL-DIFF-VIEW-BINDING
+    to: DOM-DIFF-VIEW
+    relation: constrains
+  - from: OCL-DIFF-DIAGRAM-NEEDS-RENDER
+    to: DOM-DIFF-VIEW
+    relation: constrains
+  - from: MCK-VIEWER-CYCLE-UI
+    to: USE-DIFF-DIAGRAM
+    relation: realizes
+  - from: USE-VIEW-OCL
+    to: SEQ-VIEW-OCL
+    relation: realizes
+  - from: USE-VIEW-OCL
+    to: CMP-OCL-RENDER
+    relation: realized_by
+  - from: USE-VIEW-OCL
+    to: CMP-VIEWER-RENDER-PIPELINE
+    relation: realized_by
+  - from: SEQ-VIEW-OCL
+    to: DOM-OCL-VIEW
+    relation: depends_on
+  - from: OCL-OCL-VIEW-SUBMODE
+    to: DOM-OCL-VIEW
+    relation: constrains
+  - from: OCL-OCL-DIAGRAM-NEEDS-RENDER
+    to: DOM-OCL-VIEW
+    relation: constrains
+  - from: OCL-DIFF-CYCLE-SCOPED
+    to: DOM-DIFF-VIEW
+    relation: constrains
+  - from: USE-WHOLE-MAP
+    to: SEQ-WHOLE-MAP-ACCUMULATE
+    relation: realizes
+  - from: USE-WHOLE-MAP
+    to: CMP-CYCLE-ORCHESTRATOR
+    relation: realized_by
+  - from: SEQ-WHOLE-MAP-ACCUMULATE
+    to: DOM-WHOLE-MAP
+    relation: depends_on
+  - from: OCL-MAP-LAST-CYCLE-CLOSED
+    to: DOM-WHOLE-MAP
+    relation: constrains
+  - from: OCL-MAP-PROVENANCE-CLOSED
+    to: DOM-WHOLE-MAP
+    relation: constrains
+  - from: OCL-MAP-NET-CANCELS
+    to: DOM-WHOLE-MAP
+    relation: constrains
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -97,6 +199,21 @@ generated_tests:
   - id: AT-USE-ELEMENT-DESC
     path: .mdd/tests/acceptance/use-element-desc.feature
     model_id: USE-ELEMENT-DESC
+  - id: AT-USE-FISHEYE-FOCUS
+    path: .mdd/tests/acceptance/use-fisheye-focus.feature
+    model_id: USE-FISHEYE-FOCUS
+  - id: AT-USE-TOGGLE-PANELS
+    path: .mdd/tests/acceptance/use-toggle-panels.feature
+    model_id: USE-TOGGLE-PANELS
+  - id: AT-USE-DIFF-DIAGRAM
+    path: .mdd/tests/acceptance/use-diff-diagram.feature
+    model_id: USE-DIFF-DIAGRAM
+  - id: AT-USE-VIEW-OCL
+    path: .mdd/tests/acceptance/use-view-ocl.feature
+    model_id: USE-VIEW-OCL
+  - id: AT-USE-WHOLE-MAP
+    path: .mdd/tests/acceptance/use-whole-map.feature
+    model_id: USE-WHOLE-MAP
 generated_ui_tests: []
 source_links:
   - model_id: USE-VIEW-DIAGRAMS
@@ -164,3 +281,64 @@ source_links:
   - model_id: MCK-VIEWER-CYCLE-UI
     path: crates/mdd-viewer/src/lib.rs
     symbol: MddViewer::update
+  - model_id: USE-FISHEYE-FOCUS
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: CanvasView
+  - model_id: USE-TOGGLE-PANELS
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: PanelLayout
+  - model_id: SEQ-CANVAS-FISHEYE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: CanvasView::fisheye_mesh
+  - model_id: SEQ-PANEL-COLLAPSE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: PanelLayout::toggle_left
+  - model_id: DOM-CANVAS-VIEW
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: CanvasView
+  - model_id: DOM-PANEL-LAYOUT
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: PanelLayout
+  - model_id: CMP-VIEWER-SHELL
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::update
+  - model_id: MCK-VIEWER-CANVAS
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::update
+  - model_id: USE-DIFF-DIAGRAM
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::diff_ui
+  - model_id: DOM-DIFF-VIEW
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: DiffView
+  - model_id: DOM-DIFF-VIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::cycles_with_diff_for
+  - model_id: USE-VIEW-OCL
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::ocl_ui
+  - model_id: SEQ-VIEW-OCL
+    path: crates/mdd-render/src/lib.rs
+    symbol: render_ocl_diagrams
+  - model_id: DOM-OCL-VIEW
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: OclView
+  - model_id: CMP-OCL-RENDER
+    path: crates/mdd-render/src/lib.rs
+    symbol: synthesize_ocl_puml
+  - model_id: SEQ-RENDER-DIFF-SVG
+    path: crates/mdd-render/src/lib.rs
+    symbol: render_cycle_diffs
+  - model_id: CMP-DIFF-RENDER
+    path: crates/mdd-render/src/lib.rs
+    symbol: render_cycle_diffs
+  - model_id: SEQ-RENDER-CYCLE-DIFF
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::diff_ui
+  - model_id: USE-WHOLE-MAP
+    path: .claude/skills/mdd-cycle/SKILL.md
+  - model_id: SEQ-WHOLE-MAP-ACCUMULATE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_CYCLE_SKILL
+  - model_id: DOM-WHOLE-MAP
+    path: .mdd/map/manifest.yml

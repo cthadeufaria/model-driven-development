@@ -1,0 +1,25 @@
+@startuml
+' @id(DOM-CANVAS-VIEW)
+' @desc(DOM-CANVAS-VIEW, "View state of the diagram canvas: base zoom and pan plus the center-fixed fisheye parameters (enabled, strength, radius) whose focal point is the canvas centre.")
+' Objective-side domain: the canvas view state. The fisheye is a
+' display-time transform parameterised here; its focal point is the
+' canvas centre, not the cursor.
+title Diagram canvas view state (objective)
+
+class CanvasView {
+  + baseZoom : float
+  + pan : Vec2
+  + fisheyeEnabled : bool
+  + fisheyeStrength : float
+  + fisheyeRadius : float
+  + focal() : Vec2
+}
+
+note bottom of CanvasView
+  baseZoom is driven only by scroll-at-cursor; pan only
+  by drag. focal() returns the canvas-rect centre (the
+  fisheye is center-fixed — see OCL-FISHEYE-FOCAL-CENTER).
+  fisheyeStrength is bounded; 0 means the plain base
+  placement (no warp). No toolbar zoom controls exist.
+end note
+@enduml

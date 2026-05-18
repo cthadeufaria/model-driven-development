@@ -1,0 +1,24 @@
+number: 4
+slug: per-diagram-diff-cycles-and-ocl-view
+entry: generate
+description: "Diff mode: replace the global CYCLE selector with a per-diagram selector listing only cycles where the selected file has a diff (changed rule), default latest, caption when single, placeholder when none. OCL files: a canvas Source|Diagram toggle — Source shows raw OCL text, Diagram shows a synthesized PlantUML constraints diagram rendered via the pipeline."
+status: closed
+opened_at: "2026-05-17T20:19:18Z"
+closed_at: "2026-05-17T20:39:11Z"
+touched_files:
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/domain/diagram-viewer.puml
+  - .mdd/models/current/components/diagram-viewer.puml
+  - .mdd/models/current/sequences/view-ocl.puml
+  - .mdd/models/current/use-cases/cycle-tracking.puml
+  - .mdd/models/current/sequences/cycle-diff-view.puml
+  - .mdd/models/current/domain/cycle-tracking.puml
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/domain/diagram-viewer.puml
+  - .mdd/models/objective/components/diagram-viewer.puml
+  - .mdd/models/objective/sequences/view-ocl.puml
+  - .mdd/models/objective/use-cases/cycle-tracking.puml
+  - .mdd/models/objective/sequences/cycle-diff-view.puml
+  - .mdd/models/objective/domain/cycle-tracking.puml
+  - .mdd/constraints/cycle-tracking.ocl
+  - .mdd/constraints/viewer-ocl.ocl

@@ -1,0 +1,55 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-CANVAS-VIEW)
+' @desc(DOM-CANVAS-VIEW, "Code struct CanvasView: base zoom and pan plus the center-fixed fisheye parameters (enabled, strength, radius); focal() returns the canvas-rect centre.")
+' Current-side domain derived from `struct CanvasView` in
+' crates/mdd-viewer/src/lib.rs.
+title Diagram canvas view state (current)
+
+class CanvasView <<added>> {
+  + base_zoom : f32
+  + pan : Vec2
+  + fisheye_enabled : bool
+  + fisheye_strength : f32
+  + fisheye_radius : f32
+  + focal(rect) : Pos2
+  + warp(p, focal) : Pos2
+  + fisheye_mesh(tex, rect, focal) : Mesh
+}
+
+note bottom of CanvasView
+  base_zoom is changed only by scroll-at-cursor; pan
+  only by drag. focal(rect) = rect.center() (center-fixed,
+  OCL-FISHEYE-FOCAL-CENTER). fisheye_radius is recomputed
+  each frame as the farthest-corner distance (> 0).
+  fisheye_strength is clamped to [0,1]; 0 short-circuits
+  warp() to the plain base placement.
+end note
+@enduml

@@ -1,0 +1,44 @@
+@startsalt
+' @id(MCK-VIEWER-CANVAS)
+' @ref(USE-TOGGLE-PANELS)
+' @ui-viewport(desktop,1280,800)
+' @ui-element(UIC-LEFT-COLLAPSE, role=button, name="Collapse or expand the MODELS panel", required=true)
+' @ui-element(UIC-RIGHT-COLLAPSE, role=button, name="Collapse or expand the MODEL CONTEXT panel", required=true)
+' @ui-element(UIC-CANVAS-FISHEYE, role=img, name="Diagram canvas with center fisheye", required=true)
+'
+' Native egui desktop app: deliberately NO @ui-route — this mockup is a
+' layout/contract reference for visual review, not a Playwright target
+' (Playwright cannot drive an eframe native window). Same convention as
+' MCK-VIEWER-CYCLE-UI.
+'
+' @desc(MCK-VIEWER-CANVAS, "Reference layout: left/right panels each carry an inner-edge collapse chevron; the centre canvas shows the center-fixed fisheye; the toolbar has only the PAGE selector — no Reset/Zoom+/Zoom- buttons.")
+title mdd viewer — fisheye canvas + collapsible panels (objective)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "MODELS  [<]"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        ++ objective
+      }
+    } |
+    {
+      { [Diagram] | [Diff]    "PAGE 1 2" }
+      --
+      "[ canvas — centre bulges (fisheye), edges curve away ]"
+      "scroll = zoom · drag = pan · no zoom buttons"
+    } |
+    {
+      "[>]  MODEL CONTEXT"
+      --
+      "file / kind / DESCRIPTION / IDS / TRACE"
+    }
+  }
+  --
+  "[<] / [>] chevrons collapse a panel to a sliver; click the sliver to expand"
+}
+@endsalt

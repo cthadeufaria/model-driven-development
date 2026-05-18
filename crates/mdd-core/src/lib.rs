@@ -564,6 +564,88 @@ impl Project {
         }
     }
 
+    /// Every superposed `<diagram>.diff.puml` under `.mdd/cycles/`, as
+    /// absolute paths, sorted. The diff-render pass rasterizes each to its
+    /// deterministic `rendered_svg_path` mirror under
+    /// `.mdd/rendered/cycles/` (OCL-DIFF-SVG-PATH-DERIVED).
+    pub fn cycle_diff_puml_files(&self) -> Result<Vec<PathBuf>> {
+        let base = self.root.join(cycle::CYCLES_DIR);
+        let mut files = Vec::new();
+        if !base.is_dir() {
+            return Ok(files);
+        }
+        for entry in WalkDir::new(&base)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+        {
+            let path = entry.path();
+            if entry.file_type().is_file()
+                && path
+                    .to_str()
+                    .is_some_and(|p| p.ends_with(".diff.puml"))
+            {
+                files.push(path.to_path_buf());
+            }
+        }
+        files.sort();
+        Ok(files)
+    }
+
+    /// Cycle numbers (ascending) that actually **changed** `model_rel` —
+    /// a `CycleDiff` for that file's `<kind>/<name>` key with a non-empty
+    /// added or removed set (`!CycleDiff::is_empty()`), matching exactly
+    /// the cycles that have a written `.diff.puml`/`.diff.svg`. A file
+    /// merely present-unchanged in a cycle's before/after snapshot still
+    /// yields an (unchanged-only) `CycleDiff`, but is deliberately
+    /// excluded so the viewer's per-diagram cycle selector never offers
+    /// a cycle that has no diff to show (OCL-DIFF-CYCLE-SCOPED).
+    pub fn cycles_with_diff_for(&self, model_rel: &str) -> Result<Vec<u32>> {
+        let Some(under) = model_rel.strip_prefix(".mdd/models/") else {
+            return Ok(Vec::new());
+        };
+        let Some((_side, key)) = under.split_once('/') else {
+            return Ok(Vec::new());
+        };
+        let registry = self.cycle_registry()?;
+        let mut out = Vec::new();
+        for cycle in &registry.cycles {
+            let diffs = cycle::cycle_diffs(cycle).unwrap_or_default();
+            if diffs
+                .iter()
+                .any(|d| d.diagram == key && !d.is_empty())
+            {
+                out.push(cycle.manifest.number);
+            }
+        }
+        out.sort_unstable();
+        Ok(out)
+    }
+
+    /// Every `.ocl` constraint file under `.mdd/constraints/`, absolute,
+    /// sorted. The OCL-render pass synthesizes a PlantUML constraints
+    /// diagram per file and rasterizes it to its `rendered_svg_path`
+    /// mirror under `.mdd/rendered/constraints/`.
+    pub fn constraint_files(&self) -> Result<Vec<PathBuf>> {
+        let base = self.root.join(".mdd/constraints");
+        let mut files = Vec::new();
+        if !base.is_dir() {
+            return Ok(files);
+        }
+        for entry in WalkDir::new(&base)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+        {
+            let path = entry.path();
+            if entry.file_type().is_file()
+                && path.extension().and_then(|e| e.to_str()) == Some("ocl")
+            {
+                files.push(path.to_path_buf());
+            }
+        }
+        files.sort();
+        Ok(files)
+    }
+
     pub fn validate(&self) -> Result<ValidationReport> {
         self.validate_inner(true)
     }

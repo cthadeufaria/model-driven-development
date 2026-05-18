@@ -1,7 +1,15 @@
 @startuml
 ' @id(USE-VIEW-DIAGRAMS)
-' Objective-side use-case view: same logical use case as current, but its
-' acceptance now requires that diagram TEXT is legible on the canvas.
+' @desc(USE-VIEW-DIAGRAMS, "Developer views a rendered model diagram on the in-app canvas with shapes and text legible.")
+' @id(USE-FISHEYE-FOCUS)
+' @desc(USE-FISHEYE-FOCUS, "Developer focuses on part of a diagram via a center-fixed fisheye that magnifies the canvas centre and compresses content toward the edges, layered on the scroll global zoom.")
+' @id(USE-TOGGLE-PANELS)
+' @desc(USE-TOGGLE-PANELS, "Developer collapses or expands the left MODELS panel and the right MODEL CONTEXT panel via an inner-edge handle, reclaiming canvas width on demand.")
+' @id(USE-VIEW-OCL)
+' @desc(USE-VIEW-OCL, "Developer selects an .ocl constraint file and views it on the canvas with a Source/Diagram toggle: Source shows the raw OCL text, Diagram shows a synthesized PlantUML constraints diagram.")
+' Objective-side use-case view. Same text-legibility acceptance as before,
+' plus the focus+context fisheye, the collapsible side panels, and an
+' OCL constraint viewer; the toolbar no longer carries zoom controls.
 title mdd view — diagram viewer (objective)
 
 left to right direction
@@ -11,27 +19,68 @@ actor "Developer" as Dev
 rectangle "mdd-viewer" {
   usecase "View rendered diagram\n(shapes AND text legible)" as View
   usecase "Browse model files" as Browse
-  usecase "Pan and zoom canvas" as PanZoom
-  usecase "Inspect trace graph" as Graph
+  usecase "Pan and zoom canvas\n(scroll zoom, drag pan)" as PanZoom
+  usecase "Focus via center fisheye" as Fisheye
+  usecase "Collapse / expand side panels" as Panels
   usecase "Inspect model IDs and trace links" as Trace
+  usecase "View OCL constraints\n(source or diagram)" as ViewOcl
 }
 
 Dev --> View
 Dev --> Browse
 Dev --> PanZoom
-Dev --> Graph
+Dev --> Fisheye
+Dev --> Panels
 Dev --> Trace
+Dev --> ViewOcl
 
 View ..> Browse : <<include>>
 View ..> PanZoom : <<extend>>
-Graph ..> Trace : <<include>>
+View ..> Fisheye : <<extend>>
+View ..> Panels : <<extend>>
+ViewOcl ..> PanZoom : <<extend>>
+
+note bottom of ViewOcl
+  Objective (USE-VIEW-OCL): selecting a
+  .mdd/constraints/*.ocl file shows a
+  Source | Diagram toggle on the canvas.
+  Source = raw OCL text (read-only,
+  @id/context/inv highlighted); Diagram =
+  a synthesized PlantUML constraints diagram
+  (context box + inv notes + @ref to the
+  DOM- it constrains) rasterized through the
+  existing SVG pipeline. Realized by
+  SEQ-VIEW-OCL.
+end note
 
 note bottom of View
   Objective: every label, actor, message and
   note in a rendered diagram is visible in the
-  in-app canvas — not only in an external SVG
-  viewer. Realized by SEQ-RENDER-DIAGRAM-PAGE
+  in-app canvas. Realized by SEQ-RENDER-DIAGRAM-PAGE
   which must consult a populated font database
   (DOM-FONT-DATABASE) before rasterizing.
+end note
+
+note bottom of Fisheye
+  Objective (USE-FISHEYE-FOCUS): the canvas applies a
+  center-fixed fisheye over the rendered diagram — the
+  centre bulges/magnifies and content compresses smoothly
+  toward the edges. Layered ON TOP of the existing
+  scroll-to-zoom global zoom; drag still pans to bring a
+  region into the magnified centre. Realized by
+  SEQ-CANVAS-FISHEYE.
+end note
+
+note bottom of PanZoom
+  The toolbar no longer has Reset / Zoom + / Zoom -
+  buttons. Zoom is scroll-only (global, at cursor);
+  the fisheye is the focus mechanism on top of it.
+end note
+
+note bottom of Panels
+  Objective (USE-TOGGLE-PANELS): each side panel shows
+  an inner-edge chevron handle; clicking it collapses
+  the panel to a thin sliver, clicking the sliver
+  re-expands it. Realized by SEQ-PANEL-COLLAPSE.
 end note
 @enduml

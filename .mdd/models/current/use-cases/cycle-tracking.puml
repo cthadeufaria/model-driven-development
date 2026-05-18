@@ -3,7 +3,9 @@
 ' @id(USE-BROWSE-TREE)
 ' @id(USE-GROUP-BY-CYCLE)
 ' @id(USE-CYCLE-DIFF-VIEW)
+' @id(USE-DIFF-DIAGRAM)
 ' @id(USE-ELEMENT-DESC)
+' @id(USE-WHOLE-MAP)
 ' @ref(USE-VIEW-DIAGRAMS)
 '
 ' Current-side use cases for cycle tracking, derived from the
@@ -14,8 +16,10 @@
 ' @desc(USE-RUN-CYCLE, "Implemented as the /mdd-cycle skill: one-shot orchestration of the whole MDD loop from a single description, pausing for clarification.")
 ' @desc(USE-BROWSE-TREE, "Implemented: left rail is a VSCode-style collapsible directory tree (tree.rs TreeNode) instead of a flat list.")
 ' @desc(USE-GROUP-BY-CYCLE, "Implemented: rail Directory/By-cycle toggle groups diagrams under the cycle that touched them, read from .mdd/cycles/.")
-' @desc(USE-CYCLE-DIFF-VIEW, "Implemented: Diff tab shows a cycle's superposed before/after element sets — shared neutral, added green, removed red.")
+' @desc(USE-CYCLE-DIFF-VIEW, "Implemented: MddViewer::diff_ui keys on the rail-selected file; the CYCLE row lists only cycles whose CycleDiff for the file is !is_empty() (real added/removed change, a written .diff) via Project::cycles_with_diff_for — present-unchanged cycles excluded; default latest, caption when one, placeholder when none.")
+' @desc(USE-DIFF-DIAGRAM, "Implemented: diff_ui inner Diagram/List toggle — Diagram paints the file's rendered .diff.svg on the shared canvas (paint_canvas), List shows that file's added/removed/unchanged buckets.")
 ' @desc(USE-ELEMENT-DESC, "Implemented: selecting an @id shows its @desc text in a distinct DESCRIPTION block in the MODEL CONTEXT card.")
+' @desc(USE-WHOLE-MAP, "Implemented: /mdd-cycle's Close step accumulates each cycle's diff into the persisted per-concept .mdd/map/ tree (added @ids copied in with ' @cycle provenance, removed dropped so add-then-remove nets to neither), refreshes .mdd/map/manifest.yml, and snapshots the tree to .mdd/cycles/<N>/whole/. An inspection artifact outside the parity gate.")
 title MDD cycle tracking — use cases (current)
 
 left to right direction
@@ -26,34 +30,57 @@ rectangle "mdd toolchain + viewer" {
   usecase "Run a full MDD cycle\nfrom one description" as RunCycle
   usecase "Browse models in a\ndirectory tree (VSCode-style)" as Tree
   usecase "Group diagrams by cycle" as Group
-  usecase "View a cycle's\nbefore/after diff" as Diff
+  usecase "View the selected file's\nbefore/after diff for a cycle" as Diff
+  usecase "Toggle diff between a\nrendered diagram and the list" as DiffDiagram
   usecase "Read a diagram element's\ndescription" as Desc
+  usecase "Accumulate a whole-map\nbaseline across cycles" as WholeMap
 }
 
 Dev --> RunCycle
 Dev --> Tree
 Dev --> Diff
 Dev --> Desc
+Dev --> WholeMap
 
 Tree ..> Group : <<extend>>
 Diff ..> Tree : <<include>>
+Diff ..> DiffDiagram : <<extend>>
 Tree ..> Desc : <<extend>>
+RunCycle ..> WholeMap : <<extend>>
 
 note right of RunCycle
   Code: the /mdd-cycle skill is registered in
   templates::WORKFLOW_SKILLS and shipped as
   SKILL.md to .claude/ and .codex/. Entry
-  selection (generate vs map-no-comments),
-  cycle-boundary ownership, the parity loop,
-  and the mandatory clarification pause are
-  documented there. Realized by SEQ-RUN-CYCLE.
+  selection, cycle-boundary ownership, the
+  parity loop, and the mandatory clarification
+  pause are documented there. The close step
+  also rasterizes the cycle diff pumls.
+  Realized by SEQ-RUN-CYCLE.
 end note
 
 note bottom of Diff
-  Code: MddViewer::diff_ui consumes
-  Project::cycle_diffs (mdd-core cycle module),
-  rendering shared/added/removed element keys.
-  Realized by SEQ-RENDER-CYCLE-DIFF.
+  Code: MddViewer::diff_ui keys on
+  self.selected_file. The CYCLE row is built
+  from Project::cycles_with_diff_for(file) —
+  cycles whose CycleDiff is !is_empty()
+  (added/removed; present-unchanged excluded),
+  newest first; selected_cycle is constrained
+  to that set and defaults to the latest. One
+  cycle -> caption; none -> "didn't change in
+  any cycle" placeholder. Realized by
+  SEQ-RENDER-CYCLE-DIFF.
+end note
+
+note bottom of DiffDiagram
+  Code: DiffSubMode toggle in diff_ui.
+  Diagram resolves Cycle::diff_puml_rel ->
+  Project::rendered_svg_path, loads it via
+  DiagramPage::load and paints it with the
+  shared paint_canvas (pan/zoom reused);
+  List renders that one file's element
+  buckets. The .diff.svg is pre-rasterized
+  by render_cycle_diffs (SEQ-RENDER-DIFF-SVG).
 end note
 
 note bottom of Desc
@@ -61,5 +88,19 @@ note bottom of Desc
   extract_descs into Project::descriptions();
   shown on selection. Realized by
   SEQ-ELEMENT-DESC.
+end note
+
+note bottom of WholeMap
+  Code: the "Whole-map baseline" section of
+  templates::MDD_CYCLE_SKILL (shipped to
+  .claude/ and .codex/ SKILL.md). The Close
+  step folds each cycle's CycleDiff into
+  .mdd/map/<kind>/<name>.puml (added @ids
+  tagged ' @cycle(<ID>,N), removed dropped —
+  net, no ghost), rewrites manifest.yml, and
+  snapshots .mdd/map/ -> .mdd/cycles/<N>/whole/.
+  /mdd-render rasterizes .mdd/map/**.puml.
+  Outside the parity gate. Realized by
+  SEQ-WHOLE-MAP-ACCUMULATE.
 end note
 @enduml

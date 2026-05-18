@@ -1,0 +1,18 @@
+-- @id(OCL-OCL-VIEW-SUBMODE)
+-- @ref(DOM-OCL-VIEW)
+-- The OCL viewer is always in exactly one of its two sub-modes; Source
+-- has raw text to show, so it never depends on a rendered artifact.
+context OclView
+inv SubModeBinary:
+  self.subMode = OclSubMode::Source
+  or self.subMode = OclSubMode::Diagram
+
+-- @id(OCL-OCL-DIAGRAM-NEEDS-RENDER)
+-- @ref(DOM-OCL-VIEW)
+-- The Diagram sub-mode paints the canvas only when the synthesized
+-- constraints SVG has been rendered; otherwise the viewer shows a
+-- placeholder rather than an empty canvas (it never invokes PlantUML).
+context OclView
+inv DiagramRequiresRenderedSvg:
+  (self.subMode = OclSubMode::Diagram and self.canvasPainted)
+    implies self.renderedSvg(self.oclPath).exists()

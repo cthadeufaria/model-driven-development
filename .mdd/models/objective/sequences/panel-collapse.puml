@@ -1,0 +1,34 @@
+@startuml
+' @id(SEQ-PANEL-COLLAPSE)
+' @ref(USE-TOGGLE-PANELS)
+' @desc(SEQ-PANEL-COLLAPSE, "Clicking a side panel's inner-edge chevron collapses it to a sliver; clicking the sliver re-expands it, widening the canvas in between.")
+' Objective-side flow for collapsing/expanding the left and right panels.
+title Collapse / expand a side panel (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "PanelLayout\n(left/right collapsed)" as PL
+participant "egui SidePanel" as SP
+participant "Canvas" as Canvas
+
+alt panel expanded
+  Viewer -> SP : draw panel + inner-edge chevron handle
+  Dev -> SP : click chevron
+  SP -> PL : set collapsed = true
+  Viewer -> SP : draw thin sliver only (positive width)
+  PL -> Canvas : canvas width grows
+else panel collapsed
+  Viewer -> SP : draw thin sliver with expand chevron
+  Dev -> SP : click sliver
+  SP -> PL : set collapsed = false
+  Viewer -> SP : draw full panel at remembered width
+  PL -> Canvas : canvas width shrinks
+end
+
+note right of PL
+  Left = MODELS rail, right = MODEL CONTEXT.
+  Collapsed state keeps a positive sliver so the
+  panel can always be re-expanded
+  (see OCL-PANEL-SLIVER-MIN).
+end note
+@enduml

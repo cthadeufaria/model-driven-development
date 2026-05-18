@@ -1,0 +1,28 @@
+@startuml
+' @id(DOM-FONT-DATABASE)
+' Current-side domain concept now present in code: the font database the
+' SVG rasterizer depends on, populated once by shared_fontdb() and passed
+' into usvg::Options. Closes the objective-only parity gap.
+title Font database for SVG rasterization (current)
+
+class SvgRasterizer {
+  + parse_intrinsic_size(bytes) : Vec2
+  + rebuild(ctx, zoom) : Result
+}
+
+class FontDatabase {
+  + fontCount : int
+  + defaultFamily : String
+  + loadSystemFonts() : void
+}
+
+SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
+
+note bottom of FontDatabase
+  Backed by usvg::fontdb::Database. Built once
+  in shared_fontdb() (static OnceLock), filled
+  by load_system_fonts(), then Arc-cloned into
+  usvg::Options.fontdb at every parse site.
+  defaultFamily = usvg default ("Times New Roman").
+end note
+@enduml

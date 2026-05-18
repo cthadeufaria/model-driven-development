@@ -1,0 +1,17 @@
+number: 3
+slug: remove-graph-view
+entry: generate
+description: "Remove everything related only to the graph view in the app: the Graph tab and graph.rs/GraphPanel in mdd-viewer, petgraph from mdd-viewer and the unused petgraph dep in mdd-core, the Graph usecase and [Graph] tab token in the viewer use-case/mockup diagrams. Keep the MODEL CONTEXT TRACE list, trace.yml, read_trace, self.trace, selected_id, and the 'Inspect model IDs and trace links' use case."
+status: closed
+opened_at: "2026-05-17T19:40:05Z"
+closed_at: "2026-05-17T19:45:14Z"
+touched_files:
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/mockups/viewer-canvas.puml
+  - .mdd/models/current/mockups/viewer-cycle-ui.puml
+  - .mdd/models/current/sequences/element-description.puml
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/mockups/viewer-canvas.puml
+  - .mdd/models/objective/mockups/viewer-cycle-ui.puml
+  - .mdd/models/objective/sequences/element-description.puml
+  - .mdd/models/objective/sequences/browse-tree.puml

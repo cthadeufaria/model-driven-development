@@ -1,0 +1,52 @@
+@startuml
+' @id(SEQ-VIEW-OCL)
+' @ref(USE-VIEW-OCL)
+'
+' Objective-side flow for viewing an OCL constraint file on the canvas
+' with a Source/Diagram toggle. Diagram reuses the pre-rendered-SVG
+' pipeline; the viewer never invokes PlantUML itself.
+'
+' @desc(SEQ-VIEW-OCL, "How selecting a .ocl file shows a Source/Diagram toggle: Source paints the raw OCL text, Diagram loads the synthesized .mdd/rendered/constraints/<name>.svg via DiagramPage and paints it on the shared canvas.")
+title View an OCL constraint file (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "OclView\n{sub_mode}" as OV
+database ".mdd/constraints/\n<name>.ocl" as Ocl
+participant "synthesize_ocl_puml +\nrender_ocl_diagrams\n(mdd-render)" as Rend
+database ".mdd/rendered/constraints/\n<name>.svg" as Out
+participant "DiagramPage\n(usvg/resvg) + paint_canvas" as Page
+
+Dev -> Viewer : select a .ocl file in the rail
+Viewer -> OV : bind(file)
+Viewer -> Dev : show "Source | Diagram" toggle (default Source)
+
+alt sub_mode = Source (default)
+  Viewer -> Ocl : read raw text
+  Ocl --> Viewer : OCL source
+  loop each painted frame
+    Viewer -> Dev : scrollable read-only text\n(@id / context / inv highlighted)
+  end
+else sub_mode = Diagram
+  OV -> Out : resolve rendered_svg_path(.ocl)\n(.mdd/rendered/constraints/<name>.svg)
+  alt rendered SVG present
+    Out --> Page : svg bytes
+    loop each painted frame
+      Viewer -> Page : paint_canvas (pan/zoom reused)
+      Page --> Dev : synthesized constraints diagram
+    end
+  else SVG missing
+    Viewer -> Dev : "No rendered constraints diagram —\nrun the render pipeline"
+  end
+end
+
+note over Rend
+  render_ocl_diagrams enumerates *.ocl,
+  synthesize_ocl_puml turns each into a
+  PlantUML constraints diagram (context box,
+  inv notes, @ref to the DOM- it constrains),
+  rasterized to the deterministic
+  .mdd/rendered/constraints/<name>.svg mirror.
+  Invoked by /mdd-render and the cycle close.
+end note
+@enduml

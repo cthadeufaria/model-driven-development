@@ -1,0 +1,65 @@
+@startuml
+' @id(USE-RUN-CYCLE)
+' @id(USE-BROWSE-TREE)
+' @id(USE-GROUP-BY-CYCLE)
+' @id(USE-CYCLE-DIFF-VIEW)
+' @id(USE-ELEMENT-DESC)
+' @ref(USE-VIEW-DIAGRAMS)
+'
+' Current-side use cases for cycle tracking, derived from the
+' implemented code: the /mdd-cycle skill (templates::MDD_CYCLE_SKILL +
+' .claude/.codex/skills/mdd-cycle/SKILL.md) and the mdd-viewer rail,
+' Diff tab, and MODEL CONTEXT description block.
+'
+' @desc(USE-RUN-CYCLE, "Implemented as the /mdd-cycle skill: one-shot orchestration of the whole MDD loop from a single description, pausing for clarification.")
+' @desc(USE-BROWSE-TREE, "Implemented: left rail is a VSCode-style collapsible directory tree (tree.rs TreeNode) instead of a flat list.")
+' @desc(USE-GROUP-BY-CYCLE, "Implemented: rail Directory/By-cycle toggle groups diagrams under the cycle that touched them, read from .mdd/cycles/.")
+' @desc(USE-CYCLE-DIFF-VIEW, "Implemented: Diff tab shows a cycle's superposed before/after element sets — shared neutral, added green, removed red.")
+' @desc(USE-ELEMENT-DESC, "Implemented: selecting an @id shows its @desc text in a distinct DESCRIPTION block in the MODEL CONTEXT card.")
+title MDD cycle tracking — use cases (current)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd toolchain + viewer" {
+  usecase "Run a full MDD cycle\nfrom one description" as RunCycle
+  usecase "Browse models in a\ndirectory tree (VSCode-style)" as Tree
+  usecase "Group diagrams by cycle" as Group
+  usecase "View a cycle's\nbefore/after diff" as Diff
+  usecase "Read a diagram element's\ndescription" as Desc
+}
+
+Dev --> RunCycle
+Dev --> Tree
+Dev --> Diff
+Dev --> Desc
+
+Tree ..> Group : <<extend>>
+Diff ..> Tree : <<include>>
+Tree ..> Desc : <<extend>>
+
+note right of RunCycle
+  Code: the /mdd-cycle skill is registered in
+  templates::WORKFLOW_SKILLS and shipped as
+  SKILL.md to .claude/ and .codex/. Entry
+  selection (generate vs map-no-comments),
+  cycle-boundary ownership, the parity loop,
+  and the mandatory clarification pause are
+  documented there. Realized by SEQ-RUN-CYCLE.
+end note
+
+note bottom of Diff
+  Code: MddViewer::diff_ui consumes
+  Project::cycle_diffs (mdd-core cycle module),
+  rendering shared/added/removed element keys.
+  Realized by SEQ-RENDER-CYCLE-DIFF.
+end note
+
+note bottom of Desc
+  Code: @desc(<ID>, "text") parsed by
+  extract_descs into Project::descriptions();
+  shown on selection. Realized by
+  SEQ-ELEMENT-DESC.
+end note
+@enduml

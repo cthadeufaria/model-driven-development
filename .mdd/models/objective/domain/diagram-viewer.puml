@@ -1,9 +1,16 @@
 @startuml
 ' @id(DOM-FONT-DATABASE)
-' Objective-only domain concept: the font database the SVG rasterizer
-' depends on. Absent on the current side (the code uses an empty default)
-' — this is the parity gap that /mdd-review surfaces and /mdd-implement closes.
-title Font database for SVG rasterization (objective)
+' @id(DOM-OCL-VIEW)
+' @desc(DOM-FONT-DATABASE, "The font database the SVG rasterizer depends on; populated once with system fonts before the first parse/render.")
+' @desc(DOM-OCL-VIEW, "Viewer state for a selected .ocl constraint file: sub_mode (Source = raw OCL text, Diagram = synthesized constraints SVG) and the loaded diagram page.")
+' Objective-side viewer domain: the font database the SVG rasterizer
+' depends on, plus the OCL-view state added this cycle.
+title Viewer domain — font database + OCL view (objective)
+
+enum OclSubMode {
+  Source
+  Diagram
+}
 
 class SvgRasterizer {
   + parse(bytes) : Tree
@@ -16,13 +23,28 @@ class FontDatabase {
   + loadSystemFonts() : void
 }
 
+class OclView {
+  + subMode : OclSubMode
+  + sourceText : String
+  + page : Option<DiagramPage>
+  + renderedSvg(oclPath) : Path
+}
+
 SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
+OclView --> OclSubMode
 
 note bottom of FontDatabase
   Populated once with the host's system fonts
   before the first parse/render. Constrained by
-  OCL-FONTDB-POPULATED. When the code is fixed,
-  /mdd-map derives this class on the current side
-  and ID parity closes.
+  OCL-FONTDB-POPULATED.
+end note
+
+note bottom of OclView
+  Source paints sourceText (read-only); Diagram
+  paints the synthesized constraints SVG on the
+  shared canvas. subMode is exactly one of
+  {Source, Diagram}; Diagram requires the
+  rendered SVG to exist, else a placeholder
+  (OCL-OCL-VIEW-SUBMODE, OCL-OCL-DIAGRAM-NEEDS-RENDER).
 end note
 @enduml

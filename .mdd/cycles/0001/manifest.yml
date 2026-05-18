@@ -1,0 +1,22 @@
+number: 1
+slug: viewer-fisheye-and-collapsible-panels
+entry: generate
+description: "Diagram canvas uses a center-fixed fisheye (focus+context) distortion layered on the existing scroll global zoom; remove the Reset/Zoom+/Zoom- toolbar buttons; left and right side panels collapse/expand via inner-edge handles."
+status: closed
+opened_at: "2026-05-17T16:20:20Z"
+closed_at: "2026-05-17T16:38:02Z"
+touched_files:
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/sequences/canvas-fisheye.puml
+  - .mdd/models/current/sequences/panel-collapse.puml
+  - .mdd/models/current/domain/canvas-view.puml
+  - .mdd/models/current/domain/panel-layout.puml
+  - .mdd/models/current/components/viewer-shell.puml
+  - .mdd/models/current/mockups/viewer-canvas.puml
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/sequences/canvas-fisheye.puml
+  - .mdd/models/objective/sequences/panel-collapse.puml
+  - .mdd/models/objective/domain/canvas-view.puml
+  - .mdd/models/objective/domain/panel-layout.puml
+  - .mdd/models/objective/components/viewer-shell.puml
+  - .mdd/models/objective/mockups/viewer-canvas.puml

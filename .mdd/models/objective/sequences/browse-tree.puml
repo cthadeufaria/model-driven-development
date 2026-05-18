@@ -36,7 +36,7 @@ end
 
 Dev -> Rail : click a diagram leaf
 Rail -> Viewer : select file
-Viewer -> Viewer : load_file(selected)\n(keeps existing canvas/graph behavior)
+Viewer -> Viewer : load_file(selected)\n(keeps existing canvas behavior)
 
 Dev -> Rail : toggle organize mode
 Rail -> Viewer : rebuild tree (other organization)

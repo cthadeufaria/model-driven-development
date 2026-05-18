@@ -14,7 +14,7 @@ participant "ModelRegistry\n(mdd-core)" as Reg
 participant "DescIndex\n(@desc per @id)" as Desc
 participant "MODEL CONTEXT card\n(right SidePanel)" as Card
 
-Dev -> Viewer : select an element / @id\n(rail, IDs list, or graph node)
+Dev -> Viewer : select an element / @id\n(rail or IDs list)
 Viewer -> Reg : file + ids for selection
 Reg --> Viewer : selected @id
 Viewer -> Desc : description_for(@id)

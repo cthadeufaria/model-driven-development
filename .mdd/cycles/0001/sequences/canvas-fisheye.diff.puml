@@ -1,0 +1,68 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-CANVAS-FISHEYE)
+' @ref(USE-FISHEYE-FOCUS)
+' @desc(SEQ-CANVAS-FISHEYE, "Per-frame canvas flow in code: base scale from scroll zoom + drag pan, then CanvasView::fisheye_mesh warps the rendered texture around the canvas centre before egui paints it; no toolbar zoom buttons exist.")
+' Current-side flow derived from MddViewer::update / CanvasView in
+' crates/mdd-viewer/src/lib.rs.
+title Focus a diagram region with the center fisheye (current)
+
+actor "Developer" as Dev <<added>>
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "CanvasView\n(base_zoom, pan, fisheye_*)" as CV
+participant "DiagramPage\n(rasterized texture)" as Tex
+participant "egui painter" as Painter
+
+Dev -> Viewer : scroll wheel over canvas (resp.hovered)
+Viewer -> CV : base_zoom *= factor at cursor; pan adjusted
+Dev -> Viewer : drag canvas (resp.dragged)
+Viewer -> CV : pan += drag_delta
+note right of CV
+  No Reset / Zoom +/- buttons (svg_toolbar shows
+  only the PAGE selector + a hint). Focal is the
+  canvas-rect centre (CanvasView::focal); fisheye_radius
+  is set each frame to the farthest-corner distance so
+  corners stay fixed (OCL-FISHEYE-FOCAL-CENTER).
+end note
+
+loop each painted frame
+  Viewer -> Tex : rebuild texture at base_zoom if needed
+  Viewer -> CV : fisheye_mesh(tex, draw_rect, focal)
+  CV -> CV : warp() each grid vertex (56x56) radially
+  note right of CV
+    warp: nd = dist/radius; f = (1-s)*nd + s*sin(nd*PI/2);
+    pos = focal + v * (radius * f / d). Centre magnifies,
+    edges compress. UVs unchanged so text stays crisp.
+  end note
+  CV --> Viewer : textured Mesh
+  Viewer -> Painter : painter.add(Shape::mesh(mesh)) clipped to canvas
+  Painter --> Dev : centre bulges, edges curve away
+end
+@enduml

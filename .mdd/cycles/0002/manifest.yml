@@ -1,0 +1,21 @@
+number: 2
+slug: diff-mode-rendered-diagram
+entry: generate
+description: "In Diff mode, show the selected model file's cycle diff as a rendered diagram with green added / red removed elements drawn in it. Diff mode is bound to the file selected in the left rail and the selected cycle, with an inner Diagram <-> List toggle (List = existing added/removed/unchanged text buckets, scoped to that file)."
+status: closed
+opened_at: "2026-05-17T16:59:44Z"
+closed_at: "2026-05-17T17:49:11Z"
+touched_files:
+  - .mdd/models/current/use-cases/cycle-tracking.puml
+  - .mdd/models/current/sequences/cycle-diff-view.puml
+  - .mdd/models/current/sequences/cycle-diff-render.puml
+  - .mdd/models/current/domain/cycle-tracking.puml
+  - .mdd/models/current/components/cycle-tracking.puml
+  - .mdd/models/current/mockups/viewer-cycle-ui.puml
+  - .mdd/models/objective/use-cases/cycle-tracking.puml
+  - .mdd/models/objective/sequences/cycle-diff-view.puml
+  - .mdd/models/objective/sequences/cycle-diff-render.puml
+  - .mdd/models/objective/domain/cycle-tracking.puml
+  - .mdd/models/objective/components/cycle-tracking.puml
+  - .mdd/models/objective/mockups/viewer-cycle-ui.puml
+  - .mdd/constraints/cycle-tracking.ocl

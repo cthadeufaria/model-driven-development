@@ -78,6 +78,26 @@ impl Cycle {
             self.manifest.number, self.manifest.slug
         )
     }
+
+    /// Project-relative path of the superposed `.diff.puml` for a model
+    /// file in this cycle, e.g.
+    /// `.mdd/models/current/domain/canvas-view.puml`
+    ///   -> `.mdd/cycles/0002/domain/canvas-view.diff.puml`.
+    ///
+    /// Pure path transform (no filesystem access): strip the
+    /// `.mdd/models/<side>/` prefix to the `<kind>/<name>` tail and place
+    /// it under this cycle's directory with the `.diff.puml` suffix. The
+    /// rendered SVG mirror is then `Project::rendered_svg_path` of this
+    /// (OCL-DIFF-SVG-PATH-DERIVED). Returns `None` for non-model paths.
+    pub fn diff_puml_rel(&self, model_rel: &str) -> Option<String> {
+        let under_side = model_rel.strip_prefix(".mdd/models/")?;
+        let (_side, kind_name) = under_side.split_once('/')?;
+        let stem = kind_name.strip_suffix(".puml")?;
+        Some(format!(
+            "{}/{:04}/{stem}.diff.puml",
+            CYCLES_DIR, self.manifest.number
+        ))
+    }
 }
 
 /// All cycles discovered under `.mdd/cycles/`, ordered by number.
@@ -296,9 +316,51 @@ pub fn cycle_diffs(cycle: &Cycle) -> Result<Vec<CycleDiff>> {
     Ok(diffs)
 }
 
+/// PlantUML element keyword to use when re-injecting a removed element
+/// as a red ghost. It must be valid for the diagram type, otherwise
+/// PlantUML rejects the whole `.diff.puml`: `card` is fine in
+/// use-case/class/component diagrams but illegal in a sequence diagram.
+/// `None` means "do not inject removed shapes" (Salt mockups, whose
+/// element identity is `@id`-only and which accept neither card nor
+/// participant).
+fn removed_ghost_keyword(after: &str) -> Option<&'static str> {
+    let mut has_participant = false;
+    let mut has_state_marker = false;
+    for raw in after.lines() {
+        let t = raw.trim();
+        if t.starts_with("@startsalt") {
+            return None;
+        }
+        if t.starts_with('\'') || t.starts_with("//") {
+            continue;
+        }
+        if t.contains("[*]") {
+            has_state_marker = true;
+        }
+        if t.starts_with("participant ")
+            || t.starts_with("boundary ")
+            || t.starts_with("control ")
+            || t.starts_with("entity ")
+            || t.starts_with("collections ")
+            || t.starts_with("queue ")
+        {
+            has_participant = true;
+        }
+    }
+    if has_state_marker {
+        Some("state")
+    } else if has_participant {
+        Some("participant")
+    } else {
+        Some("card")
+    }
+}
+
 /// Build a single superposed PlantUML document from a cycle's before
 /// and after snapshots: shared elements rendered once, additions tagged
-/// `<<added>>` (green), removals injected as `<<removed>>` (red).
+/// `<<added>>` (green), removals injected as `<<removed>>` (red) using a
+/// diagram-type-appropriate ghost element (`removed_ghost_keyword`) so
+/// the result is valid PlantUML for sequence/state diagrams too.
 /// Mirrors the review diff annotator's shape so `/mdd-render` can
 /// rasterize it like any other diagram.
 pub fn annotate_cycle_diff_puml(after: &str, before: &str) -> String {
@@ -330,6 +392,7 @@ skinparam participant {\n  BackgroundColor<<added>> #90EE90\n  BackgroundColor<<
     let before_keys = element_keys(before);
     let after_keys = element_keys(after);
     let removed: Vec<String> = before_keys.difference(&after_keys).cloned().collect();
+    let ghost = removed_ghost_keyword(after);
     let id_pattern = Regex::new(r"@id\(([A-Za-z0-9_.:-]+)\)").expect("valid id regex");
 
     let mut output = String::new();
@@ -350,11 +413,13 @@ skinparam participant {\n  BackgroundColor<<added>> #90EE90\n  BackgroundColor<<
         }
 
         if trimmed.starts_with("@enduml") || trimmed.starts_with("@endsalt") {
-            for (idx, key) in removed.iter().enumerate() {
-                let label = key.trim_start_matches("id:").trim_start_matches("el:");
-                output.push_str(&format!(
-                    "card \"{label}\" as RemovedByCycle{idx} <<removed>>\n"
-                ));
+            if let Some(keyword) = ghost {
+                for (idx, key) in removed.iter().enumerate() {
+                    let label = key.trim_start_matches("id:").trim_start_matches("el:");
+                    output.push_str(&format!(
+                        "{keyword} \"{label}\" as RemovedByCycle{idx} <<removed>>\n"
+                    ));
+                }
             }
             output.push_str(line);
             output.push('\n');
@@ -413,6 +478,21 @@ mod tests {
         for a in &diff.added {
             assert!(!diff.removed.contains(a) && !diff.unchanged.contains(a));
         }
+        assert!(!diff.is_empty(), "a real add/remove is not is_empty()");
+    }
+
+    #[test]
+    fn unchanged_only_diff_is_empty() {
+        // A file present identically in before/ and after/ yields a
+        // CycleDiff with only `unchanged` populated. is_empty() must be
+        // true so Project::cycles_with_diff_for excludes that cycle from
+        // the per-diagram selector (OCL-DIFF-CYCLE-SCOPED): no diff to
+        // show, no rendered .diff.svg, so no button.
+        let doc = "@startuml\n' @id(DOM-A)\nclass A\nclass B\n@enduml\n";
+        let diff = diff_documents("domain/x.puml", doc, doc);
+        assert!(diff.added.is_empty() && diff.removed.is_empty());
+        assert!(!diff.unchanged.is_empty());
+        assert!(diff.is_empty());
     }
 
     #[test]
@@ -422,7 +502,40 @@ mod tests {
         let out = annotate_cycle_diff_puml(after, before);
         assert!(out.contains("<<added>>"));
         assert!(out.contains("RemovedByCycle0 <<removed>>"));
+        // use-case diagram → card ghost is valid
+        assert!(out.contains("card \"Old\" as RemovedByCycle0 <<removed>>"));
         assert!(out.contains("skinparam"));
+    }
+
+    #[test]
+    fn annotate_removed_in_sequence_uses_participant_not_card() {
+        // A removed participant must not be re-injected as `card`
+        // (illegal in a sequence diagram → PlantUML syntax error).
+        let before = "@startuml\nparticipant \"Old\" as Old\nparticipant \"Keep\" as Keep\n@enduml\n";
+        let after = "@startuml\nparticipant \"Keep\" as Keep\n@enduml\n";
+        let out = annotate_cycle_diff_puml(after, before);
+        assert!(out.contains("participant \"Old\" as RemovedByCycle0 <<removed>>"));
+        assert!(!out.contains("card \""));
+    }
+
+    #[test]
+    fn annotate_removed_in_state_uses_state_keyword() {
+        let before = "@startuml\n[*] --> A\nstate A\nstate Gone\n@enduml\n";
+        let after = "@startuml\n[*] --> A\nstate A\n@enduml\n";
+        let out = annotate_cycle_diff_puml(after, before);
+        assert!(out.contains("state \"Gone\" as RemovedByCycle0 <<removed>>"));
+        assert!(!out.contains("card \""));
+    }
+
+    #[test]
+    fn annotate_salt_skips_removed_injection() {
+        // Salt mockups accept neither card nor participant; element
+        // identity is @id-only, so a removed @id must not inject a shape.
+        let before = "@startsalt\n' @id(MCK-OLD)\n{\n  [Old]\n}\n@endsalt\n";
+        let after = "@startsalt\n' @id(MCK-NEW)\n{\n  [New]\n}\n@endsalt\n";
+        let out = annotate_cycle_diff_puml(after, before);
+        assert!(!out.contains("RemovedByCycle"));
+        assert!(!out.contains("card \""));
     }
 
     #[test]
@@ -431,6 +544,38 @@ mod tests {
         let reg = CycleRegistry::scan(tmp.path()).unwrap();
         assert!(reg.cycles.is_empty());
         assert!(reg.latest().is_none());
+    }
+
+    #[test]
+    fn diff_puml_rel_mirrors_model_path_under_cycle() {
+        let cycle = Cycle {
+            manifest: CycleManifest {
+                number: 2,
+                slug: "x".into(),
+                entry: EntryPoint::Generate,
+                description: String::new(),
+                status: CycleStatus::Closed,
+                opened_at: String::new(),
+                closed_at: None,
+                touched_files: vec![],
+            },
+            dir: PathBuf::from(".mdd/cycles/0002"),
+            before_dir: PathBuf::from(".mdd/cycles/0002/before"),
+            after_dir: Some(PathBuf::from(".mdd/cycles/0002/after")),
+        };
+        assert_eq!(
+            cycle
+                .diff_puml_rel(".mdd/models/current/domain/canvas-view.puml")
+                .as_deref(),
+            Some(".mdd/cycles/0002/domain/canvas-view.diff.puml")
+        );
+        assert_eq!(
+            cycle
+                .diff_puml_rel(".mdd/models/objective/use-cases/cycle-tracking.puml")
+                .as_deref(),
+            Some(".mdd/cycles/0002/use-cases/cycle-tracking.diff.puml")
+        );
+        assert_eq!(cycle.diff_puml_rel("crates/foo.rs"), None);
     }
 
     #[test]

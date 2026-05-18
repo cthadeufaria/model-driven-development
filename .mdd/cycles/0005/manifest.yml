@@ -1,0 +1,15 @@
+number: 5
+slug: fix-diff-cycle-selector-unchanged
+entry: generate
+description: "Diff mode's per-diagram cycle selector showed a chip for every cycle that merely contains the file in its before/after snapshot (cycle_diffs counts unchanged-only files as a diff), so cycles that did not change the file appeared with a 'No rendered diff' placeholder. Fix: cycles_with_diff_for now requires a real change (CycleDiff !is_empty(): added/removed non-empty), matching exactly the cycles that have a written .diff.puml/.diff.svg."
+status: closed
+opened_at: "2026-05-18T09:38:07Z"
+closed_at: "2026-05-18T09:41:58Z"
+touched_files:
+  - .mdd/models/current/use-cases/cycle-tracking.puml
+  - .mdd/models/current/sequences/cycle-diff-view.puml
+  - .mdd/models/current/domain/cycle-tracking.puml
+  - .mdd/models/objective/use-cases/cycle-tracking.puml
+  - .mdd/models/objective/sequences/cycle-diff-view.puml
+  - .mdd/models/objective/domain/cycle-tracking.puml
+  - .mdd/constraints/cycle-tracking.ocl

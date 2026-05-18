@@ -1,0 +1,21 @@
+@startuml
+' @id(DOM-PANEL-LAYOUT)
+' @desc(DOM-PANEL-LAYOUT, "Layout state of the two side panels: whether the left MODELS rail and right MODEL CONTEXT panel are collapsed, plus the sliver width kept so a collapsed panel can be re-expanded.")
+' Objective-side domain: collapse state of the side panels.
+title Side-panel layout state (objective)
+
+class PanelLayout {
+  + leftCollapsed : bool
+  + rightCollapsed : bool
+  + sliverWidth : float
+  + toggleLeft() : void
+  + toggleRight() : void
+}
+
+note bottom of PanelLayout
+  A collapsed panel still renders a thin sliver of
+  width sliverWidth > 0 carrying an expand chevron,
+  so it can always be brought back
+  (see OCL-PANEL-SLIVER-MIN).
+end note
+@enduml

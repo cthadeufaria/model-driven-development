@@ -3,14 +3,18 @@
 ' @id(DOM-CYCLE-DIFF)
 ' @id(DOM-ELEMENT-DESCRIPTION)
 ' @id(DOM-CYCLE-REGISTRY)
+' @id(DOM-DIFF-VIEW)
+' @id(DOM-WHOLE-MAP)
 '
 ' Objective-side domain model for cycle tracking. New concepts, absent on
 ' the current side until /mdd-implement + /mdd-map close the parity gap.
 '
 ' @desc(DOM-CYCLE, "One tracked MDD loop: its entry point, description, status, the model files it touched, and its before/after snapshot directories.")
-' @desc(DOM-CYCLE-DIFF, "Per-diagram element partition between a cycle's before and after current-side snapshots: unchanged, added, removed.")
+' @desc(DOM-CYCLE-DIFF, "Per-diagram element partition between a cycle's before and after current-side snapshots: unchanged, added, removed, plus the path of its rendered superposed .diff.svg.")
 ' @desc(DOM-ELEMENT-DESCRIPTION, "The @desc(<ID>, text) marker: a one-line human description attached to a model @id, surfaced in the MODEL CONTEXT card.")
 ' @desc(DOM-CYCLE-REGISTRY, "Scans .mdd/cycles/ into an ordered list of Cycle records for the viewer rail and diff view; analogous to ModelRegistry.")
+' @desc(DOM-DIFF-VIEW, "Viewer Diff-mode state: the selected cycle, the file selected in the rail, and the sub-mode (Diagram renders the .diff.svg, List shows that file's text buckets).")
+' @desc(DOM-WHOLE-MAP, "The persisted per-concept .mdd/map/ accumulation plus manifest.yml: built by replaying each closed cycle's CycleDiff onto it (added @ids copied in with @cycle provenance, removed dropped so add-then-remove nets to neither), snapshotted per cycle under .mdd/cycles/<N>/whole/. An inspection baseline only — read by nothing in the parity gate.")
 title Cycle tracking domain (objective)
 
 enum EntryPoint {
@@ -22,6 +26,11 @@ enum CycleStatus {
   Open
   Closed
   Aborted
+}
+
+enum DiffSubMode {
+  Diagram
+  List
 }
 
 class Cycle {
@@ -43,6 +52,7 @@ class CycleDiff {
   + added : Set<ElementKey>
   + removed : Set<ElementKey>
   + annotatedPuml : Path
+  + diffSvg : Path
 }
 
 class ElementDescription {
@@ -57,11 +67,41 @@ class CycleRegistry {
   + latest() : Cycle?
 }
 
+class DiffView {
+  + selectedCycle : int?
+  + selectedFile : String?
+  + subMode : DiffSubMode
+  + cyclesWithDiffFor(file) : List<int>
+  + diffFor(cycle, file) : CycleDiff?
+  + renderedSvg(cycle, file) : Path
+}
+
+class WholeMap {
+  + version : int
+  + lastCycle : int?
+  + generatedAt : Timestamp
+  + files : List<Path>
+  + accumulate(diff : CycleDiff, cycle : int)
+  + provenanceOf(elementId) : int
+  + snapshotInto(cycleDir : Path)
+}
+
+class WholeMapElement {
+  + elementId : String
+  + cycle : int
+  + survivesToLastCycle : Boolean
+}
+
 CycleRegistry "1" o-- "*" Cycle : discovers >
 Cycle "1" o-- "*" CycleDiff : closes with >
 Cycle --> EntryPoint
 Cycle --> CycleStatus
 ElementDescription "*" ..> "1" Cycle : authored during
+DiffView --> DiffSubMode
+DiffView ..> CycleDiff : resolves selected file/cycle to >
+Cycle "1" ..> "1" WholeMap : accumulates into at close >
+WholeMap ..> CycleDiff : applies added/removed of >
+WholeMap "1" o-- "*" WholeMapElement : provenance of >
 
 note bottom of ElementDescription
   targetId must resolve to an existing model
@@ -75,6 +115,12 @@ note bottom of CycleDiff
   disjoint (OCL-CYCLE-DIFF-PARTITION). Element
   identity is the @id, or the stable PlantUML
   alias/label when an element has no @id.
+  diffSvg mirrors annotatedPuml's path under
+  .mdd/rendered/ (OCL-DIFF-SVG-PATH-DERIVED).
+  Removed elements are re-injected with a
+  diagram-type-appropriate ghost keyword so the
+  superposed .diff renders for sequence/state
+  diagrams too, not only card-bearing ones.
 end note
 
 note bottom of Cycle
@@ -83,5 +129,38 @@ note bottom of Cycle
   (OCL-CYCLE-CLOSED-HAS-SNAPSHOTS). entry is
   Generate iff the run started from a
   description (OCL-CYCLE-ENTRY-VALID).
+end note
+
+note bottom of DiffView
+  Diff mode is keyed on selectedFile.
+  selectedCycle is constrained to
+  cyclesWithDiffFor(selectedFile) — the cycles
+  whose CycleDiff for the file has a non-empty
+  added/removed set (a real change with a
+  written .diff), NOT cycles where the file is
+  only present-unchanged in the snapshot — and
+  defaults to the latest of them
+  (OCL-DIFF-CYCLE-SCOPED); it still renders
+  exactly the CycleDiff for that (cycle,file)
+  pair (OCL-DIFF-VIEW-BINDING). subMode is
+  exactly one of {Diagram, List}; Diagram
+  requires the rendered SVG to exist
+  (OCL-DIFF-DIAGRAM-NEEDS-RENDER).
+end note
+
+note bottom of WholeMap
+  Maintained only by /mdd-cycle's Close step,
+  one CycleDiff application per cycle — never
+  re-derived from code, no render-time fold.
+  lastCycle names a Closed cycle or is null
+  when none (OCL-MAP-LAST-CYCLE-CLOSED). Every
+  @id in the tree carries exactly one
+  ' @cycle(<ID>,N) and N is a Closed cycle <=
+  lastCycle (OCL-MAP-PROVENANCE-CLOSED). An @id
+  added then later removed is absent, not
+  ghosted (OCL-MAP-NET-CANCELS). The OCL-MAP-*
+  invariants describe the artifact; they are
+  not parity gates — validate/review/cycle
+  never read .mdd/map/.
 end note
 @enduml

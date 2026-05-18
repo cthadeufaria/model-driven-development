@@ -34,3 +34,56 @@ inv DisjointBuckets:
 context ElementDescription
 inv NonEmptyAndResolves:
   self.text <> '' and self.targetId <> ''
+
+-- @id(OCL-DIFF-SVG-PATH-DERIVED)
+-- @ref(DOM-CYCLE-DIFF)
+-- A diff's rendered SVG path is a pure deterministic mirror of its
+-- annotated puml path: the .mdd/cycles/ prefix becomes
+-- .mdd/rendered/cycles/ and the .diff.puml suffix becomes .diff.svg,
+-- with the cycle number and <kind>/<name> relative path preserved.
+context CycleDiff
+inv DiffSvgMirrorsPuml:
+  self.diffSvg =
+    self.annotatedPuml
+      .replace('.mdd/cycles/', '.mdd/rendered/cycles/')
+      .replace('.diff.puml', '.diff.svg')
+
+-- @id(OCL-DIFF-VIEW-BINDING)
+-- @ref(DOM-DIFF-VIEW)
+-- Diff mode is bound to BOTH a selected cycle and a selected rail file;
+-- whatever it renders is exactly the CycleDiff for that (cycle, file)
+-- pair, and the sub-mode is exactly one of Diagram or List.
+context DiffView
+inv BoundToSelectionPair:
+  (self.selectedCycle->notEmpty() and self.selectedFile->notEmpty())
+    implies self.diffFor(self.selectedCycle, self.selectedFile)
+              = self.resolvedDiff
+  and (self.subMode = DiffSubMode::Diagram
+       or self.subMode = DiffSubMode::List)
+
+-- @id(OCL-DIFF-CYCLE-SCOPED)
+-- @ref(DOM-DIFF-VIEW)
+-- The selectable/active cycle is never a global choice: it must be one
+-- of the cycles that actually CHANGED the selected file — its CycleDiff
+-- has a non-empty added or removed set (a written .diff) — never a cycle
+-- where the file is merely present-unchanged in the before/after
+-- snapshot. So the user is only ever offered diffs the selected diagram
+-- has genuinely been part of.
+context DiffView
+inv CycleScopedToFile:
+  (self.selectedFile->notEmpty() and self.selectedCycle->notEmpty())
+    implies self.cyclesWithDiffFor(self.selectedFile)
+              ->includes(self.selectedCycle)
+  and self.cyclesWithDiffFor(self.selectedFile)
+        ->forAll(c | c.diffFor(self.selectedFile).added->notEmpty()
+                      or c.diffFor(self.selectedFile).removed->notEmpty())
+
+-- @id(OCL-DIFF-DIAGRAM-NEEDS-RENDER)
+-- @ref(DOM-DIFF-VIEW)
+-- The Diagram sub-mode paints the canvas only when the derived diff SVG
+-- has been rendered; otherwise the viewer shows a placeholder rather
+-- than an empty canvas (the viewer never invokes PlantUML itself).
+context DiffView
+inv DiagramRequiresRenderedSvg:
+  (self.subMode = DiffSubMode::Diagram and self.canvasPainted)
+    implies self.renderedSvg(self.selectedCycle, self.selectedFile).exists()

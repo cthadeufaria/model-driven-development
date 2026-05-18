@@ -1,0 +1,16 @@
+-- @id(OCL-FISHEYE-FOCAL-CENTER)
+-- @ref(DOM-CANVAS-VIEW)
+-- The fisheye is center-fixed: its focal point is always the canvas
+-- centre, never the cursor. Strength is bounded and non-negative; a
+-- strength of 0 is the plain base placement (no warp).
+context CanvasView
+inv FocalIsCanvasCenter: self.focal() = self.canvasRect.center()
+inv StrengthBounded: self.fisheyeStrength >= 0.0 and self.fisheyeRadius > 0.0
+
+-- @id(OCL-PANEL-SLIVER-MIN)
+-- @ref(DOM-PANEL-LAYOUT)
+-- A collapsed side panel must still expose a positive sliver so it can
+-- always be re-expanded; the panel can never become unreachable.
+context PanelLayout
+inv CollapsedKeepsSliver:
+  (self.leftCollapsed or self.rightCollapsed) implies self.sliverWidth > 0.0

@@ -1,0 +1,37 @@
+@startuml
+' @id(CMP-VIEWER-SHELL)
+' @ref(USE-VIEW-DIAGRAMS)
+' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer: collapsible left/right SidePanels, a toolbar with no zoom buttons, and a center-fixed fisheye canvas stage that warps the rendered texture before painting.")
+' Objective-side component view of the viewer UI shell — the part this
+' cycle changes. The render/font pipeline remains CMP-VIEWER-RENDER-PIPELINE.
+title mdd-viewer UI shell — ownership (objective)
+
+actor "Developer" as Dev
+
+component "MddViewer\n(eframe::App)" as Viewer
+component "Left SidePanel\nMODELS (collapsible)" as Left
+component "Right SidePanel\nMODEL CONTEXT (collapsible)" as Right
+component "Toolbar\n(PAGE selector only —\nno Reset/Zoom+/Zoom-)" as Toolbar
+component "Fisheye canvas stage\n(center-fixed warp)" as Fisheye
+component "PanelLayout\n(left/right collapsed)" as PL
+component "CanvasView\n(zoom, pan, fisheye params)" as CV
+component "eframe / egui 0.30" as Egui
+
+Dev --> Viewer : mdd view
+Viewer --> Left : draw + inner-edge collapse handle
+Viewer --> Right : draw + inner-edge collapse handle
+Left --> PL : toggleLeft()
+Right --> PL : toggleRight()
+Viewer --> Toolbar : draw (no zoom controls)
+Viewer --> Fisheye : warp rendered texture
+Fisheye --> CV : focal = centre, strength, radius
+Viewer --> Egui : painter mesh / image
+Egui --> Dev : centre-magnified diagram, collapsible panels
+
+note bottom of Fisheye
+  Objective: the fisheye is a display-time stage layered
+  on the base zoom/pan placement. It does not change the
+  render/font pipeline (CMP-VIEWER-RENDER-PIPELINE); it
+  remaps where the already-rasterized texture is painted.
+end note
+@enduml

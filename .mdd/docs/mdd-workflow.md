@@ -55,6 +55,12 @@ Implement cycle:
 
 Every significant `@id(...)` should also carry a one-line `@desc(<ID>, "what this element is")` marker in the same file. The viewer surfaces it in the MODEL CONTEXT card when the element is selected; it does not participate in ref resolution. The viewer reads `.mdd/cycles/` to group diagrams by cycle and to render the superposed before/after diff (shared elements once, additions green, removals red).
 
+## Whole-map baseline
+
+`/mdd-cycle` keeps a project-wide **whole-map** under `.mdd/map/` — a per-concept picture of the whole system that grows cycle by cycle. It is maintained only by the cycle **Close** step: after the cycle's `<diagram>.diff.puml` files are written, that cycle's `CycleDiff` is folded into `.mdd/map/<kind>/<name>.puml` (added `@id`s copied in from `after/` and tagged with a `' @cycle(<ID>, <N>)` provenance line, removed `@id`s deleted, unchanged ones keeping their earlier provenance). It is never re-derived from code and there is no `/mdd-map` "whole" mode; accumulation is one cheap diff application per cycle, so an element added by one cycle and removed by a later one nets to **neither** (no `<<removed>>` ghost, unlike a single cycle's `.diff.puml`). `.mdd/map/manifest.yml` records `version`, `last_cycle`, `generated_at`, and `files`. The whole `.mdd/map/` tree is snapshotted into `.mdd/cycles/<N>/whole/` at close so the picture *as of cycle N* is recoverable, and `/mdd-render` rasterizes `.mdd/map/**.puml` to `.mdd/rendered/map/**.svg`.
+
+The whole-map is an inspection artifact **outside the parity gate**: `/mdd-validate`, `/mdd-review`, and the `/mdd-cycle` parity loop never read or gate on `.mdd/map/`. The `OCL-MAP-*` constraints in `.mdd/constraints/whole-map.ocl` describe the artifact's invariants but are not parity checks. Greenfield (no closed cycle) means no `.mdd/map/` tree at all.
+
 ## ID And Ref Conventions
 
 Every PlantUML model file must contain at least one stable `@id(...)` marker. Significant model elements should also have IDs when they need traceability, review, testing, or implementation links.

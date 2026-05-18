@@ -1,0 +1,30 @@
+@startuml
+' @id(SEQ-ELEMENT-DESC)
+' @ref(USE-ELEMENT-DESC)
+'
+' Current-side flow as implemented: descriptions are extracted once at
+' startup (Project::descriptions via extract_descs) and the selected
+' @id's text is rendered in a distinct DESCRIPTION frame.
+'
+' @desc(SEQ-ELEMENT-DESC, "As-built: MddViewer::new caches Project::descriptions(); the MODEL CONTEXT card renders descriptions.get(selected_id) in a colored Frame, else a weak placeholder.")
+title Show a diagram element's description (current)
+
+actor "Developer" as Dev
+participant "MddViewer::new" as New
+participant "Project::descriptions\n(extract_descs)" as Core
+participant "MddViewer::update\n(context panel)" as Card
+
+New -> Core : descriptions()
+Core -> Core : regex @desc(<ID>, "text")\nover model + constraint files
+Core --> New : BTreeMap<String,String>
+New -> New : store self.descriptions
+
+Dev -> Card : select an @id (IDS list / graph)
+Card -> Card : self.selected_id = Some(id)
+alt descriptions has id
+  Card -> Card : Frame (accent stroke + id in yellow)\nitalic description text
+else missing
+  Card -> Card : weak "No description for this element"
+end
+Card --> Dev : DESCRIPTION block in MODEL CONTEXT
+@enduml

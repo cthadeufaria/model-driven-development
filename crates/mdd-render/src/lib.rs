@@ -17,15 +17,42 @@ pub fn render_project(project: &Project) -> Result<RenderReport> {
     if model_files.is_empty() {
         bail!("no PlantUML model files found under .mdd/models");
     }
-
     let plantuml = PlantUmlCommand::resolve()?;
+    let rendered = render_paths(project, &plantuml, model_files)?;
+    Ok(RenderReport { rendered })
+}
+
+/// Rasterize every superposed `<diagram>.diff.puml` under `.mdd/cycles/`
+/// to its deterministic `.mdd/rendered/cycles/<n>/<rel>.diff.svg` mirror
+/// (CMP-DIFF-RENDER / SEQ-RENDER-DIFF-SVG). Invoked by the `/mdd-cycle`
+/// close step and by `/mdd-render`. An empty cycle store is not an error
+/// — the viewer simply has no rendered diff to paint until a cycle closes.
+pub fn render_cycle_diffs(project: &Project) -> Result<RenderReport> {
+    let diff_pumls = project.cycle_diff_puml_files()?;
+    if diff_pumls.is_empty() {
+        return Ok(RenderReport {
+            rendered: Vec::new(),
+        });
+    }
+    let plantuml = PlantUmlCommand::resolve()?;
+    let rendered = render_paths(project, &plantuml, diff_pumls)?;
+    Ok(RenderReport { rendered })
+}
+
+/// Render each PlantUML source file to its `Project::rendered_svg_path`
+/// mirror, returning the project-relative rendered paths.
+fn render_paths(
+    project: &Project,
+    plantuml: &PlantUmlCommand,
+    sources: Vec<PathBuf>,
+) -> Result<Vec<String>> {
     let mut rendered = Vec::new();
-    for model_file in model_files {
-        let source = fs::read_to_string(&model_file)
-            .with_context(|| format!("failed to read {}", model_file.display()))?;
-        let relative = model_file
+    for source_file in sources {
+        let source = fs::read_to_string(&source_file)
+            .with_context(|| format!("failed to read {}", source_file.display()))?;
+        let relative = source_file
             .strip_prefix(project.root())
-            .with_context(|| format!("{} is outside project root", model_file.display()))?
+            .with_context(|| format!("{} is outside project root", source_file.display()))?
             .to_string_lossy()
             .replace('\\', "/");
         let output_path = project.rendered_svg_path(&relative);
@@ -34,7 +61,7 @@ pub fn render_project(project: &Project) -> Result<RenderReport> {
                 .with_context(|| format!("failed to create {}", parent.display()))?;
         }
 
-        let svg = render_plantuml_to_svg(&source, &plantuml)?;
+        let svg = render_plantuml_to_svg(&source, plantuml)?;
         fs::write(&output_path, svg)
             .with_context(|| format!("failed to write {}", output_path.display()))?;
         rendered.push(
@@ -45,7 +72,177 @@ pub fn render_project(project: &Project) -> Result<RenderReport> {
                 .replace('\\', "/"),
         );
     }
+    Ok(rendered)
+}
 
+/// Synthesize a PlantUML "constraints" diagram from an OCL file: each
+/// `context` is a node, its invariants become a note, and an arrow goes
+/// to every `@ref(DOM-...)` it constrains. Pure string transform (no
+/// PlantUML/IO) so it is unit-testable; the rasterization is done by
+/// `render_ocl_diagrams` (CMP-OCL-RENDER / SEQ-VIEW-OCL).
+pub fn synthesize_ocl_puml(ocl: &str, title: &str) -> String {
+    fn marker<'a>(line: &'a str, tag: &str) -> Option<&'a str> {
+        let start = line.find(tag)? + tag.len();
+        let end = line[start..].find(')')? + start;
+        Some(line[start..end].trim())
+    }
+    fn alias(prefix: &str, idx: usize) -> String {
+        format!("{prefix}{idx}")
+    }
+
+    #[derive(Default)]
+    struct Block {
+        id: String,
+        dom: Option<String>,
+        ctx: Option<String>,
+        body: Vec<String>,
+    }
+    let mut blocks: Vec<Block> = Vec::new();
+    for raw in ocl.lines() {
+        let line = raw.trim_end();
+        let t = line.trim();
+        if let Some(id) = marker(t, "@id(") {
+            blocks.push(Block {
+                id: id.to_string(),
+                ..Block::default()
+            });
+            continue;
+        }
+        let Some(b) = blocks.last_mut() else {
+            continue;
+        };
+        if let Some(r) = marker(t, "@ref(") {
+            if r.starts_with("DOM-") {
+                b.dom = Some(r.to_string());
+            }
+            continue;
+        }
+        if t.starts_with("--") {
+            continue;
+        }
+        if let Some(rest) = t.strip_prefix("context ") {
+            b.ctx = Some(rest.trim().to_string());
+            continue;
+        }
+        if t.is_empty() {
+            continue;
+        }
+        b.body.push(line.to_string());
+    }
+
+    let mut contexts: Vec<String> = Vec::new();
+    let mut domains: Vec<String> = Vec::new();
+    for b in &blocks {
+        let c = b.ctx.clone().unwrap_or_else(|| "constraints".to_string());
+        if !contexts.contains(&c) {
+            contexts.push(c);
+        }
+        if let Some(d) = &b.dom
+            && !domains.contains(d)
+        {
+            domains.push(d.clone());
+        }
+    }
+
+    let mut out = String::new();
+    out.push_str("@startuml\n");
+    // The diagram mixes `class` (context) and `rectangle` (domain)
+    // nodes; PlantUML requires this directive to allow that.
+    out.push_str("allowmixing\n");
+    out.push_str(&format!("title OCL constraints — {title}\n"));
+    out.push_str("left to right direction\n");
+    out.push_str("skinparam wrapWidth 480\n");
+    out.push_str("skinparam classBackgroundColor #FFF8E1\n");
+    out.push_str("skinparam rectangleBackgroundColor #E3F2FD\n");
+
+    for (i, c) in contexts.iter().enumerate() {
+        out.push_str(&format!(
+            "class \"{}\" as {} <<context>>\n",
+            c,
+            alias("C", i)
+        ));
+    }
+    for (i, d) in domains.iter().enumerate() {
+        out.push_str(&format!(
+            "rectangle \"{}\" as {} <<domain>>\n",
+            d,
+            alias("D", i)
+        ));
+    }
+
+    for (i, c) in contexts.iter().enumerate() {
+        out.push_str(&format!("note bottom of {}\n", alias("C", i)));
+        for b in blocks
+            .iter()
+            .filter(|b| b.ctx.as_deref().unwrap_or("constraints") == c)
+        {
+            out.push_str(&format!("  {}\n", b.id));
+            for l in &b.body {
+                out.push_str(&format!("  {}\n", l.trim_end()));
+            }
+        }
+        out.push_str("end note\n");
+    }
+
+    for b in &blocks {
+        let c = b.ctx.clone().unwrap_or_else(|| "constraints".to_string());
+        if let Some(d) = &b.dom {
+            let ci = contexts.iter().position(|x| x == &c).unwrap_or(0);
+            let di = domains.iter().position(|x| x == d).unwrap_or(0);
+            out.push_str(&format!(
+                "{} ..> {} : {}\n",
+                alias("C", ci),
+                alias("D", di),
+                b.id
+            ));
+        }
+    }
+    out.push_str("@enduml\n");
+    out
+}
+
+/// Rasterize a synthesized constraints diagram for every `.ocl` file to
+/// its `.mdd/rendered/constraints/<name>.svg` mirror, so the viewer's
+/// OCL Diagram sub-mode can paint it. Invoked by `/mdd-render` and the
+/// cycle close. An empty constraint set is not an error.
+pub fn render_ocl_diagrams(project: &Project) -> Result<RenderReport> {
+    let ocls = project.constraint_files()?;
+    if ocls.is_empty() {
+        return Ok(RenderReport {
+            rendered: Vec::new(),
+        });
+    }
+    let plantuml = PlantUmlCommand::resolve()?;
+    let mut rendered = Vec::new();
+    for ocl in ocls {
+        let source = fs::read_to_string(&ocl)
+            .with_context(|| format!("failed to read {}", ocl.display()))?;
+        let relative = ocl
+            .strip_prefix(project.root())
+            .with_context(|| format!("{} is outside project root", ocl.display()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let stem = std::path::Path::new(&relative)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("constraints");
+        let puml = synthesize_ocl_puml(&source, stem);
+        let output_path = project.rendered_svg_path(&relative);
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        let svg = render_plantuml_to_svg(&puml, &plantuml)?;
+        fs::write(&output_path, svg)
+            .with_context(|| format!("failed to write {}", output_path.display()))?;
+        rendered.push(
+            output_path
+                .strip_prefix(project.root())
+                .unwrap_or(&output_path)
+                .to_string_lossy()
+                .replace('\\', "/"),
+        );
+    }
     Ok(RenderReport { rendered })
 }
 
@@ -269,5 +466,26 @@ mod tests {
         assert!(message.contains("PlantUML is not available"));
         assert!(message.contains("MDD_PLANTUML_JAR"));
         assert!(message.contains("plantuml"));
+    }
+
+    #[test]
+    fn synthesize_ocl_puml_emits_context_domain_and_notes() {
+        let ocl = "-- @id(OCL-A)\n-- @ref(DOM-X)\ncontext Foo\ninv One: self.a > 0\n\n\
+                   -- @id(OCL-B)\n-- @ref(DOM-X)\ncontext Foo\ninv Two: self.b <> ''\n";
+        let out = synthesize_ocl_puml(ocl, "sample");
+        assert!(out.starts_with("@startuml\n"));
+        // class + rectangle mix requires the allowmixing directive
+        assert!(out.contains("\nallowmixing\n"));
+        assert!(out.contains("title OCL constraints — sample"));
+        assert!(out.contains("class \"Foo\" as C0 <<context>>"));
+        assert!(out.contains("rectangle \"DOM-X\" as D0 <<domain>>"));
+        // both invariants aggregate under the single Foo context note
+        assert!(out.contains("OCL-A"));
+        assert!(out.contains("inv One: self.a > 0"));
+        assert!(out.contains("OCL-B"));
+        assert!(out.contains("C0 ..> D0 : OCL-A"));
+        assert!(out.trim_end().ends_with("@enduml"));
+        // one context node only (deduped)
+        assert_eq!(out.matches("<<context>>").count(), 1);
     }
 }

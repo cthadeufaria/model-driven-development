@@ -7,7 +7,6 @@ edition.workspace = true
 anyhow.workspace = true
 mdd-core = { path = "../mdd-core" }
 eframe = { version = "0.30", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
-petgraph.workspace = true
 resvg = "0.44"
 usvg = "0.44"
 tiny-skia = "0.11"

@@ -1,0 +1,48 @@
+@startuml
+' @id(SEQ-RENDER-CYCLE-DIFF)
+' @ref(USE-CYCLE-DIFF-VIEW)
+'
+' Current-side flow as implemented: MddViewer::diff_ui ->
+' Project::cycle_diffs -> cycle::cycle_diffs -> diff_documents,
+' rendered as colored element-key lists in the Diff tab.
+'
+' @desc(SEQ-RENDER-CYCLE-DIFF, "As-built diff view: diff_ui caches Project::cycle_diffs(n); element keys are partitioned by cycle::diff_documents and painted neutral/green/red.")
+title Render a cycle's superposed before/after diff (current)
+
+actor "Developer" as Dev
+participant "MddViewer::diff_ui\n(eframe::App)" as Viewer
+participant "Project::cycle_diffs\n(mdd-core)" as Core
+participant "CycleRegistry::scan\ncycle::cycle_diffs" as Reg
+database ".mdd/cycles/<N>/\nbefore/ , after/" as Store
+participant "diff_documents\n(element_keys)" as Diff
+participant "egui ScrollArea" as Painter
+
+Dev -> Viewer : Diff tab, select cycle N
+Viewer -> Core : cycle_diffs(N)
+Core -> Reg : scan .mdd/cycles/ + resolve N
+Reg -> Store : read before/ + after/ *.puml
+Store --> Reg : docs
+Reg -> Diff : diff_documents(name, before, after)
+note right of Diff
+  element_keys = every @id, plus declared
+  PlantUML elements by alias/quoted label.
+  unchanged = before INTERSECT after
+  added     = after MINUS before
+  removed   = before MINUS after
+  (disjoint by construction)
+end note
+Diff --> Reg : CycleDiff { unchanged, added, removed }
+Reg --> Core : Vec<CycleDiff>
+Core --> Viewer : cached (number, diffs)
+
+alt cycle still open (no after/)
+  Viewer -> Painter : "diff available after the cycle closes"
+else closed
+  loop each CycleDiff
+    Viewer -> Painter : shared keys (neutral)
+    Viewer -> Painter : "+ added" (green)
+    Viewer -> Painter : "- removed" (red, strikethrough)
+  end
+end
+Painter --> Dev : superposed element diff
+@enduml

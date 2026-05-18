@@ -1,0 +1,71 @@
+@startsalt
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(MCK-VIEWER-CANVAS)
+' @ref(USE-TOGGLE-PANELS)
+' @ui-viewport(desktop,1280,800)
+' @ui-element(UIC-LEFT-COLLAPSE, role=button, name="Collapse or expand the MODELS panel", required=true)
+' @ui-element(UIC-RIGHT-COLLAPSE, role=button, name="Collapse or expand the MODEL CONTEXT panel", required=true)
+' @ui-element(UIC-CANVAS-FISHEYE, role=img, name="Diagram canvas with center fisheye", required=true)
+'
+' Native egui desktop app: deliberately NO @ui-route — layout/contract
+' reference for visual review, not a Playwright target. Same convention
+' as MCK-VIEWER-CYCLE-UI. Mirrors the shipped MddViewer::update layout.
+'
+' @desc(MCK-VIEWER-CANVAS, "As-built layout: left/right SidePanels each carry an inner-edge collapse chevron and collapse to an exact-width sliver; the centre canvas paints the center-fixed fisheye mesh; the toolbar has only the PAGE selector and a hint — no Reset/Zoom+/Zoom- buttons.")
+title mdd viewer — fisheye canvas + collapsible panels (current)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "MODELS                 [<]"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        ++ objective
+      }
+    } |
+    {
+      { [Diagram] | [Graph] | [Diff]    "PAGE 1 2" }
+      "scroll = zoom · drag = pan · centre = fisheye focus"
+      --
+      "[ canvas — centre bulges (fisheye), edges curve away ]"
+    } |
+    {
+      "[>]      MODEL CONTEXT"
+      --
+      "file / kind / IDS / DESCRIPTION / TRACE"
+    }
+  }
+  --
+  "[<] / [>] chevrons collapse a panel to a sliver; click the sliver to expand"
+}
+@endsalt

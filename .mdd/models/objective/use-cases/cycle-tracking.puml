@@ -3,7 +3,9 @@
 ' @id(USE-BROWSE-TREE)
 ' @id(USE-GROUP-BY-CYCLE)
 ' @id(USE-CYCLE-DIFF-VIEW)
+' @id(USE-DIFF-DIAGRAM)
 ' @id(USE-ELEMENT-DESC)
+' @id(USE-WHOLE-MAP)
 ' @ref(USE-VIEW-DIAGRAMS)
 '
 ' Objective-side use cases for end-to-end MDD cycle tracking. These extend
@@ -12,17 +14,18 @@
 ' a before/after diff view, per-element descriptions, and a new
 ' single-description orchestration entry point.
 '
-' @desc marker contract (new this cycle): a one-line, human-readable
-' sentence describing what a diagram element IS. Authored per significant
-' @id by /mdd-map and /mdd-generate, validated by /mdd-validate, and
-' surfaced by the viewer in the right-hand MODEL CONTEXT card when the
-' element is selected. Syntax: ' @desc(<ID>, "text")
+' @desc marker contract: a one-line, human-readable sentence describing
+' what a diagram element IS. Authored per significant @id by /mdd-map and
+' /mdd-generate, validated by /mdd-validate, surfaced by the viewer in the
+' right-hand MODEL CONTEXT card. Syntax: ' @desc(<ID>, "text")
 '
 ' @desc(USE-RUN-CYCLE, "One-shot orchestration: run the whole MDD loop from a single feature/bug description, pausing only to ask clarifying questions.")
 ' @desc(USE-BROWSE-TREE, "Left rail is a VSCode-style collapsible directory tree of model files instead of a flat alphabetical list.")
 ' @desc(USE-GROUP-BY-CYCLE, "Alternative rail organization that groups diagrams under the cycle that last touched them.")
-' @desc(USE-CYCLE-DIFF-VIEW, "Superposed before/after view of a cycle's current-side diagrams: shared elements once, additions green, removals red.")
+' @desc(USE-CYCLE-DIFF-VIEW, "Diff mode is bound to the model file selected in the left rail; the cycle is chosen only among the cycles that actually changed that file (default the latest such cycle), never a global picker.")
+' @desc(USE-DIFF-DIAGRAM, "Within Diff mode, an inner Diagram/List toggle: Diagram renders the file's superposed .diff diagram (additions green, removals red) on the canvas; List is the added/removed/unchanged text buckets for that same file.")
 ' @desc(USE-ELEMENT-DESC, "Selecting a diagram element shows its @desc text in the MODEL CONTEXT card, distinctly styled.")
+' @desc(USE-WHOLE-MAP, "Each closed cycle accumulates its diff into a persisted per-concept .mdd/map/ baseline: added @ids are copied in with @cycle provenance, removed @ids drop out so add-then-remove nets to neither. The whole-map tree is snapshotted per cycle under .mdd/cycles/<N>/whole/, giving a whole-system picture as of each cycle. It is an inspection artifact outside the parity gate.")
 title MDD cycle tracking — use cases (objective)
 
 left to right direction
@@ -33,18 +36,23 @@ rectangle "mdd toolchain + viewer" {
   usecase "Run a full MDD cycle\nfrom one description" as RunCycle
   usecase "Browse models in a\ndirectory tree (VSCode-style)" as Tree
   usecase "Group diagrams by cycle" as Group
-  usecase "View a cycle's\nbefore/after diff" as Diff
+  usecase "View the selected file's\nbefore/after diff for a cycle" as Diff
+  usecase "Toggle diff between a\nrendered diagram and the list" as DiffDiagram
   usecase "Read a diagram element's\ndescription" as Desc
+  usecase "Accumulate a whole-map\nbaseline across cycles" as WholeMap
 }
 
 Dev --> RunCycle
 Dev --> Tree
 Dev --> Diff
 Dev --> Desc
+Dev --> WholeMap
 
 Tree ..> Group : <<extend>>
 Diff ..> Tree : <<include>>
+Diff ..> DiffDiagram : <<extend>>
 Tree ..> Desc : <<extend>>
+RunCycle ..> WholeMap : <<extend>>
 
 note right of RunCycle
   Entry-point selection:
@@ -56,23 +64,65 @@ note right of RunCycle
   until parity closes. The skill PAUSES and
   asks the user whenever a modeling or
   implementation decision is genuinely
-  ambiguous (clarification is mandatory,
-  never guessed). It owns the cycle boundary:
-  opens the cycle + snapshots the current
-  side before, closes + snapshots + writes
-  the diff after /mdd-review matches.
+  ambiguous. It owns the cycle boundary:
+  opens + snapshots before, closes +
+  snapshots after + writes the diff pumls.
 end note
 
 note bottom of Diff
-  The diff is per current-side diagram, computed
-  from the cycle's before/ and after/ snapshots
-  under .mdd/cycles/<n>/. Realized by
+  Diff mode is keyed on the rail-selected
+  file. The user is NOT asked to pick a
+  cycle globally: the cycle row lists only
+  the cycles that actually changed THIS file
+  (its CycleDiff has added/removed elements —
+  a written .diff; present-unchanged does NOT
+  count), newest first,
+  defaulting to the latest. One such cycle
+  -> shown as a caption (no control); none
+  -> "this diagram didn't change in any
+  cycle" placeholder. Realized by
   SEQ-RENDER-CYCLE-DIFF.
 end note
 
+note bottom of DiffDiagram
+  Inner toggle, default Diagram:
+  - Diagram: the file's superposed
+    <diagram>.diff.svg painted on the
+    existing canvas (pan/zoom reused),
+    additions green, removals red.
+  - List: today's added/removed/unchanged
+    text buckets, scoped to that one file.
+  The diagram SVG is pre-rasterized by the
+  pipeline (SEQ-RENDER-DIFF-SVG); the viewer
+  has no PlantUML engine and only consumes
+  the rendered SVG.
+end note
+
 note bottom of Desc
-  Per-element @desc text only; shown on element
-  selection in the MODEL CONTEXT card. Realized
-  by SEQ-ELEMENT-DESC.
+  Per-element @desc text only; shown on
+  element selection in the MODEL CONTEXT
+  card. Realized by SEQ-ELEMENT-DESC.
+end note
+
+note bottom of WholeMap
+  Produced by /mdd-cycle's Close step (extends
+  RunCycle), never re-derived from code and not
+  a /mdd-map mode. After the cycle's
+  <diagram>.diff.puml is written, each touched
+  concept's CycleDiff is applied to a persisted
+  .mdd/map/<kind>/<name>.puml: added @ids copied
+  from after/ tagged ' @cycle(<ID>,<N>),
+  removed @ids (and their elements) deleted,
+  unchanged @ids keep their earlier provenance.
+  Net cancellation is automatic — a later
+  remove physically deletes what an earlier
+  cycle added (no ghost). .mdd/map/manifest.yml
+  records last_cycle + files; the tree is
+  snapshotted to .mdd/cycles/<N>/whole/.
+  /mdd-render rasterizes .mdd/map/**.puml to
+  .mdd/rendered/map/**.svg. Outside the parity
+  gate: /mdd-validate, /mdd-review and the
+  /mdd-cycle loop never read .mdd/map/.
+  Realized by SEQ-WHOLE-MAP-ACCUMULATE.
 end note
 @enduml
