@@ -1,0 +1,78 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-WHOLE-MAP-ACCUMULATE)
+' @ref(USE-WHOLE-MAP)
+'
+' Current-side flow as implemented by the "Whole-map baseline" section
+' of templates::MDD_CYCLE_SKILL (.claude/.codex/skills/mdd-cycle/SKILL.md)
+' plus the bootstrapped .mdd/map/ tree. Agent-driven prose, like the
+' rest of /mdd-cycle; mdd-core supplies only the read-side CycleDiff.
+'
+' @desc(SEQ-WHOLE-MAP-ACCUMULATE, "As-built: /mdd-cycle's Close step folds a closed cycle's @id add/remove sets into the persisted per-concept .mdd/map/ tree (added copied from after/ with ' @cycle provenance, removed dropped, unchanged kept), rewrites manifest.yml, snapshots to .mdd/cycles/<N>/whole/, and /mdd-render rasterizes .mdd/map/**.")
+title Accumulate the whole-map baseline at cycle close (current)
+
+participant "/mdd-cycle\n(Close step, SKILL.md)" as Close <<added>>
+database ".mdd/cycles/<N>/\nbefore/, after/, whole/" as Snap
+collections "CycleDiff per\ntouched concept" as Diff
+database ".mdd/map/\n<kind>/<name>.puml\n+ manifest.yml" as Map
+participant "/mdd-render" as Render
+
+Close -> Snap : after the cycle's <diagram>.diff.puml\nare written, read before/ and after/
+Close -> Diff : @id add/remove/unchanged per concept
+
+loop for each concept <kind>/<name> in after/
+  alt .mdd/map/<kind>/<name>.puml absent
+    Close -> Map : copy after/ verbatim;\nprepend ' @cycle(<ID>,<N>) per @id
+  else exists
+    Close -> Map : insert added @ids from after/\ntagged ' @cycle(<ID>,<N>)
+    Close -> Map : delete removed @ids + elements\n(net cancel — no ghost)
+    note right of Map
+      unchanged @ids keep earlier
+      ' @cycle(...) provenance.
+    end note
+  end
+end
+
+alt concept in before/ not after/ (file deleted)
+  Close -> Map : remove .mdd/map/<kind>/<name>.puml
+end
+
+Close -> Map : rewrite manifest.yml\n(version, last_cycle=N, generated_at, files)
+Close -> Snap : copy .mdd/map/ -> .mdd/cycles/<N>/whole/
+Close -> Render : /mdd-render
+Render -> Map : rasterize .mdd/map/**.puml\n-> .mdd/rendered/map/**.svg
+
+note over Map
+  Inspection artifact only. /mdd-validate,
+  /mdd-review and the /mdd-cycle parity loop
+  never read .mdd/map/ (OCL-MAP-* constrain
+  WholeMap but are not parity gates).
+end note
+@enduml

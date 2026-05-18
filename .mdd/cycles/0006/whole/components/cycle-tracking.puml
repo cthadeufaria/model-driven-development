@@ -1,0 +1,83 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-CYCLE-ORCHESTRATOR, 0001)
+' @cycle(CMP-CYCLE-STORE, 0001)
+' @cycle(CMP-CORE-CYCLE-MODEL, 0001)
+' @cycle(CMP-VIEWER-CYCLE-UI, 0001)
+' @cycle(CMP-DIFF-RENDER, 0002)
+' @id(CMP-CYCLE-ORCHESTRATOR)
+' @id(CMP-CYCLE-STORE)
+' @id(CMP-CORE-CYCLE-MODEL)
+' @id(CMP-VIEWER-CYCLE-UI)
+' @id(CMP-DIFF-RENDER)
+' @ref(USE-RUN-CYCLE)
+' @ref(USE-CYCLE-DIFF-VIEW)
+' @ref(USE-DIFF-DIAGRAM)
+'
+' Current-side ownership as built. The skill (markdown) owns
+' orchestration + the cycle boundary; mdd-core owns the read model;
+' mdd-render rasterizes diff pumls; mdd-viewer owns the tree/diff/
+' description UI; .mdd/cycles/ is the store.
+'
+' @desc(CMP-CYCLE-ORCHESTRATOR, "Built as the /mdd-cycle skill: templates::MDD_CYCLE_SKILL registered in WORKFLOW_SKILLS, shipped to .claude/ and .codex/skills/mdd-cycle/SKILL.md; its close step rasterizes the cycle diff pumls.")
+' @desc(CMP-CYCLE-STORE, "Built as .mdd/cycles/<N>/ on disk (manifest.yml, before/, after/, <diagram>.diff.puml), created by the skill at runtime.")
+' @desc(CMP-CORE-CYCLE-MODEL, "Built as crates/mdd-core/src/cycle.rs (incl. Cycle::diff_puml_rel) plus extract_descs and Project::{descriptions,cycle_registry,cycle_diffs,cycle_diff_puml_files}.")
+' @desc(CMP-VIEWER-CYCLE-UI, "Built as crates/mdd-viewer/src/tree.rs and the rail/Diff (DiffView, paint_canvas)/DESCRIPTION code in crates/mdd-viewer/src/lib.rs.")
+' @desc(CMP-DIFF-RENDER, "Built as mdd_render::render_cycle_diffs + shared render_paths: rasterizes .mdd/cycles/<N>/<rel>.diff.puml to the .mdd/rendered/cycles/<N>/<rel>.diff.svg mirror.")
+title Cycle tracking — ownership (current)
+
+actor "Developer" as Dev
+
+component "/mdd-cycle\n(SKILL.md + template)" as Orch
+package "existing workflow skills" {
+  component "/mdd-generate" as Gen
+  component "/mdd-map" as MapS
+  component "/mdd-validate" as ValS
+  component "/mdd-implement" as ImplS
+  component "/mdd-review" as RevS
+  component "/mdd-render" as RendS
+}
+
+folder ".mdd/cycles/<N>/\nmanifest.yml, before/, after/,\n<rel>.diff.puml" as Store
+folder ".mdd/rendered/cycles/<N>/\n<rel>.diff.svg" as Rendered
+folder ".mdd/models/, .mdd/trace.yml" as Models
+
+component "mdd-core::cycle\nCycleRegistry, diff_documents,\nextract_descs, diff_puml_rel" as Core
+component "mdd-render\nrender_cycle_diffs, render_paths" as DiffRend
+component "mdd-viewer\ntree.rs, diff_ui (DiffView),\npaint_canvas, DESCRIPTION" as Viewer
+component "eframe / egui 0.30" as Egui
+
+Dev --> Orch : /mdd-cycle [description?]
+Orch --> Gen : entry (description given)
+Orch --> MapS : entry (no description)
+Orch --> ValS : gate
+Orch --> ImplS : write code
+Orch --> RevS : parity
+Orch --> Store : open / before / close / after / diff puml
+Orch --> DiffRend : on close, render_cycle_diffs
+RendS --> DiffRend : /mdd-render diff pumls
+DiffRend --> Store : read <rel>.diff.puml
+DiffRend --> Rendered : write <rel>.diff.svg (rendered_svg_path mirror)
+Gen --> Models : objective + @desc
+MapS --> Models : current + @desc
+
+Dev --> Viewer : mdd view
+Viewer --> Core : descriptions(), cycle_registry(), cycle_diffs()
+Core --> Store : read manifest + snapshots
+Core --> Models : scan models + @desc
+Viewer --> Rendered : load selected file's <rel>.diff.svg (Diagram sub-mode)
+Viewer --> Egui : tree / diff toggle / card widgets
+Egui --> Dev : tree rail + Diagram/List diff + description card
+
+note bottom of Orch
+  Owns the cycle boundary. Standalone
+  /mdd-map and /mdd-generate never open or
+  close a cycle (documented in SKILL.md).
+end note
+
+note bottom of Rendered
+  Viewer has no PlantUML engine; it only
+  consumes pre-rendered SVG. The path is a
+  1:1 mirror (OCL-DIFF-SVG-PATH-DERIVED).
+end note
+@enduml

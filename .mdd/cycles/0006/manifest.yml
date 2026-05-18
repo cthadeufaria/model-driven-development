@@ -1,0 +1,15 @@
+number: 6
+slug: whole-map-accumulate-baseline
+entry: generate
+description: "Whole-map baseline: /mdd-cycle's Close step accumulates each cycle's diff into a persisted per-concept .mdd/map/ tree (added elements copied in with @cycle provenance, removed elements dropped so add-then-remove nets to neither), refreshes .mdd/map/manifest.yml, and snapshots the tree into .mdd/cycles/<N>/whole/. /mdd-render also rasterizes .mdd/map/**. The whole-map is an inspection artifact outside the parity gate; validate/review/cycle ignore it."
+status: closed
+opened_at: "2026-05-18T10:58:47Z"
+closed_at: "2026-05-18T11:14:00Z"
+touched_files:
+  - .mdd/models/current/use-cases/cycle-tracking.puml
+  - .mdd/models/current/domain/cycle-tracking.puml
+  - .mdd/models/current/sequences/whole-map-accumulate.puml
+  - .mdd/models/objective/use-cases/cycle-tracking.puml
+  - .mdd/models/objective/domain/cycle-tracking.puml
+  - .mdd/models/objective/sequences/whole-map-accumulate.puml
+  - .mdd/constraints/whole-map.ocl

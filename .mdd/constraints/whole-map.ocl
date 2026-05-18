@@ -1,0 +1,33 @@
+-- @id(OCL-MAP-LAST-CYCLE-CLOSED)
+-- @ref(DOM-WHOLE-MAP)
+-- The whole-map is accumulated only at cycle close, so its manifest's
+-- lastCycle must name a Closed cycle, or be null when no cycle has
+-- closed yet (greenfield: no .mdd/map/ tree at all).
+context WholeMap
+inv LastCycleClosedOrNull:
+  self.lastCycle->isEmpty()
+  or Cycle.allInstances()->exists(c |
+       c.number = self.lastCycle and c.status = CycleStatus::Closed)
+
+-- @id(OCL-MAP-PROVENANCE-CLOSED)
+-- @ref(DOM-WHOLE-MAP)
+-- Every element kept in the whole-map carries exactly one ' @cycle(N)
+-- provenance marker (the single WholeMapElement.cycle), and that N is a
+-- Closed cycle no later than the manifest's lastCycle — an element
+-- cannot have been introduced by a cycle the baseline has not folded in.
+context WholeMap
+inv EveryElementHasClosedProvenance:
+  self.elements->forAll(e |
+    e.cycle <= self.lastCycle
+    and Cycle.allInstances()->exists(c |
+          c.number = e.cycle and c.status = CycleStatus::Closed))
+
+-- @id(OCL-MAP-NET-CANCELS)
+-- @ref(DOM-WHOLE-MAP)
+-- Accumulation is net: an @id added by one cycle and removed by a later
+-- one is absent from the whole-map (physically deleted, NOT re-injected
+-- as a removed ghost the way a single cycle's .diff.puml shows it). So
+-- every element still present must survive through lastCycle.
+context WholeMap
+inv RemovedAfterAddIsAbsent:
+  self.elements->forAll(e | e.survivesToLastCycle)
