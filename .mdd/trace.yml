@@ -183,6 +183,24 @@ links:
   - from: OCL-MAP-NET-CANCELS
     to: DOM-WHOLE-MAP
     relation: constrains
+  - from: USE-DEPLOY-GUIDANCE
+    to: SEQ-DEPLOY-GUIDANCE
+    relation: realizes
+  - from: USE-DEPLOY-INSPECT
+    to: SEQ-DEPLOY-INSPECT
+    relation: realizes
+  - from: USE-DEPLOY-GUIDANCE
+    to: CMP-DEPLOY-SKILL
+    relation: realized_by
+  - from: USE-DEPLOY-INSPECT
+    to: CMP-DEPLOY-RENDER
+    relation: realized_by
+  - from: SEQ-DEPLOY-GUIDANCE
+    to: CMP-DEPLOY-STORE
+    relation: depends_on
+  - from: CMP-DEPLOY-SKILL
+    to: CMP-DEPLOY-TARGET
+    relation: depends_on
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -342,3 +360,27 @@ source_links:
     symbol: MDD_CYCLE_SKILL
   - model_id: DOM-WHOLE-MAP
     path: .mdd/map/manifest.yml
+  - model_id: USE-DEPLOY-GUIDANCE
+    path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-INSPECT
+    path: .claude/skills/mdd-render/SKILL.md
+  - model_id: SEQ-DEPLOY-GUIDANCE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: SEQ-DEPLOY-INSPECT
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_RENDER_SKILL
+  - model_id: CMP-DEPLOY-SKILL
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: CMP-DEPLOY-STORE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: CMP-DEPLOY-TARGET
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: CMP-DEPLOY-RENDER
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_RENDER_SKILL
+  - model_id: CMP-DEPLOY-PROFILE-DOC
+    path: .mdd/docs/deploy-profile.md

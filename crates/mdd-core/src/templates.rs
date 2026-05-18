@@ -40,6 +40,11 @@ pub const WORKFLOW_SKILLS: &[SkillTemplate] = &[
         description: "Run a full MDD cycle from one description; owns the cycle boundary, loops to parity, pauses for clarification",
         body: MDD_CYCLE_SKILL,
     },
+    SkillTemplate {
+        name: "mdd-deploy",
+        description: "Utility: guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep IaC; never executes deploy commands; outside the parity gate",
+        body: MDD_DEPLOY_SKILL,
+    },
 ];
 
 pub fn skill_markdown(skill: &SkillTemplate) -> String {
@@ -59,6 +64,10 @@ pub fn uml_and_ocl_guide_doc() -> &'static str {
 
 pub fn security_profile_doc() -> &'static str {
     MDD_SECURITY_PROFILE_DOC
+}
+
+pub fn deploy_profile_doc() -> &'static str {
+    MDD_DEPLOY_PROFILE_DOC
 }
 
 pub fn claude_entrypoint() -> &'static str {
@@ -269,8 +278,9 @@ This is a **utility skill, not a workflow gate**. Use it whenever the user wants
 5. Also render any `.diff.puml` files under `.mdd/rendered/review/` produced by `/mdd-review` so the user can inspect the diff diagrams.
 6. Also rasterize every `.mdd/cycles/<N>/<rel>.diff.puml` to its deterministic mirror `.mdd/rendered/cycles/<N>/<rel>.diff.svg` (`.mdd/cycles/` → `.mdd/rendered/cycles/`, `.diff.puml` → `.diff.svg`) so the viewer's Diff mode can paint the superposed diagram for the selected file.
 7. Also rasterize every `.mdd/map/<kind>/<name>.puml` — the whole-map baseline that `/mdd-cycle`'s close step accumulates — to its deterministic mirror `.mdd/rendered/map/<kind>/<name>.svg` (`.mdd/map/` → `.mdd/rendered/map/`) so the accumulated whole-system picture can be inspected externally. An absent `.mdd/map/` tree is not an error.
-8. Also synthesize a PlantUML constraints diagram from every `.mdd/constraints/*.ocl` and rasterize it to `.mdd/rendered/constraints/<name>.svg` (via `mdd_render::render_ocl_diagrams`) so the viewer's OCL Diagram sub-mode can paint it.
-9. Report the list of rendered files and any diagnostic failures. The user reviews them externally.
+8. Also rasterize every `.mdd/deploy/**/*.puml` — the deployment diagrams produced by the `/mdd-deploy` utility skill — to its deterministic mirror `.mdd/rendered/deploy/**/*.svg` (`.mdd/deploy/` → `.mdd/rendered/deploy/`) so the deployment diagram is inspectable like every other diagram. Additive and non-gating; an absent `.mdd/deploy/` tree is not an error.
+9. Also synthesize a PlantUML constraints diagram from every `.mdd/constraints/*.ocl` and rasterize it to `.mdd/rendered/constraints/<name>.svg` (via `mdd_render::render_ocl_diagrams`) so the viewer's OCL Diagram sub-mode can paint it.
+10. Report the list of rendered files and any diagnostic failures. The user reviews them externally.
 
 Rendering is not a gate. Validation, implementation, and review do not depend on a render pass.
 "#;
@@ -333,6 +343,28 @@ The whole-map is an **inspection artifact, outside the parity gate**: `/mdd-vali
 ## Readiness
 
 Rendered SVGs, approvals, and acceptance-test gaps are readiness warnings — report and continue unless the user asks to pause. Structural validation errors block the loop until fixed.
+"#;
+
+const MDD_DEPLOY_SKILL: &str = r#"# MDD Deploy
+
+You are an MDD, UML, PlantUML, and OCL specialist for deployment guidance.
+
+This is a **utility skill, NOT a workflow gate** — a sibling of `/mdd-render`. It produces a UML deployment diagram, generated Infrastructure-as-Code, and an explicit command runbook for a human to run. It **never executes a deploy command** (no `az`, `docker`, `brew`, …). `/mdd-validate`, `/mdd-implement`, `/mdd-review`, and the `/mdd-cycle` parity loop do not depend on it and never read `.mdd/deploy/`.
+
+Read `.mdd/docs/deploy-profile.md` first — it defines the deployment-diagram conventions, the `azure-container-apps` node vocabulary, and the invariant checklist this skill must preserve.
+
+## Workflow
+
+1. Read the deployment description. v1 supports exactly one target: `azure-container-apps` (the sibling repo `../atlas-ate-server`). If any other target is requested, say it is not yet supported and stop.
+2. Read context, **read-only**: `.mdd/models/**/{components,use-cases}/*.puml` (the *what* of the system) and the target repo `../atlas-ate-server` (`README.md`, `Dockerfile`, `docker-compose.yml`, `.env.example`, `src/`) to ground the topology and security invariants in reality.
+3. Whenever a topology or security choice is genuinely ambiguous, **STOP and ask the user** before proceeding — the same clarification discipline as `/mdd-cycle`. Never guess an ambiguous decision.
+4. Write `.mdd/deploy/azure-container-apps/diagram.puml`: a true UML **deployment** diagram — nodes (Azure Container Registry, Container Apps environment + the app revision, Azure Database for PostgreSQL, Azure Key Vault, Azure OpenAI), the deployed artifact (the server container image), and annotated communication paths/protocols. Reuse the stereotype vocabulary (`<<Encrypt>>`, `<<ByPassing>>`, `<<Flooding>>`, `<<Expiration>>`) as **documentation-only** PlantUML stereotypes/notes. These are NOT the gated security-marker mechanism: do not write `@sec` markers here.
+5. Generate `../atlas-ate-server/infra/main.bicep` (+ modules): Container Apps, ACR, Azure Database for PostgreSQL (TLS required), Key Vault + secret references, external ingress on `8080`, and the database migration as a separate Container Apps job run before traffic routing. Cross-repo output is fine — the skill is non-gated guidance.
+6. Write `.mdd/deploy/azure-container-apps/runbook.md`: numbered steps, each with the exact command, the directory / Azure context to run it in, the required env/secret values, and an explicit **STOP / confirm** marker before every state-changing or go-live step. Frame it explicitly as "run these yourself".
+7. Enforce, in both the diagram and the runbook, every `../atlas-ate-server` invariant from `.mdd/docs/deploy-profile.md`: Key-Vault-only secrets, App Attest required, the billing production multi-factor gate, BYOK never touching the server, DB TLS + at-rest encryption, the pre-traffic migration job, non-root container, port `8080` ingress.
+8. Report the written files. Do **NOT** execute anything. Tell the user to review the diagram and run the runbook themselves. `/mdd-render` rasterizes `.mdd/deploy/**/*.puml` to `.mdd/rendered/deploy/**/*.svg` for visual inspection.
+
+Deploy guidance is not a gate.
 "#;
 
 const MDD_WORKFLOW_DOC: &str = r#"# MDD Workflow
@@ -734,9 +766,10 @@ Orchestration skill (runs the whole loop from one description):
 
 - `/mdd-cycle` — selects the entry point, owns the cycle boundary under `.mdd/cycles/`, loops to parity, and pauses for clarification.
 
-Utility skill (on demand, not a workflow gate):
+Utility skills (on demand, not a workflow gate):
 
 - `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
+- `/mdd-deploy` — guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep IaC; never executes deploy commands; outside the parity gate.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
 "#;
@@ -754,8 +787,10 @@ Codex and other agents should use the project skills in `.codex/skills/`:
 - `/mdd-review` — strict structural match between current and objective; emits annotated diff PUMLs on mismatch.
 - `/mdd-cycle` — orchestration: run the whole loop from one description; owns the cycle boundary, loops to parity, pauses for clarification.
 - `/mdd-render` — utility: render PlantUML diagrams to SVG for external visual inspection.
+- `/mdd-deploy` — utility: guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep IaC; never executes deploy commands; outside the parity gate.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
 "#;
 
 const MDD_SECURITY_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/security-profile.md");
+const MDD_DEPLOY_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/deploy-profile.md");

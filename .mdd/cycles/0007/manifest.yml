@@ -1,0 +1,14 @@
+number: 7
+slug: deploy-guidance-skill
+entry: generate
+description: "Add /mdd-deploy: a standalone, non-gated utility skill (sibling of /mdd-render) that guides an Azure Container Apps deployment of ../atlas-ate-server by producing a UML deployment diagram + an explicit command runbook + generated Bicep IaC, executing no deploy command. /mdd-render is extended to rasterize .mdd/deploy/**.puml, and .mdd/docs/deploy-profile.md documents the deployment-diagram conventions. The skill is invisible to /mdd-validate, /mdd-review, and the parity gate."
+status: closed
+opened_at: "2026-05-18T13:06:17Z"
+closed_at: "2026-05-18T13:18:16Z"
+touched_files:
+  - .mdd/models/objective/use-cases/deploy-guidance.puml
+  - .mdd/models/objective/sequences/deploy-guidance.puml
+  - .mdd/models/objective/components/deploy-guidance.puml
+  - .mdd/models/current/use-cases/deploy-guidance.puml
+  - .mdd/models/current/sequences/deploy-guidance.puml
+  - .mdd/models/current/components/deploy-guidance.puml

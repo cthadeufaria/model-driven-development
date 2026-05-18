@@ -14,6 +14,7 @@ const WORKFLOW_SKILLS: &[&str] = &[
     "mdd-review",
     "mdd-render",
     "mdd-cycle",
+    "mdd-deploy",
 ];
 
 #[test]

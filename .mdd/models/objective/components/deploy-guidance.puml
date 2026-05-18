@@ -1,0 +1,63 @@
+@startuml
+' @id(CMP-DEPLOY-SKILL)
+' @id(CMP-DEPLOY-STORE)
+' @id(CMP-DEPLOY-TARGET)
+' @id(CMP-DEPLOY-RENDER)
+' @id(CMP-DEPLOY-PROFILE-DOC)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-INSPECT)
+'
+' Objective-side ownership boundaries for /mdd-deploy. Canonical source
+' of truth for the skill body is crates/mdd-core/src/templates.rs; mdd
+' init materializes it into .claude/.codex SKILL.md. The deploy tree and
+' the cross-repo Bicep are run-time outputs of the skill, not gated.
+'
+' @desc(CMP-DEPLOY-SKILL, "The /mdd-deploy utility skill: templates::MDD_DEPLOY_SKILL plus its WORKFLOW_SKILLS entry and the .claude/.codex/skills/mdd-deploy/SKILL.md mirrors. Produces a deployment diagram + runbook + generated IaC and never executes a deploy command. A sibling of /mdd-render, outside the parity gate.")
+' @desc(CMP-DEPLOY-STORE, ".mdd/deploy/<target>/ on disk: diagram.puml + runbook.md, created on first /mdd-deploy run. Naturally outside /mdd-validate and /mdd-review scope (same pattern as the non-gated .mdd/map/ tree).")
+' @desc(CMP-DEPLOY-TARGET, "The deployment target repo ../atlas-ate-server, read READ-ONLY for topology and security invariants. The generated infra/main.bicep (+ modules) is written there at skill-run time; cross-repo output is fine because the skill is non-gated guidance.")
+' @desc(CMP-DEPLOY-RENDER, "/mdd-render extended (templates::MDD_RENDER_SKILL step) to also rasterize .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive and non-gating.")
+' @desc(CMP-DEPLOY-PROFILE-DOC, ".mdd/docs/deploy-profile.md, materialized from templates::deploy_profile_doc (MDD_DEPLOY_PROFILE_DOC): conventions for the Azure Container Apps deployment diagram and the invariant checklist, analogous to security-profile.md.")
+title /mdd-deploy ownership (objective)
+
+actor "Operator" as Op
+
+component "/mdd-deploy\n(utility skill)" as Skill
+component "/mdd-render\n(extended)" as Render
+
+folder ".mdd/deploy/azure-container-apps/\ndiagram.puml, runbook.md" as Store
+folder "../atlas-ate-server/\ninfra/main.bicep (+ modules)" as Target
+folder ".mdd/rendered/deploy/\n**/*.svg" as Rendered
+folder ".mdd/docs/deploy-profile.md" as ProfileDoc
+
+package "canonical source of truth" {
+  component "crates/mdd-core/src/templates.rs\nMDD_DEPLOY_SKILL + WORKFLOW_SKILLS\n+ MDD_DEPLOY_PROFILE_DOC" as Templates
+}
+
+package "existing gated MDD pipeline\n(unaffected)" {
+  component "/mdd-cycle / /mdd-validate /\n/mdd-review (parity gate)" as Gate
+}
+
+Op --> Skill : /mdd-deploy <description>
+Templates ..> Skill : materialized by `mdd init`
+Templates ..> ProfileDoc : materialized by `mdd init`
+Skill --> Store : write diagram.puml + runbook.md
+Skill --> Target : generate infra/main.bicep (+ modules)
+Skill ..> ProfileDoc : follows conventions
+Op --> Render : /mdd-render
+Render --> Store : read .mdd/deploy/**/*.puml
+Render --> Rendered : write .mdd/rendered/deploy/**/*.svg
+Gate ..> Store : NEVER reads (outside the gate)
+
+note bottom of Skill
+  Guidance only. Never runs az / docker / brew.
+  Realizes USE-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Gate
+  /mdd-deploy is decoupled: no objective<->current
+  parity, no @sec parity. A UML deployment diagram
+  has no code-derived counterpart, so it could
+  never reach parity — by design it is not routed
+  into the gate.
+end note
+@enduml

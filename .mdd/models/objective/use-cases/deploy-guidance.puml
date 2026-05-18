@@ -1,0 +1,53 @@
+@startuml
+' @id(USE-DEPLOY-GUIDANCE)
+' @id(USE-DEPLOY-INSPECT)
+'
+' Objective-side use cases for the new /mdd-deploy utility skill. This is
+' a STANDALONE skill, a sibling of /mdd-render: it is NOT wired into
+' /mdd-cycle, /mdd-map, /mdd-validate, or /mdd-review and never touches
+' the current<->objective parity gate. It guides an Azure Container Apps
+' deployment of a target repo; it never executes a deploy command.
+'
+' @desc(USE-DEPLOY-GUIDANCE, "Operator runs /mdd-deploy with a one-line deployment description; the skill produces a UML deployment diagram, generated Bicep IaC, and an explicit copy-pasteable command runbook that preserves the target's security invariants. The skill executes nothing — the human runs the commands.")
+' @desc(USE-DEPLOY-INSPECT, "Operator inspects the generated deployment diagram visually: /mdd-render is extended to also rasterize .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive and non-gating.")
+title /mdd-deploy deployment guidance — use cases (objective)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+}
+
+Op --> Guide
+Op --> Inspect
+
+Guide ..> Inspect : <<extend>>
+
+note bottom of Guide
+  v1 supports exactly one target:
+  azure-container-apps (../atlas-ate-server).
+  Any other target -> "not yet supported", stop.
+  Reads .mdd/models components+use-cases and the
+  target repo (README, Dockerfile, compose,
+  .env.example, src) READ-ONLY for topology and
+  security invariants. PAUSES and asks the user
+  whenever a topology or security choice is
+  genuinely ambiguous (same discipline as
+  /mdd-cycle). Writes the deployment diagram +
+  runbook + generated infra; then reports and
+  STOPS. It NEVER runs az / docker / brew.
+  The diagram's <<Encrypt>>/<<ByPassing>>/...
+  stereotypes are DOCUMENTATION ONLY — they are
+  NOT the gated security-marker parity mechanism.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Inspect
+  Not a gate. /mdd-validate, /mdd-review and the
+  /mdd-cycle parity loop never read .mdd/deploy/.
+  Realized by SEQ-DEPLOY-INSPECT.
+end note
+@enduml

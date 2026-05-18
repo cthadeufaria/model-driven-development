@@ -405,6 +405,14 @@ impl Project {
             &mut skipped,
             &mut on_conflict,
         )?;
+        self.write_text_if_missing(
+            ".mdd/docs/deploy-profile.md",
+            templates::deploy_profile_doc(),
+            &mut created,
+            &mut overwritten,
+            &mut skipped,
+            &mut on_conflict,
+        )?;
         self.write_managed_block(
             "CLAUDE.md",
             "claude-entrypoint",
