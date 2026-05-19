@@ -19,7 +19,7 @@ Orchestration skill (runs the whole loop from one description):
 Utility skills (on demand, not a workflow gate):
 
 - `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
-- `/mdd-deploy` — guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep IaC; never executes deploy commands; outside the parity gate.
+- `/mdd-deploy` — guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect, one per run); never executes deploy commands; outside the parity gate.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
 <!-- mdd:end -->

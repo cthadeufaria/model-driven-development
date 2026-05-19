@@ -201,6 +201,30 @@ links:
   - from: CMP-DEPLOY-SKILL
     to: CMP-DEPLOY-TARGET
     relation: depends_on
+  - from: USE-DEPLOY-DIALECT
+    to: SEQ-DEPLOY-GUIDANCE
+    relation: realizes
+  - from: USE-DEPLOY-DIALECT
+    to: CMP-DEPLOY-SKILL
+    relation: realized_by
+  - from: SEQ-DEPLOY-GUIDANCE
+    to: DOM-DEPLOY-IAC
+    relation: produces
+  - from: DOM-DEPLOY-IAC
+    to: CMP-DEPLOY-TARGET
+    relation: written_to
+  - from: OCL-DEPLOY-IAC-DIALECT
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-IAC-CONFIRM-BEFORE-ARTIFACT
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-IAC-SECURE-BY-DEFAULT
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-IAC-MIGRATION-ORDER
+    to: DOM-DEPLOY-IAC
+    relation: constrains
   - from: SEQ-RENDER-DIFF-SVG
     to: DOM-RENDER-ENGINE
     relation: depends_on
@@ -380,11 +404,21 @@ source_links:
     path: .mdd/map/manifest.yml
   - model_id: USE-DEPLOY-GUIDANCE
     path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-DIALECT
+    path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-DIALECT
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
   - model_id: USE-DEPLOY-INSPECT
     path: .claude/skills/mdd-render/SKILL.md
   - model_id: SEQ-DEPLOY-GUIDANCE
     path: crates/mdd-core/src/templates.rs
     symbol: MDD_DEPLOY_SKILL
+  - model_id: DOM-DEPLOY-IAC
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: DOM-DEPLOY-IAC
+    path: .mdd/docs/deploy-profile.md
   - model_id: SEQ-DEPLOY-INSPECT
     path: crates/mdd-core/src/templates.rs
     symbol: MDD_RENDER_SKILL

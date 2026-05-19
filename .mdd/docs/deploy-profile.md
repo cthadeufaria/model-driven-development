@@ -19,8 +19,9 @@ design it is kept out of the gate.
   states the exact command, the directory / cloud context to run it in, and the
   required env/secret values. A **STOP / confirm** marker precedes every
   state-changing or go-live step.
-- The generated IaC, written into the **target repo** (cross-repo output is
-  fine because the skill is non-gated guidance).
+- The generated IaC in the **operator-confirmed dialect** (Bicep or
+  Terraform — exactly one per run), written into the **target repo**
+  (cross-repo output is fine because the skill is non-gated guidance).
 
 `/mdd-render` is extended to rasterize `.mdd/deploy/**/*.puml` to its
 deterministic `.mdd/rendered/deploy/**/*.svg` mirror, so the deployment diagram
@@ -42,6 +43,33 @@ Deployment-diagram node vocabulary for this target:
 - Azure OpenAI.
 - A separate Container Apps **job** for the database migration, ordered before
   any revision traffic routing.
+
+## IaC dialect — operator-confirmed, one per run
+
+The generated IaC is produced in exactly one dialect per run:
+
+- **Bicep** — `infra/main.bicep` (+ Bicep modules); the Azure-native ARM
+  DSL, applied with `az deployment`.
+- **Terraform** — `infra/main.tf` (+ Terraform modules), the `azurerm`
+  provider, and a **remote state backend** (`backend "azurerm"`); applied
+  with `terraform plan` / `terraform apply`.
+
+Exactly one dialect per run (Bicep XOR Terraform); the multi-emit and
+non-Azure-provider cases are deferred.
+
+**Mandatory confirmation — before any artifact.** The dialect must be
+explicitly confirmed before the skill writes ANY deploy artifact (the
+deployment diagram, the generated IaC, or the runbook). There is **no
+silent default**: an unspecified or unconfirmed dialect halts the skill
+with a blocking question — the same discipline as the landmine pause,
+never demoted to a runbook STOP note. Nothing under `.mdd/deploy/` or the
+target `infra/` is created until the operator confirms.
+
+**Full parity between dialects.** Whichever dialect is confirmed, the
+generated IaC declares the identical resource set and satisfies the
+identical invariant checklist and secure-by-default network posture
+below. The only differences are language, file structure, and (Terraform)
+the remote state backend.
 
 ## Documentation-only security stereotypes
 
@@ -84,13 +112,17 @@ openly network-reachable than its peers. Rule: choose the most
 restrictive network posture consistent with the connectivity the runbook
 actually requires; relax it only via an explicit, surfaced decision.
 
+This posture is identical for both IaC dialects (full parity) — the skill
+hardens whichever dialect was confirmed, never one more than the other.
+
 Concretely for the v1 target: when Postgres and Azure OpenAI are private,
-Key Vault must default to `networkAcls.defaultAction: 'Deny'` with
-`bypass: 'AzureServices'` (or a private endpoint) — never
-`publicNetworkAccess: 'Enabled'` with `networkAcls.defaultAction:
-'Allow'`. A Key Vault left publicly reachable while its peers are private
-is a secure-by-default failure the skill must fix automatically, not a
-decision it may defer.
+Key Vault must default to the most restrictive posture — in Bicep
+`networkAcls.defaultAction: 'Deny'` with `bypass: 'AzureServices'`, in
+Terraform the equivalent `network_acls { default_action = Deny, bypass =
+AzureServices }` (or a private endpoint) — never public network access
+with an `Allow` default. A Key Vault left publicly reachable while its
+peers are private is a secure-by-default failure the skill must fix
+automatically, not a decision it may defer.
 
 ## Landmine detection — mandatory pause
 

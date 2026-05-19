@@ -1,0 +1,36 @@
+-- Invariants over the IaC artifact /mdd-deploy generates. Shared across
+-- sides; @ref(DOM-DEPLOY-IAC) resolves on either side. /mdd-deploy is a
+-- utility skill outside the parity / security gate, so these document
+-- the intended contract rather than acting as a parity check.
+--
+-- Objective (this cycle): two IaC dialects, one per run, confirmed
+-- before any artifact is written; secure-by-default + migration-order
+-- hold identically for either dialect (full parity).
+
+-- @id(OCL-DEPLOY-IAC-DIALECT)
+-- @ref(DOM-DEPLOY-IAC)
+context DialectChoice
+inv ExactlyOneSupportedDialectPerRun:
+  Set{'bicep', 'terraform'}->includes(self.value)
+
+-- @id(OCL-DEPLOY-IAC-CONFIRM-BEFORE-ARTIFACT)
+-- @ref(DOM-DEPLOY-IAC)
+context DialectChoice
+inv NoArtifactBeforeConfirmation:
+  -- No deploy artifact (diagram.puml, generated IaC, runbook.md) may be
+  -- written unless the dialect has been explicitly confirmed. No silent
+  -- default: an unspecified/unconfirmed dialect halts the skill.
+  self.artifactWritten implies self.confirmed
+
+-- @id(OCL-DEPLOY-IAC-SECURE-BY-DEFAULT)
+-- @ref(DOM-DEPLOY-IAC)
+context KeyVault
+inv NoStoreMoreNetworkOpenThanItsPeers:
+  -- Holds identically whichever dialect generated the IaC (full parity).
+  self.networkDefaultAction = 'Deny' and self.bypass = 'AzureServices'
+
+-- @id(OCL-DEPLOY-IAC-MIGRATION-ORDER)
+-- @ref(DOM-DEPLOY-IAC)
+context MigrationJob
+inv MigrationCompletesBeforeTrafficRouting:
+  self.order = 'before any revision traffic routing'
