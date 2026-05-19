@@ -1,0 +1,12 @@
+number: 8
+slug: deploy-auto-harden-and-block-landmines
+entry: generate
+description: "Make /mdd-deploy auto-harden generated IaC (secure-by-default network posture: never emit a secret/data store more openly reachable than its peers) and pause with a blocking clarification on a statically detectable go-live landmine (generated config default contradicting what the shipped target code supports, e.g. AOAI managed-identity vs api-key-only server). Still strictly guidance-only: never executes a deploy command; step 8 stays report-and-stop. Caveat C (migrations interlock) documented as a known tradeoff, not auto-changed."
+status: closed
+opened_at: "2026-05-18T16:05:53Z"
+closed_at: "2026-05-18T16:11:57Z"
+touched_files:
+  - .mdd/models/objective/sequences/deploy-guidance.puml
+  - .mdd/models/objective/use-cases/deploy-guidance.puml
+  - .mdd/models/current/sequences/deploy-guidance.puml
+  - .mdd/models/current/use-cases/deploy-guidance.puml

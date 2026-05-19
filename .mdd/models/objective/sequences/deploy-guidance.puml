@@ -9,7 +9,7 @@
 ' The skill is guidance-only: it writes artifacts and a runbook and
 ' then STOPS. It never executes a deployment command.
 '
-' @desc(SEQ-DEPLOY-GUIDANCE, "How /mdd-deploy turns a one-line description into deployment guidance: validate the target is azure-container-apps, read MDD models + the target repo read-only, pause on ambiguity, write the deployment diagram, generate ../atlas-ate-server/infra/main.bicep, write the runbook with a STOP before every state-changing/go-live step, enforce every atlas-ate-server invariant, then report and execute nothing.")
+' @desc(SEQ-DEPLOY-GUIDANCE, "How /mdd-deploy turns a one-line description into deployment guidance: validate the target is azure-container-apps, read MDD models + the target repo read-only, then STOP for a blocking clarification on ambiguity AND on any statically detectable go-live landmine (a generated config default contradicting what the shipped code supports, e.g. AOAI managed-identity vs an api-key-only server), write the deployment diagram, generate secure-by-default ../atlas-ate-server/infra/main.bicep (no store left more network-open than its peers — e.g. Key Vault Deny + bypass=AzureServices when Postgres/AOAI are private), write the runbook with a STOP before every state-changing/go-live step, enforce every atlas-ate-server invariant, then report and execute nothing.")
 ' @desc(SEQ-DEPLOY-INSPECT, "How /mdd-render (extended) rasterizes .mdd/deploy/**/*.puml to its deterministic .mdd/rendered/deploy/**/*.svg mirror so the deployment diagram is inspectable like every other diagram. Additive, non-gating.")
 title /mdd-deploy guidance and inspection (objective)
 
@@ -29,16 +29,17 @@ alt target != azure-container-apps
 else target == azure-container-apps
   Dep -> Models : read components + use-cases (the "what")
   Dep -> Target : read README, Dockerfile, docker-compose.yml,\n.env.example, src (READ-ONLY)
-  opt topology or security choice genuinely ambiguous
-    Dep -> Op : ask clarifying question(s)
-    Op --> Dep : answer
+  opt topology/security choice ambiguous OR a go-live landmine is statically detectable
+    Dep -> Op : BLOCKING clarification (e.g. generated AOAI\nmanaged-identity default vs api-key-only server) —\nsame discipline as /mdd-cycle
+    Op --> Dep : decision
     note right of Dep
-      Mandatory pause. The skill NEVER guesses an
-      ambiguous topology/security decision.
+      Mandatory blocking pause. The skill NEVER guesses an
+      ambiguous decision, and NEVER demotes a detected
+      go-live landmine to a buried runbook STOP note.
     end note
   end
   Dep -> Store : write diagram.puml (UML deployment diagram;\ndocumentation-only security stereotypes)
-  Dep -> Infra : generate infra/main.bicep (+ modules):\nContainer Apps, ACR, Azure DB for PostgreSQL (TLS),\nKey Vault + secret refs, ingress 8080, migration job
+  Dep -> Infra : generate SECURE-BY-DEFAULT infra/main.bicep (+ modules):\nContainer Apps, ACR, Azure DB for PostgreSQL (TLS),\nKey Vault (Deny + bypass=AzureServices when peers private),\nsecret refs, ingress 8080, migration job
   Dep -> Store : write runbook.md (numbered steps; exact command,\nlocation, env/secret; STOP before every state-changing\nor go-live step incl. the billing production gate)
   note right of Dep
     Enforces every atlas-ate-server invariant:
@@ -46,6 +47,10 @@ else target == azure-container-apps
     billing production multi-factor gate, BYOK
     never touches the server, DB TLS + at-rest,
     pre-traffic migration job, non-root, port 8080.
+    Secure-by-default: no store left more network-open
+    than its peers (auto-hardened, not deferred).
+    Caveat: migrations-before-traffic stays procedural
+    (documented v1 tradeoff, not auto-changed).
   end note
   Dep --> Op : report written files; review the diagram\nand run the runbook yourself. Executes NOTHING.
 end

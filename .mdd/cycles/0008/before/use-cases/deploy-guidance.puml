@@ -9,7 +9,7 @@
 ' .mdd/docs/deploy-profile.md. The skill is a standalone utility,
 ' a sibling of /mdd-render, and is NOT routed into any gate.
 '
-' @desc(USE-DEPLOY-GUIDANCE, "Implemented: /mdd-deploy is registered as a WORKFLOW_SKILLS entry and materialized into .claude/.codex/skills/mdd-deploy/SKILL.md. Its body instructs the agent to produce a deployment diagram + secure-by-default generated Bicep (step 5 — no store left more network-open than its peers) + a STOP-gated runbook for azure-container-apps, pausing with a blocking clarification (step 3) on ambiguity AND on any statically detectable go-live landmine, executing no deploy command.")
+' @desc(USE-DEPLOY-GUIDANCE, "Implemented: /mdd-deploy is registered as a WORKFLOW_SKILLS entry and materialized into .claude/.codex/skills/mdd-deploy/SKILL.md. Its body instructs the agent to produce a deployment diagram + generated Bicep + a STOP-gated runbook for azure-container-apps, executing no deploy command.")
 ' @desc(USE-DEPLOY-INSPECT, "Implemented: templates::MDD_RENDER_SKILL gained a step instructing /mdd-render to rasterize .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive, non-gating.")
 title /mdd-deploy deployment guidance — use cases (current)
 
@@ -32,21 +32,12 @@ note bottom of Guide
   v1 supports only azure-container-apps
   (../atlas-ate-server); any other target is
   rejected. Reads MDD models + the target repo
-  read-only. PAUSES with a BLOCKING clarification
-  (step 3) on ambiguity OR on a statically
-  detectable go-live landmine (a generated config
-  default contradicting what the shipped code
-  supports, e.g. AOAI managed-identity vs an
-  api-key-only server) — never a buried runbook
-  STOP note. Writes the deployment diagram +
-  runbook + SECURE-BY-DEFAULT generated infra
-  (step 5 — no store left more network-open than
-  its peers; migrations-before-traffic stays a
-  documented procedural tradeoff), then reports
-  and STOPS. Never runs az/docker/brew. The
-  diagram stereotypes are documentation only —
-  NOT the gated security-marker parity mechanism.
-  Realized by SEQ-DEPLOY-GUIDANCE.
+  read-only, pauses on ambiguity, writes the
+  deployment diagram + runbook + generated infra,
+  then reports and STOPS. Never runs az/docker/
+  brew. The diagram stereotypes are documentation
+  only — NOT the gated security-marker parity
+  mechanism. Realized by SEQ-DEPLOY-GUIDANCE.
 end note
 
 note bottom of Inspect

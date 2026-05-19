@@ -75,3 +75,46 @@ The diagram annotates and the runbook enforces, as explicit guard steps:
 6. **Migrations as an explicit pre-traffic job** — not auto-migrate on boot;
    ordered before revision traffic routing.
 7. **Non-root container, port 8080 ingress, `NODE_ENV=production`.**
+
+## Secure-by-default
+
+Automatable hardening is part of the guidance, not a deferred human
+decision. The generated IaC must never emit a secret or data store more
+openly network-reachable than its peers. Rule: choose the most
+restrictive network posture consistent with the connectivity the runbook
+actually requires; relax it only via an explicit, surfaced decision.
+
+Concretely for the v1 target: when Postgres and Azure OpenAI are private,
+Key Vault must default to `networkAcls.defaultAction: 'Deny'` with
+`bypass: 'AzureServices'` (or a private endpoint) — never
+`publicNetworkAccess: 'Enabled'` with `networkAcls.defaultAction:
+'Allow'`. A Key Vault left publicly reachable while its peers are private
+is a secure-by-default failure the skill must fix automatically, not a
+decision it may defer.
+
+## Landmine detection — mandatory pause
+
+A **go-live landmine** is a contradiction between a config default the
+skill would generate and what the shipped target code actually supports —
+statically detectable from inputs the skill already reads (`.mdd/models`,
+the target repo `src/`, `Dockerfile`, `.env.example`). When the skill
+detects one it MUST pause with a **blocking clarification** (the same
+discipline as `/mdd-cycle`) before writing the contradicting artifact. It
+must NOT bury the contradiction as a runbook STOP note: a STOP note is
+procedural and easy to skip past; a landmine is a surfaced decision the
+operator has to make before go-live is even safe to attempt.
+
+Worked example: the skill would default `azureOpenAiUseManagedIdentity =
+true`, but the shipped server authenticates Azure OpenAI only with an API
+key — there is no `@azure/identity` code path. Generating the
+managed-identity default would ship an app that cannot reach Azure OpenAI
+at go-live. This is a blocking pause, not a STOP note.
+
+## Known tradeoff (not auto-changed)
+
+"Migrations before traffic" (invariant 6) is enforced **procedurally** —
+an ordered pre-traffic migration job plus a runbook STOP — not as an
+infrastructure interlock the platform could enforce structurally. This
+weaker pattern is a documented, accepted tradeoff for v1. The skill
+surfaces it here rather than silently choosing it, but does not
+auto-change it; tightening it into a true interlock is deferred.
