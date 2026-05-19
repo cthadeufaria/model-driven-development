@@ -1,0 +1,59 @@
+@startuml
+' @id(DOM-RENDER-ENGINE)
+' @ref(USE-DIFF-DIAGRAM)
+'
+' Objective-side domain anchor for the single deterministic render
+' engine: the mdd-render crate driven by the `mdd render` mdd-cli
+' subcommand. It exists so the tree-parity and path-mirror invariants
+' have a domain concept to constrain. The /mdd-render skill is a thin
+' wrapper that adds only interpretive judgment (fuzzy subset intake,
+' diagnostic triage, fix suggestions), never mechanics.
+'
+' @desc(DOM-RENDER-ENGINE, "The single deterministic render engine: the mdd-render crate invoked through the `mdd render` mdd-cli subcommand. Its set of renderable trees is exactly the one mdd-core Project enumeration (models, cycle diffs, OCL constraints, whole-map, deploy, review-diff); every enumerated source file is rasterized to a rendered path that is a pure deterministic mirror of the source path. `mdd render` with no args covers the full set; --only <trees> or explicit paths render a subset. The /mdd-render skill is a thin wrapper over it.")
+title Render engine — domain (objective)
+
+class RenderEngine {
+  + project : Project
+  + renderedTrees : Set(Tree)
+  + sources() : Set(SourceFile)
+  + render(s : SourceFile) : RenderedFile
+  + renderedPathOf(s : SourceFile) : Path
+}
+
+class Project {
+  + enumeratedTrees : Set(Tree)
+  + sourcesFor(t : Tree) : Set(SourceFile)
+}
+
+class SourceFile {
+  + path : Path
+  + tree : Tree
+}
+
+class RenderedFile {
+  + path : Path
+}
+
+enum Tree {
+  Models
+  CycleDiffs
+  OclConstraints
+  WholeMap
+  Deploy
+  ReviewDiff
+}
+
+RenderEngine "1" o-- "1" Project : tree set (single source)
+RenderEngine ..> SourceFile : enumerates via Project
+RenderEngine ..> RenderedFile : writes mirror
+SourceFile "1" --> "1" RenderedFile : deterministic mirror
+Project --> Tree
+
+note bottom of RenderEngine
+  Single source of truth: renderedTrees is exactly
+  Project.enumeratedTrees — no second, hand-maintained
+  list in skill prose (OCL-RENDER-TREE-PARITY).
+  renderedPathOf is a pure path mirror
+  (OCL-RENDER-PATH-MIRROR).
+end note
+@enduml

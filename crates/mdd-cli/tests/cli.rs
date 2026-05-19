@@ -217,7 +217,7 @@ fn clean_force_removes_modified_mdd_skill_files() {
 }
 
 #[test]
-fn help_exposes_init_and_clean_commands() {
+fn help_exposes_init_clean_and_render_commands() {
     Command::cargo_bin("mdd")
         .unwrap()
         .arg("--help")
@@ -225,10 +225,12 @@ fn help_exposes_init_and_clean_commands() {
         .success()
         .stdout(predicate::str::contains("init"))
         .stdout(predicate::str::contains("clean"))
+        // `mdd render` is now a real subcommand (the single deterministic
+        // render engine); the public CLI no longer stops at init/clean.
+        .stdout(predicate::str::contains("render"))
         .stdout(predicate::str::contains("describe").not())
         .stdout(predicate::str::contains("map").not())
         .stdout(predicate::str::contains("validate").not())
-        .stdout(predicate::str::contains("render").not())
         .stdout(predicate::str::contains("diff").not())
         .stdout(predicate::str::contains("approve").not())
         .stdout(predicate::str::contains("test").not())
@@ -239,7 +241,7 @@ fn help_exposes_init_and_clean_commands() {
 #[test]
 fn removed_commands_fail_as_unknown() {
     for command in [
-        "describe", "map", "validate", "render", "diff", "approve", "test", "code", "app",
+        "describe", "map", "validate", "diff", "approve", "test", "code", "app",
     ] {
         Command::cargo_bin("mdd")
             .unwrap()

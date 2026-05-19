@@ -1,0 +1,23 @@
+-- @id(OCL-RENDER-TREE-PARITY)
+-- @ref(DOM-RENDER-ENGINE)
+-- The single deterministic engine renders exactly the trees mdd-core
+-- Project enumerates — there is no second, hand-maintained list (e.g.
+-- in /mdd-render skill prose). Adding a renderable tree means extending
+-- the one Project enumeration; `mdd render` then covers it for free,
+-- and so does every caller (cycle close, the thin skill, CI, humans).
+context RenderEngine
+inv RenderedTreesAreProjectTrees:
+  self.renderedTrees = self.project.enumeratedTrees
+
+-- @id(OCL-RENDER-PATH-MIRROR)
+-- @ref(DOM-RENDER-ENGINE)
+-- Every enumerated source file is rendered to a path that is a pure
+-- deterministic mirror of its source path: the source's .mdd/<root>/
+-- segment is reparented under .mdd/rendered/ (review diffs, already
+-- under .mdd/rendered/, keep their place) and the .puml/.ocl suffix
+-- becomes .svg, with the remaining relative path preserved. This
+-- generalizes OCL-DIFF-SVG-PATH-DERIVED to all trees.
+context RenderEngine
+inv RenderedPathMirrorsSource:
+  self.sources()->forAll(s |
+    self.renderedPathOf(s) = s.path.mirrorUnderRendered('.svg'))

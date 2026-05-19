@@ -7,19 +7,23 @@ description: Utility: render PlantUML diagrams to SVG for external visual inspec
 
 You are an MDD, UML, PlantUML, and OCL specialist for diagram rendering.
 
-This is a **utility skill, not a workflow gate**. Use it whenever the user wants to open `.mdd/models/**` PlantUML files as SVGs in an external editor for visual inspection.
+This is a **utility skill, not a workflow gate**, and a **thin wrapper** over the `mdd render` command. The mechanics — enumerating every renderable tree, synthesizing OCL constraint diagrams, the PlantUML/Graphviz subprocess, jar resolution, and the deterministic source→`.mdd/rendered/` path mirror — all live in compiled code (the `mdd-render` engine, driven by `mdd render`, whose tree set is the single `mdd-core` `Project` enumeration). You add only **judgment**: interpreting a fuzzy subset request, triaging diagnostics, and suggesting fixes. Do **not** hand-run `java -jar plantuml.jar` or re-implement the tree list here.
 
 ## Workflow
 
-1. Render each PlantUML file under `.mdd/models/` to the matching `.mdd/rendered/models/.../*.svg` path. If the user specifies a subset (e.g. only `current/use-cases`), render that subset.
-2. Prefer the repository or packaged PlantUML jar when available (e.g. `third_party/plantuml/plantuml.jar`). Otherwise use `plantuml` on PATH. Java jar rendering: `java -jar path/to/plantuml.jar -tsvg -pipe < <input.puml> > <output.svg>`.
-3. Ensure Java is available for jar rendering and Graphviz `dot` is available for graph-based UML diagrams.
-4. After rendering, inspect each SVG for PlantUML diagnostic text (`Dot executable does not exist`, `Cannot find Graphviz`, `Syntax Error`, `Error`, `No diagram found`) and report any findings.
-5. Also render any `.diff.puml` files under `.mdd/rendered/review/` produced by `/mdd-review` so the user can inspect the diff diagrams.
-6. Also rasterize every `.mdd/cycles/<N>/<rel>.diff.puml` to its deterministic mirror `.mdd/rendered/cycles/<N>/<rel>.diff.svg` (`.mdd/cycles/` → `.mdd/rendered/cycles/`, `.diff.puml` → `.diff.svg`) so the viewer's Diff mode can paint the superposed diagram for the selected file.
-7. Also rasterize every `.mdd/map/<kind>/<name>.puml` — the whole-map baseline that `/mdd-cycle`'s close step accumulates — to its deterministic mirror `.mdd/rendered/map/<kind>/<name>.svg` (`.mdd/map/` → `.mdd/rendered/map/`) so the accumulated whole-system picture can be inspected externally. An absent `.mdd/map/` tree is not an error.
-8. Also rasterize every `.mdd/deploy/**/*.puml` — the deployment diagrams produced by the `/mdd-deploy` utility skill — to its deterministic mirror `.mdd/rendered/deploy/**/*.svg` (`.mdd/deploy/` → `.mdd/rendered/deploy/`) so the deployment diagram is inspectable like every other diagram. Additive and non-gating; an absent `.mdd/deploy/` tree is not an error.
-9. Also synthesize a PlantUML constraints diagram from every `.mdd/constraints/*.ocl` and rasterize it to `.mdd/rendered/constraints/<name>.svg` (via `mdd_render::render_ocl_diagrams`) so the viewer's OCL Diagram sub-mode can paint it.
-10. Report the list of rendered files and any diagnostic failures. The user reviews them externally.
+1. **Fuzzy subset intake.** Translate what the user asked for into `mdd render` arguments:
+   - whole system / "render everything" / a cycle just closed → `mdd render` (no args = full tree parity: models, cycle diffs, OCL, whole-map, deploy, review-diff).
+   - one tree, e.g. "just the deploy diagrams", "the OCL diagrams", "the whole-map" → `mdd render --only deploy` (selectors: `models`, `cycle-diffs`, `ocl`, `map`, `deploy`, `review`; comma-separate for several).
+   - specific files/dirs, e.g. "just current use-cases" → `mdd render .mdd/models/current/use-cases`.
+2. **Run it.** Invoke the resolved `mdd render …`. It writes each source to its deterministic `.mdd/rendered/` mirror and prints `rendered <path>` lines plus `diagnostic <path>: <message>` lines; it exits non-zero if any diagnostic occurred.
+3. **Diagnostic triage + fix suggestions.** For each `diagnostic` line, explain the likely cause and the concrete fix, e.g.:
+   - `Cannot find Graphviz` / `Dot executable does not exist` → install Graphviz (`brew install graphviz`), or set `GRAPHVIZ_DOT=/path/to/dot`.
+   - `PlantUML is not available` → install the bundled jar + Java, set `MDD_PLANTUML_JAR=/path/to/plantuml.jar`, or put `plantuml` on PATH.
+   - `Syntax Error` / `No diagram found` → point at the offending source file so it can be fixed at the model.
+4. **Report** the rendered list and any diagnostics with their suggested fixes. The user reviews the SVGs externally.
+
+## Cross-skill contract (do not move)
+
+`/mdd-cycle`'s close step, `/mdd-review`, and `/mdd-deploy` hand off to `/mdd-render` by name. That name and this skill stay; only the mechanics moved into `mdd render`. Those callers may also invoke `mdd render` directly — same engine, same single tree set.
 
 Rendering is not a gate. Validation, implementation, and review do not depend on a render pass.

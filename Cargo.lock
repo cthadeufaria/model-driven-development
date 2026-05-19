@@ -1588,6 +1588,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "mdd-core",
+ "mdd-render",
  "mdd-viewer",
  "predicates",
  "tempfile",
@@ -1616,6 +1617,7 @@ dependencies = [
  "anyhow",
  "mdd-core",
  "tempfile",
+ "walkdir",
 ]
 
 [[package]]

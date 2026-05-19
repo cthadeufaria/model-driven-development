@@ -1,0 +1,18 @@
+number: 9
+slug: wire-mdd-render-cli-and-thin-skill
+entry: generate
+description: "Wire the mdd-render crate into mdd-cli as `mdd render` (optional --only/path filters; no args = full tree parity), bring it to full tree parity (models, cycle diffs, OCL, map, deploy, review-diff) via single mdd-core Project tree-enumeration helpers so the list lives in one place, then demote the /mdd-render skill to a thin wrapper that calls `mdd render` and does only the interpretive part (fuzzy subset intake, diagnostic triage, fix suggestions). Mechanics compiled and reusable; judgment in the agent; the /mdd-render name preserved so the cross-skill contract never moves."
+status: closed
+opened_at: "2026-05-19T11:17:11Z"
+closed_at: "2026-05-19T11:42:24Z"
+touched_files:
+  - .mdd/models/objective/domain/render-engine.puml
+  - .mdd/models/objective/components/cycle-tracking.puml
+  - .mdd/models/objective/components/diagram-viewer.puml
+  - .mdd/models/objective/components/deploy-guidance.puml
+  - .mdd/models/objective/sequences/cycle-diff-render.puml
+  - .mdd/models/current/domain/render-engine.puml
+  - .mdd/models/current/components/cycle-tracking.puml
+  - .mdd/models/current/components/diagram-viewer.puml
+  - .mdd/models/current/components/deploy-guidance.puml
+  - .mdd/models/current/sequences/cycle-diff-render.puml

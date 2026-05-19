@@ -7,6 +7,7 @@ edition.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 mdd-core = { path = "../mdd-core" }
+mdd-render = { path = "../mdd-render" }
 mdd-viewer = { path = "../mdd-viewer" }
 
 [dev-dependencies]

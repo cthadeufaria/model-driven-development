@@ -7,17 +7,20 @@
 ' @ref(USE-RUN-CYCLE)
 ' @ref(USE-CYCLE-DIFF-VIEW)
 ' @ref(USE-DIFF-DIAGRAM)
+' @ref(DOM-RENDER-ENGINE)
 '
 ' Objective-side ownership boundaries for cycle tracking. The skill owns
-' orchestration + cycle boundary; mdd-core owns parsing the store and
-' @desc markers; mdd-render owns rasterizing diff pumls; mdd-viewer owns
-' the tree/diff/description UI.
+' orchestration + cycle boundary; mdd-core owns parsing the store, the
+' @desc markers, and the single Project enumeration of every renderable
+' tree; the mdd-render engine (driven by the `mdd render` mdd-cli
+' subcommand) owns rasterizing them; mdd-viewer owns the
+' tree/diff/description UI.
 '
 ' @desc(CMP-CYCLE-ORCHESTRATOR, "The /mdd-cycle skill: selects the entry point, owns the cycle boundary, loops the sub-skills to parity, and pauses for clarification.")
 ' @desc(CMP-CYCLE-STORE, ".mdd/cycles/ on disk: per-cycle manifest + before/ + after/ snapshots + annotated .diff.puml artifacts.")
 ' @desc(CMP-CORE-CYCLE-MODEL, "mdd-core readers: CycleRegistry, the @desc extractor, and the DiffEngine that partitions before/after element sets.")
 ' @desc(CMP-VIEWER-CYCLE-UI, "mdd-viewer UI: directory/cycle tree rail, the Diff mode bound to selected cycle+file with a Diagram/List toggle, and the MODEL CONTEXT description card.")
-' @desc(CMP-DIFF-RENDER, "mdd-render rasterizer that turns .mdd/cycles/<n>/<rel>.diff.puml into .mdd/rendered/cycles/<n>/<rel>.diff.svg; invoked by the cycle-close step and by /mdd-render.")
+' @desc(CMP-DIFF-RENDER, "The mdd-render engine, the single deterministic rasterizer, invoked through the `mdd render` mdd-cli subcommand: it turns each .mdd/cycles/<n>/<rel>.diff.puml into its .mdd/rendered/cycles/<n>/<rel>.diff.svg mirror. The cycle-close step and the /mdd-render skill both call `mdd render` (the skill is now a thin wrapper); its tree set comes from the one mdd-core Project enumeration so the list lives in a single place (DOM-RENDER-ENGINE).")
 title Cycle tracking — ownership (objective)
 
 actor "Developer" as Dev
@@ -36,8 +39,9 @@ folder ".mdd/cycles/<n>/\nmanifest.yml, before/, after/,\n<rel>.diff.puml" as St
 folder ".mdd/rendered/cycles/<n>/\n<rel>.diff.svg" as Rendered
 folder ".mdd/models/, .mdd/trace.yml" as Models
 
-component "mdd-core\nCycleRegistry, DescIndex,\nDiffEngine" as Core
-component "mdd-render\nDiffRenderer (PlantUML)" as DiffRend
+component "mdd-core\nCycleRegistry, DescIndex,\nDiffEngine, Project tree set" as Core
+component "mdd render\n(mdd-cli subcommand)" as RenderCli
+component "mdd-render\nrender engine (PlantUML)" as DiffRend
 component "mdd-viewer\nTree rail, Diff view,\nDescription card" as Viewer
 component "eframe / egui 0.30" as Egui
 
@@ -48,8 +52,10 @@ Orch --> ValS : gate
 Orch --> ImplS : write code
 Orch --> RevS : parity
 Orch --> Store : open / snapshot before / close / snapshot after / write diff puml
-Orch --> DiffRend : on close, rasterize diff pumls
-RendS --> DiffRend : /mdd-render diff pumls on demand
+Orch --> RenderCli : on close, run `mdd render`
+RendS --> RenderCli : thin wrapper: `mdd render [--only <trees>|paths]`
+RenderCli --> DiffRend : drive the engine
+DiffRend --> Core : enumerate full tree set (Project, single source)
 DiffRend --> Store : read <rel>.diff.puml
 DiffRend --> Rendered : write <rel>.diff.svg (deterministic mirror)
 Gen --> Models : objective + @desc
@@ -71,8 +77,9 @@ end note
 
 note bottom of Rendered
   Viewer has no PlantUML engine; it only
-  consumes pre-rendered SVG. Path mirrors the
-  source 1:1 (OCL-DIFF-SVG-PATH-DERIVED).
+  consumes pre-rendered SVG. Every tree's path
+  mirrors its source 1:1 (OCL-RENDER-PATH-MIRROR;
+  OCL-DIFF-SVG-PATH-DERIVED for the cycle case).
 end note
 
 note bottom of Orch

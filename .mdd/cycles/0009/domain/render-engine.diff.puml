@@ -1,0 +1,86 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-RENDER-ENGINE)
+' @ref(USE-DIFF-DIAGRAM)
+'
+' Current-side domain anchor for the single deterministic render engine
+' as built: mdd_core::RenderTree (the one tree enumeration) +
+' Project::{render_sources,all_render_sources,rendered_mirror_path},
+' driven by mdd_render::render_selection and the `mdd render` mdd-cli
+' subcommand (Commands::Render). The /mdd-render skill is a thin wrapper.
+'
+' @desc(DOM-RENDER-ENGINE, "Built as: mdd_core::RenderTree { Models, CycleDiffs, OclConstraints, WholeMap, Deploy, ReviewDiff } with RenderTree::ALL the single tree list; Project::render_sources/all_render_sources enumerate it; Project::rendered_mirror_path is the deterministic source→.mdd/rendered/ mirror (review diffs kept in place). mdd_render::render_selection is the one engine; render_project/render_cycle_diffs/render_ocl_diagrams are thin wrappers over it. `mdd render` (mdd-cli Commands::Render) exposes it: no args = full set, --only <trees> or explicit paths = subset. The /mdd-render skill (templates::MDD_RENDER_SKILL) only does fuzzy subset intake, diagnostic triage, and fix suggestions.")
+title Render engine — domain (current)
+
+class RenderEngine <<added>> {
+  + project : Project
+  + renderedTrees : Set(Tree)
+  + sources() : Set(SourceFile)
+  + render(s : SourceFile) : RenderedFile
+  + renderedPathOf(s : SourceFile) : Path
+}
+
+class Project {
+  + enumeratedTrees : Set(Tree)
+  + sourcesFor(t : Tree) : Set(SourceFile)
+}
+
+class SourceFile {
+  + path : Path
+  + tree : Tree
+}
+
+class RenderedFile {
+  + path : Path
+}
+
+enum Tree {
+  Models
+  CycleDiffs
+  OclConstraints
+  WholeMap
+  Deploy
+  ReviewDiff
+}
+
+RenderEngine "1" o-- "1" Project : tree set (single source)
+RenderEngine ..> SourceFile : enumerates via Project
+RenderEngine ..> RenderedFile : writes mirror
+SourceFile "1" --> "1" RenderedFile : deterministic mirror
+Project --> Tree
+
+note bottom of RenderEngine
+  As built: render_selection consumes
+  Project::all_render_sources (RenderTree::ALL) —
+  one list, no skill-prose duplicate
+  (OCL-RENDER-TREE-PARITY). rendered_mirror_path
+  is the pure path mirror (OCL-RENDER-PATH-MIRROR).
+end note
+@enduml

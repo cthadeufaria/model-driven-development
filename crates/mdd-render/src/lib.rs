@@ -1,78 +1,155 @@
 use anyhow::{Context, Result, bail};
-use mdd_core::Project;
+use mdd_core::{Project, RenderTree};
 use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RenderReport {
+    /// Project-relative paths successfully written.
     pub rendered: Vec<String>,
+    /// `path: message` for each source PlantUML failed to rasterize.
+    /// Non-fatal: the engine renders the rest and reports these so the
+    /// `/mdd-render` skill can triage and suggest fixes.
+    pub diagnostics: Vec<String>,
 }
 
+/// What `mdd render` should rasterize.
+#[derive(Debug, Clone)]
+pub enum RenderSelection {
+    /// Full tree parity — exactly `Project::all_render_sources`.
+    All,
+    /// Only the named trees.
+    Trees(Vec<RenderTree>),
+    /// Explicit files or directories (dirs are walked for `*.puml` /
+    /// `*.ocl`). The fuzzy-subset path the `/mdd-render` skill resolves.
+    Paths(Vec<PathBuf>),
+}
+
+/// The single deterministic render engine. It enumerates sources via
+/// the one `mdd_core::Project` tree set (OCL-RENDER-TREE-PARITY),
+/// rasterizes each to its deterministic mirror path
+/// (OCL-RENDER-PATH-MIRROR), and reports per-file diagnostics instead
+/// of aborting the whole run on one bad diagram.
+pub fn render_selection(project: &Project, selection: &RenderSelection) -> Result<RenderReport> {
+    let sources: Vec<(bool, PathBuf)> = match selection {
+        RenderSelection::All => project
+            .all_render_sources()?
+            .into_iter()
+            .map(|(tree, path)| (tree == RenderTree::OclConstraints, path))
+            .collect(),
+        RenderSelection::Trees(trees) => {
+            let mut out = Vec::new();
+            for &tree in trees {
+                let is_ocl = tree == RenderTree::OclConstraints;
+                for path in project.render_sources(tree)? {
+                    out.push((is_ocl, path));
+                }
+            }
+            out
+        }
+        RenderSelection::Paths(paths) => expand_paths(paths),
+    };
+
+    if sources.is_empty() {
+        return Ok(RenderReport::default());
+    }
+
+    let plantuml = PlantUmlCommand::resolve()?;
+    let mut report = RenderReport::default();
+    for (is_ocl, source_file) in sources {
+        let raw = fs::read_to_string(&source_file)
+            .with_context(|| format!("failed to read {}", source_file.display()))?;
+        let puml = if is_ocl {
+            let stem = source_file
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("constraints");
+            synthesize_ocl_puml(&raw, stem)
+        } else {
+            raw
+        };
+
+        let output_path = project.rendered_mirror_path(&source_file);
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        let rel_out = output_path
+            .strip_prefix(project.root())
+            .unwrap_or(&output_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        match render_plantuml_to_svg(&puml, &plantuml) {
+            Ok(svg) => {
+                fs::write(&output_path, svg)
+                    .with_context(|| format!("failed to write {}", output_path.display()))?;
+                report.rendered.push(rel_out);
+            }
+            Err(error) => {
+                let src_rel = source_file
+                    .strip_prefix(project.root())
+                    .unwrap_or(&source_file)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                report.diagnostics.push(format!("{src_rel}: {error}"));
+            }
+        }
+    }
+    Ok(report)
+}
+
+/// Expand explicit path arguments: a directory is walked for `*.puml`
+/// and `*.ocl`; a file is taken as-is. OCL-ness is decided by extension.
+fn expand_paths(paths: &[PathBuf]) -> Vec<(bool, PathBuf)> {
+    fn is_ocl(p: &Path) -> bool {
+        p.extension().and_then(|e| e.to_str()) == Some("ocl")
+    }
+    let mut out = Vec::new();
+    for path in paths {
+        if path.is_dir() {
+            let mut walked: Vec<PathBuf> = walkdir::WalkDir::new(path)
+                .into_iter()
+                .filter_map(std::result::Result::ok)
+                .filter(|e| e.file_type().is_file())
+                .map(walkdir::DirEntry::into_path)
+                .filter(|p| {
+                    p.to_str().is_some_and(|s| s.ends_with(".puml")) || is_ocl(p)
+                })
+                .collect();
+            walked.sort();
+            for p in walked {
+                out.push((is_ocl(&p), p));
+            }
+        } else if path.is_file() {
+            out.push((is_ocl(path), path.clone()));
+        }
+    }
+    out
+}
+
+/// Rasterize every `.mdd/models/**/*.puml` (CMP-DIFF-RENDER). Thin
+/// wrapper over [`render_selection`] so the tree set stays single-source.
 pub fn render_project(project: &Project) -> Result<RenderReport> {
-    let model_files = project.model_files()?;
-    if model_files.is_empty() {
+    let report = render_selection(project, &RenderSelection::Trees(vec![RenderTree::Models]))?;
+    if report.rendered.is_empty() && report.diagnostics.is_empty() {
         bail!("no PlantUML model files found under .mdd/models");
     }
-    let plantuml = PlantUmlCommand::resolve()?;
-    let rendered = render_paths(project, &plantuml, model_files)?;
-    Ok(RenderReport { rendered })
+    Ok(report)
 }
 
 /// Rasterize every superposed `<diagram>.diff.puml` under `.mdd/cycles/`
 /// to its deterministic `.mdd/rendered/cycles/<n>/<rel>.diff.svg` mirror
 /// (CMP-DIFF-RENDER / SEQ-RENDER-DIFF-SVG). Invoked by the `/mdd-cycle`
-/// close step and by `/mdd-render`. An empty cycle store is not an error
-/// — the viewer simply has no rendered diff to paint until a cycle closes.
+/// close step and by `mdd render` / `/mdd-render`. An empty cycle store
+/// is not an error — the viewer simply has no rendered diff to paint
+/// until a cycle closes. Thin wrapper over [`render_selection`].
 pub fn render_cycle_diffs(project: &Project) -> Result<RenderReport> {
-    let diff_pumls = project.cycle_diff_puml_files()?;
-    if diff_pumls.is_empty() {
-        return Ok(RenderReport {
-            rendered: Vec::new(),
-        });
-    }
-    let plantuml = PlantUmlCommand::resolve()?;
-    let rendered = render_paths(project, &plantuml, diff_pumls)?;
-    Ok(RenderReport { rendered })
-}
-
-/// Render each PlantUML source file to its `Project::rendered_svg_path`
-/// mirror, returning the project-relative rendered paths.
-fn render_paths(
-    project: &Project,
-    plantuml: &PlantUmlCommand,
-    sources: Vec<PathBuf>,
-) -> Result<Vec<String>> {
-    let mut rendered = Vec::new();
-    for source_file in sources {
-        let source = fs::read_to_string(&source_file)
-            .with_context(|| format!("failed to read {}", source_file.display()))?;
-        let relative = source_file
-            .strip_prefix(project.root())
-            .with_context(|| format!("{} is outside project root", source_file.display()))?
-            .to_string_lossy()
-            .replace('\\', "/");
-        let output_path = project.rendered_svg_path(&relative);
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-
-        let svg = render_plantuml_to_svg(&source, plantuml)?;
-        fs::write(&output_path, svg)
-            .with_context(|| format!("failed to write {}", output_path.display()))?;
-        rendered.push(
-            output_path
-                .strip_prefix(project.root())
-                .unwrap_or(&output_path)
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
-    }
-    Ok(rendered)
+    render_selection(project, &RenderSelection::Trees(vec![RenderTree::CycleDiffs]))
 }
 
 /// Synthesize a PlantUML "constraints" diagram from an OCL file: each
@@ -206,44 +283,10 @@ pub fn synthesize_ocl_puml(ocl: &str, title: &str) -> String {
 /// OCL Diagram sub-mode can paint it. Invoked by `/mdd-render` and the
 /// cycle close. An empty constraint set is not an error.
 pub fn render_ocl_diagrams(project: &Project) -> Result<RenderReport> {
-    let ocls = project.constraint_files()?;
-    if ocls.is_empty() {
-        return Ok(RenderReport {
-            rendered: Vec::new(),
-        });
-    }
-    let plantuml = PlantUmlCommand::resolve()?;
-    let mut rendered = Vec::new();
-    for ocl in ocls {
-        let source = fs::read_to_string(&ocl)
-            .with_context(|| format!("failed to read {}", ocl.display()))?;
-        let relative = ocl
-            .strip_prefix(project.root())
-            .with_context(|| format!("{} is outside project root", ocl.display()))?
-            .to_string_lossy()
-            .replace('\\', "/");
-        let stem = std::path::Path::new(&relative)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("constraints");
-        let puml = synthesize_ocl_puml(&source, stem);
-        let output_path = project.rendered_svg_path(&relative);
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-        let svg = render_plantuml_to_svg(&puml, &plantuml)?;
-        fs::write(&output_path, svg)
-            .with_context(|| format!("failed to write {}", output_path.display()))?;
-        rendered.push(
-            output_path
-                .strip_prefix(project.root())
-                .unwrap_or(&output_path)
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
-    }
-    Ok(RenderReport { rendered })
+    render_selection(
+        project,
+        &RenderSelection::Trees(vec![RenderTree::OclConstraints]),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

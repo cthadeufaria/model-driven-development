@@ -1,0 +1,70 @@
+@startuml
+' @id(SEQ-DEPLOY-GUIDANCE)
+' @id(SEQ-DEPLOY-INSPECT)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-INSPECT)
+'
+' Current-side runtime flow as implemented in templates::MDD_DEPLOY_SKILL
+' and the extended templates::MDD_RENDER_SKILL. The skill body is the
+' executable contract the agent follows; it writes artifacts and a
+' runbook and then STOPS — it executes no deployment command.
+'
+' @desc(SEQ-DEPLOY-GUIDANCE, "As implemented in templates::MDD_DEPLOY_SKILL: reject non-azure-container-apps targets, read .mdd/models + ../atlas-ate-server read-only, STOP for a blocking clarification on ambiguity AND on any statically detectable go-live landmine (step 3 — a generated config default contradicting what the shipped code supports, e.g. AOAI managed-identity vs api-key-only server), write .mdd/deploy/azure-container-apps/diagram.puml, generate secure-by-default ../atlas-ate-server/infra/main.bicep (step 5 — no store left more network-open than its peers; Key Vault Deny + bypass=AzureServices when Postgres/AOAI are private), write the STOP-gated runbook.md, enforce every deploy-profile invariant, then report and execute nothing.")
+' @desc(SEQ-DEPLOY-INSPECT, "As implemented in templates::MDD_RENDER_SKILL step 8: /mdd-render rasterizes every .mdd/deploy/**/*.puml to its deterministic .mdd/rendered/deploy/**/*.svg mirror. Additive, non-gating.")
+title /mdd-deploy guidance and inspection (current)
+
+actor "Operator" as Op
+participant "/mdd-deploy\n(utility skill)" as Dep
+participant ".mdd/models/\ncomponents + use-cases" as Models
+participant "../atlas-ate-server\n(target repo, read-only)" as Target
+database ".mdd/deploy/\nazure-container-apps/" as Store
+participant "../atlas-ate-server/\ninfra/ (generated Bicep)" as Infra
+participant "/mdd-render" as Render
+database ".mdd/rendered/deploy/" as Rendered
+
+== SEQ-DEPLOY-GUIDANCE ==
+Op -> Dep : /mdd-deploy <deployment description>
+alt target != azure-container-apps
+  Dep --> Op : not yet supported (v1 = azure-container-apps only); stop
+else target == azure-container-apps
+  Dep -> Models : read components + use-cases (the "what")
+  Dep -> Target : read README, Dockerfile, docker-compose.yml,\n.env.example, src (READ-ONLY)
+  opt topology/security choice ambiguous OR a go-live landmine is statically detectable
+    Dep -> Op : BLOCKING clarification (step 3; e.g. generated AOAI\nmanaged-identity default vs api-key-only server) —\nsame discipline as /mdd-cycle
+    Op --> Dep : decision
+    note right of Dep
+      Mandatory blocking pause (step 3). The skill NEVER
+      guesses an ambiguous decision, and NEVER demotes a
+      detected go-live landmine to a buried runbook STOP note.
+    end note
+  end
+  Dep -> Store : write diagram.puml (UML deployment diagram;\ndocumentation-only security stereotypes)
+  Dep -> Infra : generate SECURE-BY-DEFAULT infra/main.bicep (step 5):\nContainer Apps, ACR, Azure DB for PostgreSQL (TLS),\nKey Vault (Deny + bypass=AzureServices when peers private),\nsecret refs, ingress 8080, migration job
+  Dep -> Store : write runbook.md (numbered steps; exact command,\nlocation, env/secret; STOP before every state-changing\nor go-live step incl. the billing production gate)
+  note right of Dep
+    Enforces every atlas-ate-server invariant from
+    .mdd/docs/deploy-profile.md: Key-Vault-only
+    secrets, App Attest required, billing production
+    multi-factor gate, BYOK never touches the
+    server, DB TLS + at-rest, pre-traffic migration
+    job, non-root, port 8080.
+    Secure-by-default: no store left more network-open
+    than its peers (auto-hardened, not deferred).
+    Caveat: migrations-before-traffic stays procedural
+    (documented v1 tradeoff, not auto-changed).
+  end note
+  Dep --> Op : report written files; review the diagram\nand run the runbook yourself. Executes NOTHING.
+end
+
+== SEQ-DEPLOY-INSPECT ==
+Op -> Render : /mdd-render
+Render -> Store : read .mdd/deploy/**/*.puml
+Render -> Rendered : write .mdd/rendered/deploy/**/*.svg\n(deterministic mirror; additive, non-gating)
+Render --> Op : rendered SVG list
+
+note over Store
+  .mdd/deploy/ is an inspection artifact only.
+  /mdd-validate, /mdd-review and the /mdd-cycle
+  parity loop never read it.
+end note
+@enduml

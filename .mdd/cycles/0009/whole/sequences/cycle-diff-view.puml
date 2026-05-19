@@ -1,0 +1,58 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-RENDER-CYCLE-DIFF, 0001)
+' @id(SEQ-RENDER-CYCLE-DIFF)
+' @ref(USE-CYCLE-DIFF-VIEW)
+' @ref(USE-DIFF-DIAGRAM)
+'
+' Current-side flow as implemented in MddViewer::diff_ui: Diff mode is
+' bound to the selected CYCLE chip and the rail-selected file; an inner
+' DiffSubMode toggle picks the rendered diagram (DiagramPage painted by
+' paint_canvas) or the per-file element buckets.
+'
+' @desc(SEQ-RENDER-CYCLE-DIFF, "As-built: diff_ui keys on selected_file; cycles_with_diff_for filters the CYCLE row to cycles whose CycleDiff for the file is !is_empty() (added/removed — a written .diff), excluding present-unchanged cycles (default latest, caption if one); Diagram loads the cycle .diff.svg, List lists buckets.")
+title Render the selected file's cycle diff (current)
+
+actor "Developer" as Dev
+participant "MddViewer::diff_ui\n(eframe::App)" as Viewer
+participant "DiffView\n{sub_mode, loaded_key, page}" as DV
+participant "Project::cycle_diffs\ncycle::cycle_diffs" as Core
+database ".mdd/cycles/<N>/\nbefore/ , after/" as Store
+database ".mdd/rendered/cycles/<N>/\n<rel>.diff.svg" as Rendered
+participant "DiagramPage::load\n+ paint_canvas" as Page
+
+Dev -> Viewer : Diff tab; pick cycle N (CYCLE row)
+Dev -> Viewer : select model file F in the rail
+Viewer -> Core : cycle_diffs(N) (cached by number)
+Core -> Store : scan + diff_documents(before, after)
+Core --> Viewer : Vec<CycleDiff>
+Viewer -> DV : key = DiffView::diagram_key(F)\nfind CycleDiff where diagram == key
+
+opt no selected file
+  Viewer -> Dev : "Select a model file in the rail"
+end
+opt cycle still open (no after/)
+  Viewer -> Dev : "diff available after the cycle closes"
+end
+opt F unchanged in cycle N
+  Viewer -> Dev : "<F> did not change in cycle N"
+end
+
+alt sub_mode = Diagram (default)
+  DV -> DV : Cycle::diff_puml_rel(F)\n-> Project::rendered_svg_path
+  alt rendered .diff.svg present
+    DV -> Page : DiagramPage::load(svg) when loaded_key changed
+    Page -> Rendered : read svg bytes (usvg/resvg)
+    loop each painted frame
+      Viewer -> Page : paint_canvas (pan/zoom/fisheye reused)
+      Page --> Dev : superposed diff diagram\n(<<added>> green / <<removed>> red baked in)
+    end
+  else svg missing
+    Viewer -> Dev : "No rendered diff — run the render pipeline"
+  end
+else sub_mode = List
+  loop unchanged / added / removed of that one CycleDiff
+    Viewer -> Dev : neutral / green / red strikethrough keys
+  end
+end
+@enduml

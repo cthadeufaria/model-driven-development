@@ -201,6 +201,15 @@ links:
   - from: CMP-DEPLOY-SKILL
     to: CMP-DEPLOY-TARGET
     relation: depends_on
+  - from: SEQ-RENDER-DIFF-SVG
+    to: DOM-RENDER-ENGINE
+    relation: depends_on
+  - from: OCL-RENDER-TREE-PARITY
+    to: DOM-RENDER-ENGINE
+    relation: constrains
+  - from: OCL-RENDER-PATH-MIRROR
+    to: DOM-RENDER-ENGINE
+    relation: constrains
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -346,10 +355,19 @@ source_links:
     symbol: synthesize_ocl_puml
   - model_id: SEQ-RENDER-DIFF-SVG
     path: crates/mdd-render/src/lib.rs
-    symbol: render_cycle_diffs
+    symbol: render_selection
   - model_id: CMP-DIFF-RENDER
     path: crates/mdd-render/src/lib.rs
-    symbol: render_cycle_diffs
+    symbol: render_selection
+  - model_id: CMP-DIFF-RENDER
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Render
+  - model_id: DOM-RENDER-ENGINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: RenderTree
+  - model_id: DOM-RENDER-ENGINE
+    path: crates/mdd-render/src/lib.rs
+    symbol: render_selection
   - model_id: SEQ-RENDER-CYCLE-DIFF
     path: crates/mdd-viewer/src/lib.rs
     symbol: MddViewer::diff_ui

@@ -3,11 +3,13 @@
 ' @id(CMP-OCL-RENDER)
 ' @ref(USE-VIEW-DIAGRAMS)
 ' @ref(USE-VIEW-OCL)
+' @ref(DOM-RENDER-ENGINE)
 ' @desc(CMP-VIEWER-RENDER-PIPELINE, "mdd-viewer's pre-rendered-SVG consumer: reads SVG bytes and rasterizes them through usvg/resvg with a populated font database.")
-' @desc(CMP-OCL-RENDER, "mdd-render OCL synthesizer: turns an .ocl file into a PlantUML constraints diagram and rasterizes it to the deterministic .mdd/rendered/constraints/<name>.svg mirror, like the cycle diff renderer.")
+' @desc(CMP-OCL-RENDER, "The mdd-render engine's OCL path (synthesize_ocl_puml + render_ocl_diagrams): turns each .ocl into a PlantUML constraints diagram and rasterizes it to the deterministic .mdd/rendered/constraints/<name>.svg mirror. OCL is one of the trees the single `mdd render` command covers, enumerated through the one mdd-core Project helper like every other tree (DOM-RENDER-ENGINE); the cycle close and the /mdd-render thin wrapper reach it via `mdd render`.")
 ' Objective-side component view: the font database is an explicit,
 ' populated dependency owned at the usvg boundary; OCL files get a
-' synthesized constraints diagram via mdd-render.
+' synthesized constraints diagram from the mdd-render engine, produced
+' by the same `mdd render` command that covers every other tree.
 title mdd-viewer render pipeline — ownership (objective)
 
 actor "Developer" as Dev
@@ -21,7 +23,7 @@ package "SVG rasterization (external crates)" {
   component "resvg 0.44 +\ntiny-skia 0.11" as Resvg
 }
 component "eframe / egui 0.30\n(window, painter, textures)" as Egui
-component "mdd-render\nsynthesize_ocl_puml +\nrender_ocl_diagrams" as OclRend
+component "mdd-render engine\nsynthesize_ocl_puml +\nrender_ocl_diagrams\n(via `mdd render`)" as OclRend
 folder ".mdd/constraints/\n*.ocl" as Ocl
 
 Dev --> Viewer : mdd view

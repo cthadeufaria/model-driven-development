@@ -267,20 +267,24 @@ const MDD_RENDER_SKILL: &str = r#"# MDD Render
 
 You are an MDD, UML, PlantUML, and OCL specialist for diagram rendering.
 
-This is a **utility skill, not a workflow gate**. Use it whenever the user wants to open `.mdd/models/**` PlantUML files as SVGs in an external editor for visual inspection.
+This is a **utility skill, not a workflow gate**, and a **thin wrapper** over the `mdd render` command. The mechanics — enumerating every renderable tree, synthesizing OCL constraint diagrams, the PlantUML/Graphviz subprocess, jar resolution, and the deterministic source→`.mdd/rendered/` path mirror — all live in compiled code (the `mdd-render` engine, driven by `mdd render`, whose tree set is the single `mdd-core` `Project` enumeration). You add only **judgment**: interpreting a fuzzy subset request, triaging diagnostics, and suggesting fixes. Do **not** hand-run `java -jar plantuml.jar` or re-implement the tree list here.
 
 ## Workflow
 
-1. Render each PlantUML file under `.mdd/models/` to the matching `.mdd/rendered/models/.../*.svg` path. If the user specifies a subset (e.g. only `current/use-cases`), render that subset.
-2. Prefer the repository or packaged PlantUML jar when available (e.g. `third_party/plantuml/plantuml.jar`). Otherwise use `plantuml` on PATH. Java jar rendering: `java -jar path/to/plantuml.jar -tsvg -pipe < <input.puml> > <output.svg>`.
-3. Ensure Java is available for jar rendering and Graphviz `dot` is available for graph-based UML diagrams.
-4. After rendering, inspect each SVG for PlantUML diagnostic text (`Dot executable does not exist`, `Cannot find Graphviz`, `Syntax Error`, `Error`, `No diagram found`) and report any findings.
-5. Also render any `.diff.puml` files under `.mdd/rendered/review/` produced by `/mdd-review` so the user can inspect the diff diagrams.
-6. Also rasterize every `.mdd/cycles/<N>/<rel>.diff.puml` to its deterministic mirror `.mdd/rendered/cycles/<N>/<rel>.diff.svg` (`.mdd/cycles/` → `.mdd/rendered/cycles/`, `.diff.puml` → `.diff.svg`) so the viewer's Diff mode can paint the superposed diagram for the selected file.
-7. Also rasterize every `.mdd/map/<kind>/<name>.puml` — the whole-map baseline that `/mdd-cycle`'s close step accumulates — to its deterministic mirror `.mdd/rendered/map/<kind>/<name>.svg` (`.mdd/map/` → `.mdd/rendered/map/`) so the accumulated whole-system picture can be inspected externally. An absent `.mdd/map/` tree is not an error.
-8. Also rasterize every `.mdd/deploy/**/*.puml` — the deployment diagrams produced by the `/mdd-deploy` utility skill — to its deterministic mirror `.mdd/rendered/deploy/**/*.svg` (`.mdd/deploy/` → `.mdd/rendered/deploy/`) so the deployment diagram is inspectable like every other diagram. Additive and non-gating; an absent `.mdd/deploy/` tree is not an error.
-9. Also synthesize a PlantUML constraints diagram from every `.mdd/constraints/*.ocl` and rasterize it to `.mdd/rendered/constraints/<name>.svg` (via `mdd_render::render_ocl_diagrams`) so the viewer's OCL Diagram sub-mode can paint it.
-10. Report the list of rendered files and any diagnostic failures. The user reviews them externally.
+1. **Fuzzy subset intake.** Translate what the user asked for into `mdd render` arguments:
+   - whole system / "render everything" / a cycle just closed → `mdd render` (no args = full tree parity: models, cycle diffs, OCL, whole-map, deploy, review-diff).
+   - one tree, e.g. "just the deploy diagrams", "the OCL diagrams", "the whole-map" → `mdd render --only deploy` (selectors: `models`, `cycle-diffs`, `ocl`, `map`, `deploy`, `review`; comma-separate for several).
+   - specific files/dirs, e.g. "just current use-cases" → `mdd render .mdd/models/current/use-cases`.
+2. **Run it.** Invoke the resolved `mdd render …`. It writes each source to its deterministic `.mdd/rendered/` mirror and prints `rendered <path>` lines plus `diagnostic <path>: <message>` lines; it exits non-zero if any diagnostic occurred.
+3. **Diagnostic triage + fix suggestions.** For each `diagnostic` line, explain the likely cause and the concrete fix, e.g.:
+   - `Cannot find Graphviz` / `Dot executable does not exist` → install Graphviz (`brew install graphviz`), or set `GRAPHVIZ_DOT=/path/to/dot`.
+   - `PlantUML is not available` → install the bundled jar + Java, set `MDD_PLANTUML_JAR=/path/to/plantuml.jar`, or put `plantuml` on PATH.
+   - `Syntax Error` / `No diagram found` → point at the offending source file so it can be fixed at the model.
+4. **Report** the rendered list and any diagnostics with their suggested fixes. The user reviews the SVGs externally.
+
+## Cross-skill contract (do not move)
+
+`/mdd-cycle`'s close step, `/mdd-review`, and `/mdd-deploy` hand off to `/mdd-render` by name. That name and this skill stay; only the mechanics moved into `mdd render`. Those callers may also invoke `mdd render` directly — same engine, same single tree set.
 
 Rendering is not a gate. Validation, implementation, and review do not depend on a render pass.
 "#;
@@ -357,12 +361,23 @@ Read `.mdd/docs/deploy-profile.md` first — it defines the deployment-diagram c
 
 1. Read the deployment description. v1 supports exactly one target: `azure-container-apps` (the sibling repo `../atlas-ate-server`). If any other target is requested, say it is not yet supported and stop.
 2. Read context, **read-only**: `.mdd/models/**/{components,use-cases}/*.puml` (the *what* of the system) and the target repo `../atlas-ate-server` (`README.md`, `Dockerfile`, `docker-compose.yml`, `.env.example`, `src/`) to ground the topology and security invariants in reality.
-3. Whenever a topology or security choice is genuinely ambiguous, **STOP and ask the user** before proceeding — the same clarification discipline as `/mdd-cycle`. Never guess an ambiguous decision.
+3. Whenever a topology or security choice is genuinely ambiguous, **STOP and ask the user** before proceeding — the same clarification discipline as `/mdd-cycle`. Never guess an ambiguous decision. **This blocking pause is also mandatory for go-live landmines**: when, from the inputs you already read (`.mdd/models`, the target repo `src/`, `Dockerfile`, `.env.example`), you can statically detect a contradiction between a config default you would generate and what the shipped target code actually supports, you MUST stop and surface it as a blocking question — never bury it as a runbook STOP note. Worked example: defaulting Azure OpenAI to managed identity while the shipped server authenticates only with an API key (no `@azure/identity` code path) would ship an app that cannot reach Azure OpenAI at go-live — a surfaced decision, not a STOP note. See `.mdd/docs/deploy-profile.md` ("Landmine detection — mandatory pause").
 4. Write `.mdd/deploy/azure-container-apps/diagram.puml`: a true UML **deployment** diagram — nodes (Azure Container Registry, Container Apps environment + the app revision, Azure Database for PostgreSQL, Azure Key Vault, Azure OpenAI), the deployed artifact (the server container image), and annotated communication paths/protocols. Reuse the stereotype vocabulary (`<<Encrypt>>`, `<<ByPassing>>`, `<<Flooding>>`, `<<Expiration>>`) as **documentation-only** PlantUML stereotypes/notes. These are NOT the gated security-marker mechanism: do not write `@sec` markers here.
-5. Generate `../atlas-ate-server/infra/main.bicep` (+ modules): Container Apps, ACR, Azure Database for PostgreSQL (TLS required), Key Vault + secret references, external ingress on `8080`, and the database migration as a separate Container Apps job run before traffic routing. Cross-repo output is fine — the skill is non-gated guidance.
+5. Generate `../atlas-ate-server/infra/main.bicep` (+ modules): Container Apps, ACR, Azure Database for PostgreSQL (TLS required), Key Vault + secret references, external ingress on `8080`, and the database migration as a separate Container Apps job run before traffic routing. Cross-repo output is fine — the skill is non-gated guidance. **Secure-by-default network posture**: automatable hardening is not a deferred human decision. Never emit a secret or data store more openly network-reachable than its peers; choose the most restrictive network posture consistent with the connectivity the runbook actually requires, and relax it only via an explicit, surfaced decision. Concretely for the v1 target: when Postgres and Azure OpenAI are private, Key Vault must default to `networkAcls.defaultAction: 'Deny'` + `bypass: 'AzureServices'` (or a private endpoint) — never `publicNetworkAccess: 'Enabled'` with `'Allow'`. See `.mdd/docs/deploy-profile.md` ("Secure-by-default").
 6. Write `.mdd/deploy/azure-container-apps/runbook.md`: numbered steps, each with the exact command, the directory / Azure context to run it in, the required env/secret values, and an explicit **STOP / confirm** marker before every state-changing or go-live step. Frame it explicitly as "run these yourself".
 7. Enforce, in both the diagram and the runbook, every `../atlas-ate-server` invariant from `.mdd/docs/deploy-profile.md`: Key-Vault-only secrets, App Attest required, the billing production multi-factor gate, BYOK never touching the server, DB TLS + at-rest encryption, the pre-traffic migration job, non-root container, port `8080` ingress.
 8. Report the written files. Do **NOT** execute anything. Tell the user to review the diagram and run the runbook themselves. `/mdd-render` rasterizes `.mdd/deploy/**/*.puml` to `.mdd/rendered/deploy/**/*.svg` for visual inspection.
+
+## Secure-by-default & landmine detection
+
+Two obligations strengthen what the skill does *within* its guidance-only role (full rationale and worked examples in `.mdd/docs/deploy-profile.md`):
+
+- **Secure-by-default IaC** — automatable hardening is part of the guidance, not a deferred human decision. Emit the most restrictive network posture consistent with the connectivity the runbook actually requires (step 5); no store may be left more openly reachable than its peers.
+- **Landmine detection is a mandatory blocking pause** — a statically detectable contradiction between a generated config default and what the shipped target code supports is a go-live landmine. Surface it as a blocking question (step 3); never demote it to a buried runbook STOP note.
+
+Caveat: "migrations before traffic" is enforced procedurally (an ordered pre-traffic migration job + a runbook STOP), not as an infrastructure interlock. That is a documented, accepted v1 tradeoff — surfaced in the profile, not auto-changed here.
+
+This sharpens the skill's diligence; it does not change the non-goal. The skill still **never executes a deploy command** — step 8 is report-and-stop.
 
 Deploy guidance is not a gate.
 "#;

@@ -13,6 +13,67 @@ mod templates;
 
 pub use cycle::{Cycle, CycleDiff, CycleRegistry, CycleStatus, EntryPoint};
 
+/// The complete, single enumeration of every renderable source tree.
+/// The `mdd render` command, the `/mdd-cycle` close step, and the
+/// `/mdd-render` thin-wrapper skill all consume exactly this set — there
+/// is no second, hand-maintained list (OCL-RENDER-TREE-PARITY). Adding a
+/// renderable tree means adding a variant here plus one match arm in
+/// [`Project::render_sources`]; every caller then covers it for free.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RenderTree {
+    /// `.mdd/models/**/*.puml` (current + objective).
+    Models,
+    /// `.mdd/cycles/**/<rel>.diff.puml` superposed cycle diffs.
+    CycleDiffs,
+    /// `.mdd/constraints/*.ocl` (synthesized to a constraints diagram).
+    OclConstraints,
+    /// `.mdd/map/**/*.puml` accumulated whole-map baseline.
+    WholeMap,
+    /// `.mdd/deploy/**/*.puml` deployment diagrams.
+    Deploy,
+    /// `.mdd/rendered/review/*.diff.puml` review-mismatch diffs.
+    ReviewDiff,
+}
+
+impl RenderTree {
+    /// Every tree, in render order.
+    pub const ALL: [RenderTree; 6] = [
+        RenderTree::Models,
+        RenderTree::CycleDiffs,
+        RenderTree::OclConstraints,
+        RenderTree::WholeMap,
+        RenderTree::Deploy,
+        RenderTree::ReviewDiff,
+    ];
+
+    /// Canonical `mdd render --only <key>` selector.
+    pub fn key(self) -> &'static str {
+        match self {
+            RenderTree::Models => "models",
+            RenderTree::CycleDiffs => "cycle-diffs",
+            RenderTree::OclConstraints => "ocl",
+            RenderTree::WholeMap => "map",
+            RenderTree::Deploy => "deploy",
+            RenderTree::ReviewDiff => "review",
+        }
+    }
+
+    /// Parse a user-supplied tree selector, accepting a few aliases.
+    pub fn parse(token: &str) -> Option<RenderTree> {
+        match token.trim().to_ascii_lowercase().as_str() {
+            "models" | "model" => Some(RenderTree::Models),
+            "cycle-diffs" | "cycle-diff" | "cycles" | "cycle" | "diffs" => {
+                Some(RenderTree::CycleDiffs)
+            }
+            "ocl" | "constraints" | "constraint" => Some(RenderTree::OclConstraints),
+            "map" | "whole-map" | "wholemap" => Some(RenderTree::WholeMap),
+            "deploy" | "deployment" => Some(RenderTree::Deploy),
+            "review" | "review-diff" | "review-diffs" => Some(RenderTree::ReviewDiff),
+            _ => None,
+        }
+    }
+}
+
 pub const MDD_DIR: &str = ".mdd";
 
 const CONFIG_FILE: &str = ".mdd/config.yml";
@@ -652,6 +713,77 @@ impl Project {
         }
         files.sort();
         Ok(files)
+    }
+
+    /// Files under `rel` whose path ends with `suffix`, absolute and
+    /// sorted. An absent directory yields an empty list (not an error):
+    /// a greenfield repo has no `.mdd/map/`, `.mdd/deploy/`, or review
+    /// diffs yet.
+    fn walk_suffix(&self, rel: &str, suffix: &str) -> Vec<PathBuf> {
+        let base = self.root.join(rel);
+        let mut files = Vec::new();
+        if !base.is_dir() {
+            return files;
+        }
+        for entry in WalkDir::new(&base)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+        {
+            let path = entry.path();
+            if entry.file_type().is_file()
+                && path.to_str().is_some_and(|p| p.ends_with(suffix))
+            {
+                files.push(path.to_path_buf());
+            }
+        }
+        files.sort();
+        files
+    }
+
+    /// Source files for one renderable tree, absolute and sorted. This
+    /// is the single place the tree set is defined; `mdd render` and
+    /// every other caller route through it (OCL-RENDER-TREE-PARITY).
+    pub fn render_sources(&self, tree: RenderTree) -> Result<Vec<PathBuf>> {
+        match tree {
+            RenderTree::Models => self.model_files(),
+            RenderTree::CycleDiffs => self.cycle_diff_puml_files(),
+            RenderTree::OclConstraints => self.constraint_files(),
+            RenderTree::WholeMap => Ok(self.walk_suffix(".mdd/map", ".puml")),
+            RenderTree::Deploy => Ok(self.walk_suffix(".mdd/deploy", ".puml")),
+            RenderTree::ReviewDiff => {
+                Ok(self.walk_suffix(".mdd/rendered/review", ".diff.puml"))
+            }
+        }
+    }
+
+    /// Every renderable source across every tree, each paired with the
+    /// tree it came from. The full `mdd render` set.
+    pub fn all_render_sources(&self) -> Result<Vec<(RenderTree, PathBuf)>> {
+        let mut out = Vec::new();
+        for tree in RenderTree::ALL {
+            for path in self.render_sources(tree)? {
+                out.push((tree, path));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Deterministic rendered-output path for a render source: its
+    /// project-relative path reparented under `.mdd/rendered/` with a
+    /// `.svg` extension. Sources already under `.mdd/rendered/` (review
+    /// diffs) keep their place — only the suffix changes
+    /// (OCL-RENDER-PATH-MIRROR; the cycle case is
+    /// OCL-DIFF-SVG-PATH-DERIVED).
+    pub fn rendered_mirror_path(&self, source: &Path) -> PathBuf {
+        let rel = self
+            .relative_path(source)
+            .unwrap_or_else(|_| source.to_string_lossy().into_owned());
+        if rel.starts_with(".mdd/rendered/") {
+            let mut already = PathBuf::from(&rel);
+            already.set_extension("svg");
+            return self.root.join(already);
+        }
+        self.rendered_svg_path(&rel)
     }
 
     pub fn validate(&self) -> Result<ValidationReport> {

@@ -1,41 +1,65 @@
 @startuml
 ' @id(SEQ-RENDER-DIFF-SVG)
 ' @ref(USE-DIFF-DIAGRAM)
+' @ref(DOM-RENDER-ENGINE)
 '
-' Objective-side flow for rasterizing a cycle's superposed .diff.puml
-' files to SVG so the viewer (which has no PlantUML engine) can paint
-' them. Triggered by /mdd-cycle's close step and by /mdd-render.
+' Objective-side flow for the `mdd render` command: the single
+' deterministic engine rasterizes every renderable tree (models, cycle
+' diffs, OCL, map, deploy, review-diff) to its .mdd/rendered/ mirror so
+' the viewer (which has no PlantUML engine) can paint it. Invoked by
+' /mdd-cycle's close step and by the /mdd-render thin-wrapper skill.
 '
-' @desc(SEQ-RENDER-DIFF-SVG, "How each .mdd/cycles/<n>/<kind>/<name>.diff.puml is rasterized to .mdd/rendered/cycles/<n>/<kind>/<name>.diff.svg by the cycle-close step and /mdd-render, keeping the rendered path a deterministic mirror of the source path.")
-title Rasterize cycle diff pumls to SVG (objective)
+' @desc(SEQ-RENDER-DIFF-SVG, "How the `mdd render` mdd-cli command rasterizes the full tree set (models, cycle diffs, OCL, whole-map, deploy, review-diff) enumerated once by mdd-core Project to deterministic .mdd/rendered/ mirror paths. The cycle-close step and the /mdd-render thin-wrapper skill both invoke `mdd render` (no args = full parity; --only <trees> or explicit paths = subset); the skill adds only fuzzy subset intake, diagnostic triage, and fix suggestions.")
+title Rasterize the renderable trees via `mdd render` (objective)
 
-actor "Developer" as Dev
-participant "/mdd-cycle close\nor /mdd-render" as Trigger
-participant "DiffRenderer\n(mdd-render)" as Rend
-database ".mdd/cycles/<n>/\n<kind>/<name>.diff.puml" as Store
+actor "Developer / CI" as Dev
+participant "/mdd-cycle close\nor /mdd-render skill\n(thin wrapper)" as Trigger
+participant "mdd render\n(mdd-cli subcommand)" as Cli
+participant "mdd-core Project\n(single tree enumeration)" as Proj
+participant "mdd-render engine" as Rend
+database ".mdd/{models,cycles,constraints,\nmap,deploy,rendered/review}/**" as Store
 participant "PlantUML jar\n(+ Graphviz dot)" as PUML
-database ".mdd/rendered/cycles/<n>/\n<kind>/<name>.diff.svg" as Out
+database ".mdd/rendered/**\n(deterministic mirror)" as Out
 
-Dev -> Trigger : close cycle N (or /mdd-render)
-Trigger -> Store : enumerate **/*.diff.puml under cycle N
-loop each <kind>/<name>.diff.puml
-  Trigger -> Rend : render(source = cycles/N/<kind>/<name>.diff.puml)
-  Rend -> Rend : derive out = rendered/cycles/N/<kind>/<name>.diff.svg
-  Rend -> PUML : plantuml -tsvg < diff.puml
+Dev -> Trigger : close cycle N  /  /mdd-render [fuzzy subset?]
+note right of Trigger
+  Skill judgment only: map "just the deploy
+  diagrams" -> `mdd render --only deploy`.
+  No mechanics here — it shells to the binary.
+end note
+Trigger -> Cli : `mdd render`  (or `--only <trees>` / explicit paths)
+Cli -> Proj : enumerate the requested tree set
+Proj --> Cli : source files (models, cycle diffs, OCL,\nwhole-map, deploy, review-diff)
+
+loop each source file
+  Cli -> Rend : render(source)
+  Rend -> Rend : derive out = source path mirrored under .mdd/rendered/
+  alt OCL source
+    Rend -> Rend : synthesize constraints puml first
+  end
+  Rend -> PUML : plantuml -tsvg < puml
   alt render ok
     PUML --> Rend : svg
     Rend -> Out : write deterministic mirror path
   else dot/syntax diagnostic
     PUML --> Rend : diagnostic text
-    Rend -> Trigger : report readiness warning (non-blocking)
+    Rend --> Cli : per-file diagnostic (hard failure -> non-zero exit)
   end
 end
-Trigger --> Dev : cycle N closed; diff SVGs available to the viewer
+Cli --> Trigger : rendered list + diagnostics
+
+opt diagnostics present
+  Trigger -> Dev : triage + fix suggestion (skill judgment:\ninstall Graphviz, set MDD_PLANTUML_JAR, ...)
+end
+Trigger --> Dev : cycle N closed / subset rendered; SVGs available to the viewer
 
 note over Out
-  Path is a pure mirror: cycles/<n>/<rel>.diff.puml
-  -> rendered/cycles/<n>/<rel>.diff.svg
-  (OCL-DIFF-SVG-PATH-DERIVED). The viewer never
-  invokes PlantUML; it only consumes this SVG.
+  Every tree's output path is a pure mirror of its
+  source (OCL-RENDER-PATH-MIRROR; the cycle case is
+  OCL-DIFF-SVG-PATH-DERIVED). The tree set is the
+  single mdd-core Project enumeration, never a
+  second hand-maintained list (OCL-RENDER-TREE-PARITY).
+  The viewer never invokes PlantUML; it only
+  consumes these SVGs.
 end note
 @enduml

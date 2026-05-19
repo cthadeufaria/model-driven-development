@@ -1,8 +1,10 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
-use mdd_core::{InitFileConflict, Project};
+use mdd_core::{InitFileConflict, Project, RenderTree};
+use mdd_render::RenderSelection;
 use std::env;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(name = "mdd")]
@@ -26,6 +28,20 @@ enum Commands {
     },
     /// Open the interactive diagram viewer for the current project.
     View,
+    /// Rasterize sources to SVG.
+    ///
+    /// With no arguments this renders the full tree set (models, cycle
+    /// diffs, OCL, whole-map, deploy, review-diff) — the same set every
+    /// caller sees, so the rendered tree never drifts from the model.
+    Render {
+        /// Restrict to specific trees (comma-separated or repeated):
+        /// models, cycle-diffs, ocl, map, deploy, review.
+        #[arg(long = "only", value_delimiter = ',')]
+        only: Vec<String>,
+        /// Explicit source files or directories to render instead of
+        /// the full set (directories are walked for *.puml / *.ocl).
+        paths: Vec<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -57,6 +73,49 @@ fn main() -> Result<()> {
         Commands::View => {
             let project = Project::discover(env::current_dir()?)?;
             mdd_viewer::run(project)?;
+        }
+        Commands::Render { only, paths } => {
+            let project = Project::discover(env::current_dir()?)?;
+            let selection = if !paths.is_empty() {
+                if !only.is_empty() {
+                    bail!("pass either explicit paths or --only, not both");
+                }
+                RenderSelection::Paths(paths)
+            } else if only.is_empty() {
+                RenderSelection::All
+            } else {
+                let mut trees = Vec::new();
+                for token in &only {
+                    match RenderTree::parse(token) {
+                        Some(tree) if !trees.contains(&tree) => trees.push(tree),
+                        Some(_) => {}
+                        None => bail!(
+                            "unknown render tree `{token}` (expected: models, cycle-diffs, ocl, map, deploy, review)"
+                        ),
+                    }
+                }
+                RenderSelection::Trees(trees)
+            };
+
+            let report = mdd_render::render_selection(&project, &selection)?;
+            for rendered in &report.rendered {
+                println!("rendered {rendered}");
+            }
+            for diagnostic in &report.diagnostics {
+                eprintln!("diagnostic {diagnostic}");
+            }
+            if report.rendered.is_empty() && report.diagnostics.is_empty() {
+                println!("no render sources matched");
+            } else {
+                println!(
+                    "{} rendered, {} diagnostic(s)",
+                    report.rendered.len(),
+                    report.diagnostics.len()
+                );
+            }
+            if !report.diagnostics.is_empty() {
+                std::process::exit(1);
+            }
         }
         Commands::Clean { force } => {
             let root = env::current_dir()?;
