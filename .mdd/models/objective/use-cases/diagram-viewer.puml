@@ -7,9 +7,13 @@
 ' @desc(USE-TOGGLE-PANELS, "Developer collapses or expands the left MODELS panel and the right MODEL CONTEXT panel via an inner-edge handle, reclaiming canvas width on demand.")
 ' @id(USE-VIEW-OCL)
 ' @desc(USE-VIEW-OCL, "Developer selects an .ocl constraint file and views it on the canvas with a Source/Diagram toggle: Source shows the raw OCL text, Diagram shows a synthesized PlantUML constraints diagram.")
+' @id(USE-VIEW-DEPLOY)
+' @desc(USE-VIEW-DEPLOY, "Developer sees /mdd-deploy deployment diagrams (.mdd/deploy/**/*.puml) in `mdd view`, listed in a DEDICATED 'DEPLOY' rail section that is visibly labelled as a utility artifact OUTSIDE the current<->objective parity gate. Selecting one paints its already-rendered .mdd/rendered/deploy/**/*.svg on the same canvas. The section is a THIRD viewer ingestion source alongside the model registry and the cycle registry; deployment files never enter ModelRegistry, so /mdd-validate and /mdd-review still never read .mdd/deploy/.")
 ' Objective-side use-case view. Same text-legibility acceptance as before,
-' plus the focus+context fisheye, the collapsible side panels, and an
-' OCL constraint viewer; the toolbar no longer carries zoom controls.
+' plus the focus+context fisheye, the collapsible side panels, an
+' OCL constraint viewer, and a dedicated non-gated DEPLOY section that
+' surfaces .mdd/deploy diagrams in the viewer; the toolbar no longer
+' carries zoom controls.
 title mdd view — diagram viewer (objective)
 
 left to right direction
@@ -24,6 +28,7 @@ rectangle "mdd-viewer" {
   usecase "Collapse / expand side panels" as Panels
   usecase "Inspect model IDs and trace links" as Trace
   usecase "View OCL constraints\n(source or diagram)" as ViewOcl
+  usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
 }
 
 Dev --> View
@@ -33,12 +38,14 @@ Dev --> Fisheye
 Dev --> Panels
 Dev --> Trace
 Dev --> ViewOcl
+Dev --> ViewDeploy
 
 View ..> Browse : <<include>>
 View ..> PanZoom : <<extend>>
 View ..> Fisheye : <<extend>>
 View ..> Panels : <<extend>>
 ViewOcl ..> PanZoom : <<extend>>
+ViewDeploy ..> PanZoom : <<extend>>
 
 note bottom of ViewOcl
   Objective (USE-VIEW-OCL): selecting a
@@ -82,5 +89,22 @@ note bottom of Panels
   an inner-edge chevron handle; clicking it collapses
   the panel to a thin sliver, clicking the sliver
   re-expands it. Realized by SEQ-PANEL-COLLAPSE.
+end note
+
+note bottom of ViewDeploy
+  Objective (USE-VIEW-DEPLOY): the left rail gains a
+  THIRD source. Today MddViewer::new() loads exactly
+  two — model_registry() (.mdd/models + .mdd/constraints)
+  and cycle_registry() (.mdd/cycles); .mdd/deploy is
+  reachable only as RenderTree::Deploy (an `mdd render`
+  rasterization target), so it never appears in the
+  interactive viewer. Objective: a dedicated DEPLOY
+  section, fed by Project::deploy_files(), lists
+  .mdd/deploy/**/*.puml and paints the existing
+  .mdd/rendered/deploy/**/*.svg on the shared canvas.
+  It stays OUT of ModelRegistry: /mdd-deploy is a
+  utility outside the parity gate, so /mdd-validate
+  and /mdd-review must continue to ignore .mdd/deploy/.
+  Realized by SEQ-VIEW-DEPLOY.
 end note
 @enduml

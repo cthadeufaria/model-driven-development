@@ -234,6 +234,21 @@ links:
   - from: OCL-RENDER-PATH-MIRROR
     to: DOM-RENDER-ENGINE
     relation: constrains
+  - from: USE-VIEW-DEPLOY
+    to: SEQ-VIEW-DEPLOY
+    relation: realizes
+  - from: USE-VIEW-DEPLOY
+    to: CMP-DEPLOY-VIEWER-SOURCE
+    relation: realized_by
+  - from: USE-VIEW-DEPLOY
+    to: CMP-VIEWER-SCAN-SCOPE
+    relation: realized_by
+  - from: SEQ-VIEW-DEPLOY
+    to: DOM-RENDER-ENGINE
+    relation: depends_on
+  - from: CMP-DEPLOY-VIEWER-SOURCE
+    to: CMP-RENDER-TREE-SET
+    relation: depends_on
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -265,8 +280,23 @@ generated_tests:
   - id: AT-USE-WHOLE-MAP
     path: .mdd/tests/acceptance/use-whole-map.feature
     model_id: USE-WHOLE-MAP
+  - id: AT-USE-VIEW-DEPLOY
+    path: .mdd/tests/acceptance/use-view-deploy.feature
+    model_id: USE-VIEW-DEPLOY
 generated_ui_tests: []
 source_links:
+  - model_id: CMP-VIEWER-SCAN-SCOPE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::new
+  - model_id: CMP-MODEL-REGISTRY-SCAN
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::model_and_constraint_files
+  - model_id: CMP-CYCLE-REGISTRY-SCAN
+    path: crates/mdd-core/src/cycle.rs
+    symbol: CycleRegistry::scan
+  - model_id: CMP-RENDER-TREE-SET
+    path: crates/mdd-core/src/lib.rs
+    symbol: RenderTree
   - model_id: USE-VIEW-DIAGRAMS
     path: crates/mdd-viewer/src/lib.rs
     symbol: MddViewer
@@ -436,3 +466,12 @@ source_links:
     symbol: MDD_RENDER_SKILL
   - model_id: CMP-DEPLOY-PROFILE-DOC
     path: .mdd/docs/deploy-profile.md
+  - model_id: USE-VIEW-DEPLOY
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer
+  - model_id: SEQ-VIEW-DEPLOY
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::new
+  - model_id: CMP-DEPLOY-VIEWER-SOURCE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::deploy_files

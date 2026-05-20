@@ -607,6 +607,37 @@ impl Project {
         Ok(registry)
     }
 
+    /// `/mdd-deploy` deployment diagrams (`.mdd/deploy/**/*.puml`) as
+    /// [`ModelFile`] values, each paired with its rendered SVG mirror.
+    ///
+    /// This is the viewer's THIRD ingestion source, beside
+    /// [`Project::model_registry`] and [`Project::cycle_registry`]. It
+    /// reuses [`RenderTree::Deploy`] (the single source of truth for the
+    /// deploy tree — `OCL-RENDER-TREE-PARITY`) and deliberately does NOT
+    /// feed [`ModelRegistry`]: `/mdd-deploy` is a utility outside the
+    /// current<->objective parity gate, so [`Project::review`] and
+    /// validation — which read [`Project::model_registry`] — must keep
+    /// ignoring `.mdd/deploy/`. An absent `.mdd/deploy/` yields an empty
+    /// list (CMP-DEPLOY-VIEWER-SOURCE).
+    pub fn deploy_files(&self) -> Result<Vec<ModelFile>> {
+        let mut files = Vec::new();
+        for path in self.render_sources(RenderTree::Deploy)? {
+            let relative = self.relative_path(&path)?;
+            let content = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
+            files.push(ModelFile {
+                ids: extract_ids(&content)?,
+                refs: extract_refs(&content)?,
+                rendered_pages: self.rendered_pages_for(&relative),
+                kind: ModelKind::Other,
+                side: ModelSide::Shared,
+                path: relative,
+            });
+        }
+        files.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(files)
+    }
+
     /// Map of model `@id` -> its `@desc(...)` text across all model and
     /// constraint files. Used by the viewer's MODEL CONTEXT card.
     pub fn descriptions(&self) -> Result<BTreeMap<String, String>> {
@@ -4790,6 +4821,58 @@ mod tests {
         assert!(read("sec-login-flood").contains("throttle"));
         assert!(read("sec-session-ttl").contains("@security:Expiration"));
         assert!(read("sec-session-ttl").contains("15m"));
+    }
+
+    #[test]
+    fn deploy_files_surfaces_deploy_puml_without_touching_the_parity_gate() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+
+        // Greenfield (no .mdd/deploy/) -> empty, not an error.
+        assert!(project.deploy_files().unwrap().is_empty());
+
+        let deploy_dir = dir.path().join(".mdd/deploy/azure-container-apps");
+        fs::create_dir_all(&deploy_dir).unwrap();
+        fs::write(
+            deploy_dir.join("diagram.puml"),
+            "@startuml\n' @id(DEPLOY-ACA-X)\nnode App\n@enduml\n",
+        )
+        .unwrap();
+        let rendered_dir = dir
+            .path()
+            .join(".mdd/rendered/deploy/azure-container-apps");
+        fs::create_dir_all(&rendered_dir).unwrap();
+        fs::write(rendered_dir.join("diagram.svg"), "<svg/>").unwrap();
+
+        let deploy = project.deploy_files().unwrap();
+        assert_eq!(deploy.len(), 1);
+        let f = &deploy[0];
+        assert_eq!(f.path, ".mdd/deploy/azure-container-apps/diagram.puml");
+        assert_eq!(f.ids, vec!["DEPLOY-ACA-X".to_string()]);
+        assert_eq!(
+            f.rendered_pages,
+            vec!["deploy/azure-container-apps/diagram.svg".to_string()]
+        );
+        assert_eq!(f.side, ModelSide::Shared);
+
+        // The parity gate must NOT see deploy: not in the model registry,
+        // so review()/validate() keep ignoring .mdd/deploy/.
+        let registry = project.model_registry().unwrap();
+        assert!(
+            registry.files.iter().all(|m| !m.path.starts_with(".mdd/deploy/")),
+            "deploy file leaked into ModelRegistry"
+        );
+        assert!(
+            registry.ids.iter().all(|e| e.id != "DEPLOY-ACA-X"),
+            "deploy id leaked into the parity-gated id set"
+        );
+        let review = project.review().unwrap();
+        assert!(
+            !review.missing_ids.iter().any(|i| i == "DEPLOY-ACA-X")
+                && !review.extra_ids.iter().any(|i| i == "DEPLOY-ACA-X"),
+            "deploy id reached ID parity"
+        );
     }
 
     fn write_minimal_valid_models(project: &Project) {

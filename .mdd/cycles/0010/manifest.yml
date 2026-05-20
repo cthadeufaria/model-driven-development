@@ -1,0 +1,14 @@
+number: 0010
+slug: viewer-scans-deploy-diagrams
+entry: generate
+description: "in the ../atlas-ate-server directory i cant see in mdd view the diagram in .mdd/deploy/azure-container-apps/diagram.puml. why? build the diagrams so i can see in which folders do the mdd view scan and why this one is outside. the mdd view must scan the deployment diagrams somehow"
+status: closed
+opened_at: "2026-05-19T15:34:15Z"
+closed_at: "2026-05-19T15:46:30Z"
+touched_files:
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/sequences/view-deploy.puml
+  - .mdd/models/objective/components/viewer-scan-scope.puml
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/sequences/view-deploy.puml
+  - .mdd/models/current/components/viewer-scan-scope.puml

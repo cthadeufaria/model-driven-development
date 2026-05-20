@@ -1,0 +1,86 @@
+@startuml
+' @id(CMP-VIEWER-SCAN-SCOPE)
+' @id(CMP-MODEL-REGISTRY-SCAN)
+' @id(CMP-CYCLE-REGISTRY-SCAN)
+' @id(CMP-RENDER-TREE-SET)
+' @id(CMP-DEPLOY-VIEWER-SOURCE)
+' @ref(USE-VIEW-DIAGRAMS)
+' @ref(USE-BROWSE-TREE)
+' @ref(USE-VIEW-DEPLOY)
+' @desc(CMP-VIEWER-SCAN-SCOPE, "Objective: MddViewer::new builds the left rail from THREE sources — project.model_registry(), project.cycle_registry(), and the new project.deploy_files(). The first two stay parity-gated; the third is a dedicated, plainly-labelled DEPLOY section that is explicitly OUTSIDE the parity gate.")
+' @desc(CMP-MODEL-REGISTRY-SCAN, "Unchanged. Project::model_and_constraint_files (mdd-core) still WalkDir's EXACTLY two roots: .mdd/models and .mdd/constraints. .mdd/deploy is deliberately NOT added here — folding it in would drag DEPLOY-... ids into /mdd-validate and /mdd-review ID parity.")
+' @desc(CMP-CYCLE-REGISTRY-SCAN, "Unchanged. CycleRegistry::scan reads only .mdd/cycles/*/manifest.yml and resolves before/after snapshots.")
+' @desc(CMP-RENDER-TREE-SET, "RenderTree (mdd-core) is the rasterization domain of `mdd render`: Models, CycleDiffs, OclConstraints, WholeMap, Deploy (.mdd/deploy/**/*.puml -> .mdd/rendered/deploy), ReviewDiff. CMP-DEPLOY-VIEWER-SOURCE REUSES render_sources(RenderTree::Deploy) as its file enumerator (single source of truth, OCL-RENDER-TREE-PARITY) but does NOT fold the result into ModelRegistry.")
+' @desc(CMP-DEPLOY-VIEWER-SOURCE, "NEW. Project::deploy_files() pairs each render_sources(RenderTree::Deploy) path with its rendered_pages_for() SVG mirror and returns plain ModelFile values that the viewer renders in a separate DEPLOY tree section (both rail modes). The values never enter ModelRegistry, so Project::review()/validate() — which read model_registry() — keep ignoring .mdd/deploy/. This is the answer to 'the mdd view must scan the deployment diagrams somehow' without breaking 'deploy is outside the parity gate'.")
+' Objective-side component view: why .mdd/deploy was invisible and how it
+' becomes visible WITHOUT entering the parity gate. Derived against
+' crates/mdd-viewer/src/lib.rs (MddViewer::new) and crates/mdd-core/src/lib.rs
+' (model_and_constraint_files, render_sources, RenderTree, deploy_files).
+title mdd-viewer scan scope — .mdd/deploy surfaced via a third, non-gated source (objective)
+
+actor "Developer" as Dev
+
+component "mdd-viewer\nMddViewer::new()\n(left rail)" as Viewer
+component "Project::model_registry()\n-> model_and_constraint_files()" as MReg
+component "CycleRegistry::scan()" as CReg
+component "Project::deploy_files()\n(NEW, third source)" as DepSrc
+component "RenderTree set\n(mdd render rasterization)" as RT
+
+rectangle "Parity-gated roots the viewer walks" #DDF {
+  folder ".mdd/models/\ncurrent + objective" as Models
+  folder ".mdd/constraints/\n*.ocl" as Ocl
+  folder ".mdd/cycles/\n<N>/manifest.yml + diffs" as Cycles
+}
+
+rectangle "Utility tree — now in the viewer, still OUT of the parity gate" #DFD {
+  folder ".mdd/deploy/\nazure-container-apps/diagram.puml\n-> .mdd/rendered/deploy/**/*.svg" as Deploy
+}
+
+rectangle "Trees only `mdd render` rasterizes (no viewer section)" #FDD {
+  folder ".mdd/map/\nwhole-map baseline" as Map
+  folder ".mdd/rendered/review/\n*.diff.puml" as ReviewD
+}
+
+Dev --> Viewer : mdd view
+Viewer --> MReg : load (1 of 3, gated)
+Viewer --> CReg : load (2 of 3, gated)
+Viewer --> DepSrc : load (3 of 3, NOT gated)
+MReg --> Models : WalkDir
+MReg --> Ocl : WalkDir
+CReg --> Cycles : scan manifests
+DepSrc --> RT : render_sources(Deploy)
+RT --> Deploy : walk_suffix (single source of truth)
+DepSrc ..> Viewer : ModelFile list -> separate DEPLOY tree section\n(NOT pushed into ModelRegistry)
+
+RT ..> Models : Models
+RT ..> Cycles : CycleDiffs
+RT ..> Ocl : OclConstraints
+RT ..> Map : WholeMap
+RT ..> ReviewD : ReviewDiff
+
+note right of Deploy
+  Why it was invisible before, corrected:
+
+  NOT because "the file does not exist" — in
+  ../atlas-ate-server the file DOES exist and is
+  already rendered to
+  .mdd/rendered/deploy/azure-container-apps/diagram.svg.
+  The structural reason: MddViewer::new() loaded
+  ONLY model_registry() + cycle_registry(); .mdd/deploy
+  was reachable solely as RenderTree::Deploy, which the
+  interactive viewer never enumerated.
+
+  Fix (this cycle): add the third source above. The
+  DEPLOY section is labelled as a utility and stays
+  outside the gate — /mdd-deploy remains a sibling of
+  /mdd-render, never read by validate/review/cycle.
+end note
+
+note bottom of MReg
+  STILL exactly [.mdd/models, .mdd/constraints].
+  Surfacing deploy in the viewer was done by adding a
+  THIRD viewer source (CMP-DEPLOY-VIEWER-SOURCE), NOT
+  by adding a root here and NOT by adding a RenderTree
+  variant — that keeps deploy ids out of ID parity.
+end note
+@enduml

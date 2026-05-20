@@ -214,6 +214,12 @@ struct MddViewer {
     diff_cache: Option<(u32, Vec<CycleDiff>)>,
     diff_view: DiffView,
     ocl_view: OclView,
+    /// CMP-DEPLOY-VIEWER-SOURCE: the third rail source. `/mdd-deploy`
+    /// diagrams (`.mdd/deploy/**/*.puml`), shown in a dedicated DEPLOY
+    /// section that is OUTSIDE the parity gate. Never part of
+    /// `registry`, so `/mdd-validate` and `/mdd-review` keep ignoring
+    /// `.mdd/deploy/`.
+    deploy_files: Vec<ModelFile>,
 }
 
 struct DiagramPage {
@@ -238,6 +244,7 @@ impl MddViewer {
         });
         let descriptions = project.descriptions().unwrap_or_default();
         let cycles = project.cycle_registry().unwrap_or_default();
+        let deploy_files = project.deploy_files().unwrap_or_default();
         let mut viewer = Self {
             project,
             registry,
@@ -277,11 +284,32 @@ impl MddViewer {
                 source: String::new(),
                 page: None,
             },
+            deploy_files,
         };
-        if let Some(first) = viewer.registry.files.first().cloned() {
+        // Open the first model file; if there are none (e.g. a deploy-only
+        // project like ../atlas-ate-server), fall back to the first deploy
+        // diagram so `mdd view` is not blank.
+        let first = viewer
+            .registry
+            .files
+            .first()
+            .or_else(|| viewer.deploy_files.first())
+            .cloned();
+        if let Some(first) = first {
             viewer.load_file(&first);
         }
         Ok(viewer)
+    }
+
+    /// Find a rail file by path across BOTH the parity-gated model
+    /// registry and the non-gated DEPLOY source.
+    fn lookup_file(&self, path: &str) -> Option<ModelFile> {
+        self.registry
+            .files
+            .iter()
+            .chain(self.deploy_files.iter())
+            .find(|f| f.path == path)
+            .cloned()
     }
 
     fn load_file(&mut self, file: &ModelFile) {
@@ -430,6 +458,10 @@ impl eframe::App for MddViewer {
 
         let dir_tree = TreeNode::build(files.iter(), short_path, |f| kind_label(f.kind));
 
+        let deploy_files = self.deploy_files.clone();
+        let deploy_tree =
+            TreeNode::build(deploy_files.iter(), short_path, |_| "deployment");
+
         let mut assigned: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut cycle_groups: Vec<(String, TreeNode)> = Vec::new();
         for cycle in &self.cycles.cycles {
@@ -506,7 +538,8 @@ impl eframe::App for MddViewer {
                     }
                 });
                 ui.separator();
-                egui::ScrollArea::vertical().show(ui, |ui| match rail_mode {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    match rail_mode {
                     RailMode::Directory => {
                         if let Some(path) =
                             dir_tree.ui(ui, selected_file.as_deref(), "dir")
@@ -550,6 +583,32 @@ impl eframe::App for MddViewer {
                             }
                         }
                     }
+                    }
+
+                    // CMP-DEPLOY-VIEWER-SOURCE: the third source. Shown in
+                    // BOTH rail modes (it is not cycle-scoped) and visibly
+                    // labelled as a utility outside the parity gate.
+                    if !deploy_files.is_empty() {
+                        ui.add_space(8.0);
+                        let resp = egui::CollapsingHeader::new(
+                            egui::RichText::new("DEPLOY").strong(),
+                        )
+                        .id_salt("deploy")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new(
+                                    "/mdd-deploy · utility, not parity-gated",
+                                )
+                                .small()
+                                .weak(),
+                            );
+                            deploy_tree.ui(ui, selected_file.as_deref(), "deploy")
+                        });
+                        if let Some(Some(path)) = resp.body_returned {
+                            clicked = Some(path);
+                        }
+                    }
                 });
             });
         if toggle_left {
@@ -557,7 +616,7 @@ impl eframe::App for MddViewer {
         }
         self.rail_mode = new_mode;
         if let Some(path) = clicked
-            && let Some(file) = self.registry.files.iter().find(|f| f.path == path).cloned()
+            && let Some(file) = self.lookup_file(&path)
         {
             self.load_file(&file);
         }
@@ -598,8 +657,7 @@ impl eframe::App for MddViewer {
                 let active_file = self
                     .selected_file
                     .as_ref()
-                    .and_then(|p| self.registry.files.iter().find(|f| &f.path == p))
-                    .cloned();
+                    .and_then(|p| self.lookup_file(p));
                 if let Some(file) = active_file {
                     ui.label(egui::RichText::new("file").small().weak());
                     ui.monospace(&file.path);
@@ -1218,6 +1276,10 @@ fn short_path(path: &str) -> String {
         .or_else(|| {
             path.strip_prefix(".mdd/constraints/")
                 .map(|s| format!("constraints/{s}"))
+        })
+        .or_else(|| {
+            path.strip_prefix(".mdd/deploy/")
+                .map(|s| format!("deploy/{s}"))
         })
         .unwrap_or_else(|| path.to_string())
 }

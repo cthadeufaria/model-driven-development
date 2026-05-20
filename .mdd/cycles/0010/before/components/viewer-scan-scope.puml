@@ -1,0 +1,81 @@
+@startuml
+' @id(CMP-VIEWER-SCAN-SCOPE)
+' @id(CMP-MODEL-REGISTRY-SCAN)
+' @id(CMP-CYCLE-REGISTRY-SCAN)
+' @id(CMP-RENDER-TREE-SET)
+' @ref(USE-VIEW-DIAGRAMS)
+' @ref(USE-BROWSE-TREE)
+' @desc(CMP-VIEWER-SCAN-SCOPE, "MddViewer::new builds the left rail from exactly two sources: project.model_registry() and project.cycle_registry() (crates/mdd-viewer/src/lib.rs ~230-265). It never enumerates the RenderTree set, so any tree not reachable through those two registries is invisible in `mdd view`.")
+' @desc(CMP-MODEL-REGISTRY-SCAN, "Project::model_and_constraint_files (mdd-core/src/lib.rs:1911) WalkDir's exactly two roots: .mdd/models and .mdd/constraints. Nothing under .mdd/deploy, .mdd/map, .mdd/cycles, or .mdd/rendered is walked here.")
+' @desc(CMP-CYCLE-REGISTRY-SCAN, "CycleRegistry::scan (mdd-core/src/cycle.rs:112) reads only .mdd/cycles/*/manifest.yml and resolves before/after snapshots. This is the second and last root the viewer sees.")
+' @desc(CMP-RENDER-TREE-SET, "RenderTree (mdd-core/src/lib.rs:23-75) is the wider rasterization domain of `mdd render` ONLY: Models, CycleDiffs, OclConstraints, WholeMap, Deploy (.mdd/deploy/**/*.puml -> .mdd/rendered/deploy), ReviewDiff. The interactive viewer does not consume this enumeration.")
+' Current-side component view derived from crates/mdd-viewer/src/lib.rs
+' (MddViewer::new) and crates/mdd-core/src/lib.rs
+' (model_and_constraint_files, render_sources, RenderTree) +
+' crates/mdd-core/src/cycle.rs (CycleRegistry::scan).
+title mdd-viewer scan scope vs. mdd render tree set — why .mdd/deploy is outside (current)
+
+actor "Developer" as Dev
+
+component "mdd-viewer\nMddViewer::new()\n(left rail)" as Viewer
+component "Project::model_registry()\n-> model_and_constraint_files()" as MReg
+component "CycleRegistry::scan()" as CReg
+component "RenderTree set\n(mdd render only)" as RT
+
+rectangle "Roots the VIEWER actually walks (IN scope)" #DDF {
+  folder ".mdd/models/\ncurrent + objective" as Models
+  folder ".mdd/constraints/\n*.ocl" as Ocl
+  folder ".mdd/cycles/\n<N>/manifest.yml + diffs" as Cycles
+}
+
+rectangle "Trees only `mdd render` rasterizes (OUT of viewer scope)" #FDD {
+  folder ".mdd/deploy/\nazure-container-apps/diagram.puml" as Deploy
+  folder ".mdd/map/\nwhole-map baseline" as Map
+  folder ".mdd/rendered/review/\n*.diff.puml" as ReviewD
+}
+
+Dev --> Viewer : mdd view
+Viewer --> MReg : load (1 of 2)
+Viewer --> CReg : load (2 of 2)
+MReg --> Models : WalkDir
+MReg --> Ocl : WalkDir
+CReg --> Cycles : scan manifests
+
+RT ..> Models : Models
+RT ..> Cycles : CycleDiffs
+RT ..> Ocl : OclConstraints
+RT ..> Map : WholeMap
+RT ..> Deploy : Deploy (walk_suffix)
+RT ..> ReviewD : ReviewDiff
+
+Viewer ..> RT : DOES NOT consume
+
+note right of Deploy
+  Why .mdd/deploy/azure-container-apps/diagram.puml
+  is NOT in `mdd view`:
+
+  1. By design — /mdd-deploy is a non-gated UTILITY
+     (sibling of /mdd-render), explicitly "outside the
+     parity gate". validate/implement/review/cycle AND
+     the viewer never read .mdd/deploy/. The viewer
+     surfaces only parity-gated model state + cycle
+     diffs (the two registries above).
+  2. Reachable solely as RenderTree::Deploy, i.e.
+     `mdd render` -> .mdd/rendered/deploy/**/*.svg.
+  3. Right now the file does not exist at all: the
+     .mdd/deploy/ directory was never created.
+     /mdd-deploy blocks on operator IaC-dialect
+     confirmation before writing any artifact, so it
+     has never run — even the render branch finds
+     nothing (walk_suffix returns empty on a missing
+     dir; greenfield has no .mdd/deploy/).
+end note
+
+note bottom of MReg
+  model_and_constraint_files() roots = exactly
+  [.mdd/models, .mdd/constraints]. Adding a folder
+  to the viewer means adding a root HERE (or a third
+  registry the viewer loads) — not adding a
+  RenderTree variant.
+end note
+@enduml

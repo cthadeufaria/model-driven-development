@@ -1,0 +1,54 @@
+@startuml
+' @id(SEQ-VIEW-DEPLOY)
+' @ref(USE-VIEW-DEPLOY)
+' @ref(DOM-RENDER-ENGINE)
+' @desc(SEQ-VIEW-DEPLOY, "Objective flow for surfacing .mdd/deploy diagrams in `mdd view`. MddViewer::new() gains a third ingestion call, project.deploy_files(), beside model_registry() and cycle_registry(). deploy_files() reuses render_sources(RenderTree::Deploy) (the single source of truth for the deploy tree — OCL-RENDER-TREE-PARITY) and pairs each .mdd/deploy/**/*.puml with its rendered_pages_for() SVG mirror, returning plain ModelFile values WITHOUT inserting them into ModelRegistry. The viewer builds a separate TreeNode and renders it under a distinct, plainly-labelled DEPLOY section in BOTH rail modes; selecting a leaf reuses the existing load_file/DiagramPage path to paint .mdd/rendered/deploy/**/*.svg. Because the files never reach ModelRegistry, Project::review()/validate() (which read model_registry()) keep ignoring .mdd/deploy/.")
+' Objective-side sequence: the dedicated, non-parity-gated DEPLOY source.
+title mdd view — surface .mdd/deploy diagrams via a third source (objective)
+
+actor "Developer" as Dev
+participant "mdd-cli\nCommands::View" as Cli
+participant "MddViewer::new()" as Viewer
+participant "Project\n(mdd-core)" as Core
+participant "RenderTree::Deploy\nrender_sources()" as RT
+database ".mdd/deploy/**/*.puml" as Deploy
+database ".mdd/rendered/deploy/**/*.svg" as Rendered
+
+Dev -> Cli : mdd view
+Cli -> Viewer : run(project)
+
+group Two parity-gated sources (unchanged)
+  Viewer -> Core : model_registry()  (.mdd/models + .mdd/constraints)
+  Viewer -> Core : cycle_registry()  (.mdd/cycles)
+end
+
+group Third source — DEPLOY (new, NOT gated)
+  Viewer -> Core : deploy_files()
+  Core -> RT : render_sources(RenderTree::Deploy)
+  RT -> Deploy : walk_suffix(".mdd/deploy", ".puml")
+  Deploy --> RT : [diagram.puml ...]
+  RT --> Core : sources
+  Core -> Core : rendered_pages_for(rel)\n-> ModelFile{ rendered_pages }
+  note right of Core
+    Returned as plain ModelFile values.
+    NOT pushed into ModelRegistry, so
+    /mdd-validate and /mdd-review never
+    see them — parity gate untouched.
+  end note
+  Core --> Viewer : Vec<ModelFile> (deploy)
+end
+
+Viewer -> Viewer : TreeNode::build(deploy)\nrender "DEPLOY · utility, not parity-gated"\n(shown in Directory AND By-cycle)
+Dev -> Viewer : click deploy leaf
+Viewer -> Viewer : load_file(file)  (existing path)
+Viewer -> Rendered : read .mdd/rendered/deploy/<rel>.svg
+Rendered --> Viewer : SVG bytes
+Viewer --> Dev : deployment diagram painted on canvas
+
+note over Deploy, Rendered
+  If the .svg mirror is absent the canvas shows the
+  same "not rendered — run mdd render" placeholder as
+  any unrendered model. The viewer never rasterizes;
+  `mdd render` already covers RenderTree::Deploy.
+end note
+@enduml

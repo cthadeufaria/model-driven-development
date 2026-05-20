@@ -1,0 +1,87 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-VIEWER-SCAN-SCOPE)
+' @id(CMP-MODEL-REGISTRY-SCAN)
+' @id(CMP-CYCLE-REGISTRY-SCAN)
+' @id(CMP-RENDER-TREE-SET)
+' @id(CMP-DEPLOY-VIEWER-SOURCE)  <<added>> this cycle (0010)
+' Cycle 0010 diff (current side): one element added, none removed.
+title mdd-viewer scan scope · cycle 0010 diff (current)
+
+actor "Developer" as Dev
+
+component "mdd-viewer\nMddViewer::new()\n(left rail)" as Viewer
+component "Project::model_registry()\n-> model_and_constraint_files()" as MReg
+component "CycleRegistry::scan()" as CReg
+component "Project::deploy_files()\n(third source)" as DepSrc <<added>>
+component "RenderTree set\n(mdd render rasterization)" as RT
+
+rectangle "Parity-gated roots the viewer walks" #DDF {
+  folder ".mdd/models/\ncurrent + objective" as Models
+  folder ".mdd/constraints/\n*.ocl" as Ocl
+  folder ".mdd/cycles/\n<N>/manifest.yml + diffs" as Cycles
+}
+
+rectangle "Utility tree — now in the viewer, still OUT of the parity gate" #DFD {
+  folder ".mdd/deploy/\nazure-container-apps/diagram.puml\n-> .mdd/rendered/deploy/**/*.svg" as Deploy
+}
+
+rectangle "Trees only `mdd render` rasterizes (no viewer section)" #FDD {
+  folder ".mdd/map/\nwhole-map baseline" as Map
+  folder ".mdd/rendered/review/\n*.diff.puml" as ReviewD
+}
+
+Dev --> Viewer : mdd view
+Viewer --> MReg : load (1 of 3, gated)
+Viewer --> CReg : load (2 of 3, gated)
+Viewer --> DepSrc : load (3 of 3, NOT gated)
+MReg --> Models : WalkDir
+MReg --> Ocl : WalkDir
+CReg --> Cycles : scan manifests
+DepSrc --> RT : render_sources(Deploy)
+RT --> Deploy : walk_suffix (single source of truth)
+DepSrc ..> Viewer : Vec<ModelFile> -> self.deploy_files\n-> separate DEPLOY tree (NOT in ModelRegistry)
+
+RT ..> Models : Models
+RT ..> Cycles : CycleDiffs
+RT ..> Ocl : OclConstraints
+RT ..> Map : WholeMap
+RT ..> ReviewD : ReviewDiff
+
+note right of DepSrc
+  ADDED in cycle 0010 (CMP-DEPLOY-VIEWER-SOURCE):
+  Project::deploy_files() reuses
+  render_sources(RenderTree::Deploy), pairs each
+  .mdd/deploy/**/*.puml with its rendered SVG, and
+  the viewer lists it in a separate DEPLOY section.
+  NEVER folded into ModelRegistry, so validate/review
+  keep ignoring .mdd/deploy/.
+end note
+@enduml

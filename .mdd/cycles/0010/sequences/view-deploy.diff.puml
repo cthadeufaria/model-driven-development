@@ -1,0 +1,79 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-VIEW-DEPLOY)  <<added>> this cycle (0010) — new file
+' @ref(USE-VIEW-DEPLOY)
+' @ref(DOM-RENDER-ENGINE)
+' Cycle 0010 diff (current side): whole diagram added, nothing removed.
+title mdd view — surface .mdd/deploy via a third source · cycle 0010 diff (current)
+
+actor "Developer" as Dev <<added>>
+participant "mdd-cli\nCommands::View" as Cli <<added>>
+participant "MddViewer::new()" as Viewer <<added>>
+participant "Project::deploy_files()" as Core <<added>>
+participant "render_sources(\nRenderTree::Deploy)" as RT <<added>>
+database ".mdd/deploy/**/*.puml" as Deploy <<added>>
+database ".mdd/rendered/deploy/**/*.svg" as Rendered <<added>>
+
+Dev -> Cli : mdd view
+Cli -> Viewer : run(project) -> MddViewer::new
+
+group Two parity-gated sources (unchanged)
+  Viewer -> Viewer : model_registry()  (.mdd/models + .mdd/constraints)
+  Viewer -> Viewer : cycle_registry()  (.mdd/cycles)
+end
+
+group Third source — deploy_files() (NOT gated)  [ADDED 0010]
+  Viewer -> Core : project.deploy_files()
+  Core -> RT : render_sources(RenderTree::Deploy)
+  RT -> Deploy : walk_suffix(".mdd/deploy", ".puml")
+  Deploy --> RT : [diagram.puml ...]
+  RT --> Core : sources
+  Core -> Core : per file: extract_ids/refs,\nrendered_pages_for(rel)\n-> ModelFile{ kind=Other, side=Shared }
+  note right of Core
+    NOT inserted into ModelRegistry, so
+    /mdd-validate and /mdd-review never
+    see .mdd/deploy/.
+  end note
+  Core --> Viewer : Vec<ModelFile> -> self.deploy_files
+end
+
+Viewer -> Viewer : update(): TreeNode::build(deploy)\n"DEPLOY · /mdd-deploy · utility, not parity-gated"\n(Directory AND By-cycle)
+Dev -> Viewer : click deploy leaf
+Viewer -> Viewer : lookup_file(path) -> load_file(file)
+Viewer -> Rendered : read .mdd/rendered/deploy/<rel>.svg
+Rendered --> Viewer : SVG bytes -> DiagramPage
+Viewer --> Dev : deployment diagram painted on canvas
+
+note over Deploy, Rendered
+  No .svg mirror -> same "No rendered output" placeholder
+  as any unrendered model. `mdd render` covers
+  RenderTree::Deploy; the viewer never rasterizes.
+end note
+@enduml

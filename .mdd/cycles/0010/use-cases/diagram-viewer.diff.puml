@@ -1,0 +1,75 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-VIEW-DIAGRAMS)
+' @id(USE-FISHEYE-FOCUS)
+' @id(USE-TOGGLE-PANELS)
+' @id(USE-VIEW-OCL)
+' @id(USE-VIEW-DEPLOY)  <<added>> this cycle (0010)
+' Cycle 0010 diff (current side): one element added, none removed.
+title mdd view — diagram viewer · cycle 0010 diff (current)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas\n(scroll zoom, drag pan)" as PanZoom
+  usecase "Focus via center fisheye" as Fisheye
+  usecase "Collapse / expand side panels" as Panels
+  usecase "Inspect model IDs and trace links" as Trace
+  usecase "View OCL constraints\n(source or diagram)" as ViewOcl
+  usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy <<added>>
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Fisheye
+Dev --> Panels
+Dev --> Trace
+Dev --> ViewOcl
+Dev --> ViewDeploy
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+View ..> Fisheye : <<extend>>
+View ..> Panels : <<extend>>
+ViewOcl ..> PanZoom : <<extend>>
+ViewDeploy ..> PanZoom : <<extend>>
+
+note bottom of ViewDeploy
+  ADDED in cycle 0010 (USE-VIEW-DEPLOY): the rail gains
+  a third source (project.deploy_files()) rendered as a
+  dedicated DEPLOY section, OUTSIDE the parity gate.
+  Realized by SEQ-VIEW-DEPLOY.
+end note
+@enduml

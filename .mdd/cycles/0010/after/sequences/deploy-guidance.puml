@@ -1,0 +1,90 @@
+@startuml
+' @id(SEQ-DEPLOY-GUIDANCE)
+' @id(SEQ-DEPLOY-INSPECT)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-INSPECT)
+' @ref(USE-DEPLOY-DIALECT)
+'
+' Current-side runtime flow as implemented in templates::MDD_DEPLOY_SKILL
+' (steps 1-9) and the extended templates::MDD_RENDER_SKILL. The skill
+' body is the executable contract the agent follows; it writes artifacts
+' and a runbook then STOPS — it executes no deployment command.
+'
+' @desc(SEQ-DEPLOY-GUIDANCE, "As implemented in templates::MDD_DEPLOY_SKILL: reject non-azure-container-apps targets, read .mdd/models + ../atlas-ate-server read-only, STOP for a blocking clarification on ambiguity OR a go-live landmine (step 3), then RESOLVE the IaC dialect and BLOCK for explicit operator confirmation before any artifact (step 4 — Bicep XOR Terraform, no silent default), write .mdd/deploy/azure-container-apps/diagram.puml, generate secure-by-default IaC in the confirmed dialect (step 6 — Bicep: infra/main.bicep+modules; Terraform: infra/main.tf+modules+azurerm provider+remote state backend; identical invariant checklist + Key Vault Deny+bypass=AzureServices when peers private), write the STOP-gated runbook.md, then report and execute nothing.")
+' @desc(SEQ-DEPLOY-INSPECT, "As implemented in templates::MDD_RENDER_SKILL: /mdd-render rasterizes every .mdd/deploy/**/*.puml to its deterministic .mdd/rendered/deploy/**/*.svg mirror. Additive, non-gating.")
+title /mdd-deploy guidance and inspection (current)
+
+actor "Operator" as Op
+participant "/mdd-deploy\n(utility skill)" as Dep
+participant ".mdd/models/\ncomponents + use-cases" as Models
+participant "../atlas-ate-server\n(target repo, read-only)" as Target
+database ".mdd/deploy/\nazure-container-apps/" as Store
+participant "../atlas-ate-server/\ninfra/ (generated IaC)" as Infra
+participant "/mdd-render" as Render
+database ".mdd/rendered/deploy/" as Rendered
+
+== SEQ-DEPLOY-GUIDANCE ==
+Op -> Dep : /mdd-deploy <deployment description>
+alt target != azure-container-apps
+  Dep --> Op : not yet supported (v1 = azure-container-apps only); stop
+else target == azure-container-apps
+  Dep -> Models : read components + use-cases (the "what")
+  Dep -> Target : read README, Dockerfile, docker-compose.yml,\n.env.example, src (READ-ONLY)
+  opt topology/security choice ambiguous OR a go-live landmine is statically detectable
+    Dep -> Op : BLOCKING clarification (step 3; same discipline as /mdd-cycle)
+    Op --> Dep : decision
+  end
+
+  group MANDATORY dialect confirmation — BEFORE any artifact (step 4, USE-DEPLOY-DIALECT)
+    Dep -> Dep : resolve requested IaC dialect from the description\n(bicep | terraform) — exactly one; NO silent default
+    Dep -> Op : BLOCKING confirm: "generate <dialect> IaC?"\n(unspecified/unconfirmed -> STOP, write nothing)
+    Op --> Dep : confirmed dialect
+    note right of Dep
+      Implemented: no deploy artifact (diagram.puml,
+      generated IaC, runbook.md) is written until the
+      dialect is explicitly confirmed. Same blocking
+      discipline as the landmine pause; never a buried
+      runbook STOP note. .mdd/deploy/ and infra/ are
+      not created before confirmation.
+    end note
+  end
+
+  Dep -> Store : write diagram.puml (UML deployment diagram;\ndocumentation-only security stereotypes)
+  alt confirmed dialect == bicep
+    Dep -> Infra : generate SECURE-BY-DEFAULT infra/main.bicep (+ modules)
+  else confirmed dialect == terraform
+    Dep -> Infra : generate SECURE-BY-DEFAULT infra/main.tf (+ modules):\nazurerm provider + remote state backend
+  end
+  note right of Infra
+    Step 6 — FULL PARITY regardless of dialect:
+    Container Apps, ACR, Azure DB for PostgreSQL
+    (TLS), Key Vault (Deny + bypass=AzureServices
+    when peers private), secret refs, ingress 8080,
+    pre-traffic migration job. No store left more
+    network-open than its peers — auto-hardened.
+  end note
+  Dep -> Store : write runbook.md (numbered steps for the confirmed\ndialect; exact command, location, env/secret; STOP\nbefore every state-changing or go-live step)
+  note right of Dep
+    Step 8 — enforces every atlas-ate-server invariant
+    IDENTICALLY for either dialect: Key-Vault-only
+    secrets, App Attest required, billing production
+    multi-factor gate, BYOK never touches the server,
+    DB TLS + at-rest, pre-traffic migration job,
+    non-root, port 8080. Caveat: migrations-before-
+    traffic stays procedural (documented v1 tradeoff).
+  end note
+  Dep --> Op : report written files; review the diagram\nand run the runbook yourself. Executes NOTHING.
+end
+
+== SEQ-DEPLOY-INSPECT ==
+Op -> Render : /mdd-render
+Render -> Store : read .mdd/deploy/**/*.puml
+Render -> Rendered : write .mdd/rendered/deploy/**/*.svg\n(deterministic mirror; additive, non-gating)
+Render --> Op : rendered SVG list
+
+note over Store
+  .mdd/deploy/ is an inspection artifact only.
+  /mdd-validate, /mdd-review and the /mdd-cycle
+  parity loop never read it.
+end note
+@enduml
