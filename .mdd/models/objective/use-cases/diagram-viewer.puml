@@ -11,10 +11,13 @@
 ' @desc(USE-VIEW-DEPLOY, "Developer sees /mdd-deploy deployment diagrams (.mdd/deploy/**/*.puml) in `mdd view`, listed in a DEDICATED 'DEPLOY' rail section that is visibly labelled as a utility artifact OUTSIDE the current<->objective parity gate. Selecting one paints its already-rendered .mdd/rendered/deploy/**/*.svg on the same canvas. The section is a THIRD viewer ingestion source alongside the model registry and the cycle registry; deployment files never enter ModelRegistry, so /mdd-validate and /mdd-review still never read .mdd/deploy/.")
 ' @id(USE-VIEWER-THEMED)
 ' @desc(USE-VIEWER-THEMED, "Developer sees the mdd-viewer chrome dressed by a Catppuccin palette (Mocha when the OS is dark, Latte when light, picked once per frame from the OS appearance), bundled Inter for UI text and JetBrains Mono for code/diff lists, and softened item spacing + corner rounding — instead of the bare egui defaults. Cross-platform single binary; chrome only — the SVG canvas rasterizer is untouched.")
+' @id(USE-VIEW-PUML-SOURCE)
+' @desc(USE-VIEW-PUML-SOURCE, "Developer reads the raw PlantUML text of the selected model file via a Source toggle placed next to the Diagram (and Diff) toggle in the central panel. Source replaces the rendered diagram with read-only, scrollable .puml text (@id/@ref/@desc/@sec markers and @startuml/@enduml directives highlighted); toggling back to Diagram repaints the SVG. Mirrors the OCL Source/Diagram functionality but for ordinary model diagrams — no new rendering, the source is read straight from disk.")
 ' Objective-side use-case view. Same text-legibility acceptance as before,
 ' plus the focus+context fisheye, the collapsible side panels, an
-' OCL constraint viewer, a dedicated non-gated DEPLOY section, and
-' an OS-appearance-following Catppuccin theme with bundled fonts.
+' OCL constraint viewer, a dedicated non-gated DEPLOY section, an
+' OS-appearance-following Catppuccin theme with bundled fonts, and a
+' Source toggle that shows a model file's raw PlantUML beside its diagram.
 ' The toolbar no longer carries zoom controls.
 title mdd view — diagram viewer (objective)
 
@@ -32,6 +35,7 @@ rectangle "mdd-viewer" {
   usecase "View OCL constraints\n(source or diagram)" as ViewOcl
   usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
   usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed
+  usecase "View PlantUML source\n(Source toggle next to Diagram)" as ViewSource
 }
 
 Dev --> View
@@ -43,12 +47,14 @@ Dev --> Trace
 Dev --> ViewOcl
 Dev --> ViewDeploy
 Dev --> Themed
+Dev --> ViewSource
 
 View ..> Browse : <<include>>
 View ..> PanZoom : <<extend>>
 View ..> Fisheye : <<extend>>
 View ..> Panels : <<extend>>
 View ..> Themed : <<include>>
+View ..> ViewSource : <<extend>>
 ViewOcl ..> PanZoom : <<extend>>
 ViewDeploy ..> PanZoom : <<extend>>
 
@@ -124,5 +130,21 @@ note bottom of ViewDeploy
   utility outside the parity gate, so /mdd-validate
   and /mdd-review must continue to ignore .mdd/deploy/.
   Realized by SEQ-VIEW-DEPLOY.
+end note
+
+note bottom of ViewSource
+  Objective (USE-VIEW-PUML-SOURCE): the central panel
+  toggle row gains a "Source" button between "Diagram"
+  and "Diff". Selecting it puts the viewer in
+  View::Source, which paints the selected model file's
+  raw .puml text — read-only, scrollable, with @id /
+  @ref / @desc / @sec markers and @startuml/@enduml
+  directives highlighted — instead of the rendered SVG.
+  No new rendering: the text is read straight from disk
+  (analogous to the OCL Source sub-mode, which never
+  depends on a rendered artifact — OCL-PUML-SOURCE-NO-RENDER).
+  Toggling back to "Diagram" repaints the SVG canvas.
+  Realized by SEQ-VIEW-PUML-SOURCE; state held in
+  DOM-PUML-SOURCE-VIEW.
 end note
 @enduml

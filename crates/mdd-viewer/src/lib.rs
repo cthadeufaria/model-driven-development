@@ -38,6 +38,8 @@ pub fn run(project: Project) -> Result<()> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum View {
     Svg,
+    /// Raw PlantUML source of the selected model file (DOM-PUML-SOURCE-VIEW).
+    Source,
     Diff,
 }
 
@@ -96,6 +98,19 @@ struct OclView {
     loaded: Option<String>,
     source: String,
     page: Option<DiagramPage>,
+}
+
+/// DOM-PUML-SOURCE-VIEW: viewer state backing the central-panel `Source`
+/// toggle (between `Diagram` and `Diff`) for ordinary model files. When the
+/// top-level `View` is `Source`, the viewer paints `source` read-only and
+/// scrollable instead of the rendered SVG. The text is read straight from
+/// disk and cached by path, so the Source view depends on no rendered
+/// artifact (OCL-PUML-SOURCE-NO-RENDER).
+struct SourceView {
+    /// The path whose text is currently in `source`, so the file is read
+    /// only when the selection changes.
+    loaded: Option<String>,
+    source: String,
 }
 
 /// DOM-CANVAS-VIEW: base zoom/pan placement of the diagram plus the
@@ -221,6 +236,7 @@ struct MddViewer {
     diff_cache: Option<(u32, Vec<CycleDiff>)>,
     diff_view: DiffView,
     ocl_view: OclView,
+    source_view: SourceView,
     /// CMP-DEPLOY-VIEWER-SOURCE: the third rail source. `/mdd-deploy`
     /// diagrams (`.mdd/deploy/**/*.puml`), shown in a dedicated DEPLOY
     /// section that is OUTSIDE the parity gate. Never part of
@@ -290,6 +306,10 @@ impl MddViewer {
                 loaded: None,
                 source: String::new(),
                 page: None,
+            },
+            source_view: SourceView {
+                loaded: None,
+                source: String::new(),
             },
             deploy_files,
         };
@@ -792,6 +812,12 @@ impl eframe::App for MddViewer {
                     self.view = View::Svg;
                 }
                 if ui
+                    .selectable_label(self.view == View::Source, "Source")
+                    .clicked()
+                {
+                    self.view = View::Source;
+                }
+                if ui
                     .selectable_label(self.view == View::Diff, "Diff")
                     .clicked()
                 {
@@ -800,12 +826,25 @@ impl eframe::App for MddViewer {
                 ui.separator();
                 match self.view {
                     View::Svg => self.svg_toolbar(ui),
+                    View::Source => {
+                        if let Some(p) = &self.selected_file {
+                            ui.monospace(p);
+                        }
+                    }
                     View::Diff => {}
                 }
             });
 
             if self.view == View::Diff {
                 self.diff_ui(ui, ctx);
+                return;
+            }
+
+            // View::Source paints the selected model file's raw PlantUML
+            // text (SEQ-VIEW-PUML-SOURCE) — read straight from disk, no
+            // renderer involved.
+            if self.view == View::Source {
+                self.source_ui(ui);
                 return;
             }
 
@@ -1178,6 +1217,57 @@ impl MddViewer {
                 }
             }
         }
+    }
+
+    /// SEQ-VIEW-PUML-SOURCE: paint the selected model file's raw PlantUML
+    /// as read-only, scrollable text with `@id` / `@ref` / `@desc` / `@sec`
+    /// markers and `@startuml`/`@enduml` directives highlighted. The text
+    /// is read once per selection straight from disk and cached in
+    /// `source_view`, so this view depends on no rendered artifact
+    /// (OCL-PUML-SOURCE-NO-RENDER). Mirrors the OCL Source sub-mode.
+    fn source_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(file_rel) = self.selected_file.clone() else {
+            ui.add_space(16.0);
+            ui.vertical_centered(|ui| {
+                ui.weak("Select a model file in the rail to see its PlantUML source.");
+            });
+            return;
+        };
+
+        if self.source_view.loaded.as_deref() != Some(file_rel.as_str()) {
+            let abs = self.project.root().join(&file_rel);
+            self.source_view.source = std::fs::read_to_string(&abs)
+                .unwrap_or_else(|e| format!("(could not read {file_rel}: {e})"));
+            self.source_view.loaded = Some(file_rel.clone());
+        }
+
+        ui.separator();
+        let marker_c = egui::Color32::from_rgb(240, 230, 120);
+        let directive_c = egui::Color32::from_rgb(86, 156, 214);
+        let comment_c = egui::Color32::from_rgb(120, 130, 145);
+        egui::ScrollArea::both().show(ui, |ui| {
+            for raw in self.source_view.source.lines() {
+                let t = raw.trim_start();
+                let (color, strong) = if t.starts_with("' @") || t.starts_with("'@") {
+                    (Some(marker_c), true)
+                } else if t.starts_with("@start") || t.starts_with("@end") {
+                    (Some(directive_c), true)
+                } else if t.starts_with('\'') {
+                    (Some(comment_c), false)
+                } else {
+                    (None, false)
+                };
+                let text = if raw.is_empty() { " " } else { raw };
+                let mut rt = egui::RichText::new(text).monospace();
+                if let Some(c) = color {
+                    rt = rt.color(c);
+                }
+                if strong {
+                    rt = rt.strong();
+                }
+                ui.label(rt);
+            }
+        });
     }
 }
 

@@ -1,0 +1,9 @@
+-- @id(OCL-PUML-SOURCE-NO-RENDER)
+-- @ref(DOM-PUML-SOURCE-VIEW)
+-- The Source toggle shows a model file's raw PlantUML read straight from
+-- disk, so it depends on no rendered artifact: whenever a file is loaded
+-- it has text to paint, and it never invokes a renderer (unlike the
+-- Diagram toggle, which paints a pre-rendered SVG).
+context SourceView
+inv RawTextSelfSufficient:
+  self.loaded.isDefined() implies self.source.isDefined()

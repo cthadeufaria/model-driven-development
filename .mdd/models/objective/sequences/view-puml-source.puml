@@ -1,0 +1,48 @@
+@startuml
+' @id(SEQ-VIEW-PUML-SOURCE)
+' @ref(USE-VIEW-PUML-SOURCE)
+'
+' Objective-side flow for viewing a model file's raw PlantUML beside its
+' rendered diagram. The Source toggle sits next to the Diagram and Diff
+' toggles in the central panel; Source reads the .puml straight from disk
+' and never invokes a renderer.
+'
+' @desc(SEQ-VIEW-PUML-SOURCE, "How clicking the Source toggle (next to Diagram) shows a model file's raw PlantUML: the viewer switches to View::Source, lazily reads the selected .puml text into SourceView (cached by path), and each frame paints it as scrollable read-only text with @id/@ref/@desc/@sec and @startuml/@enduml highlighted. Clicking Diagram repaints the rendered SVG; no renderer is invoked for Source.")
+title View a model file's PlantUML source (objective)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "View\n{Svg|Source|Diff}" as Mode
+participant "SourceView\n{loaded, source}" as SV
+database ".mdd/models/<side>/\n<kind>/<name>.puml" as Puml
+participant "DiagramPage\n(usvg/resvg) + paint_canvas" as Page
+
+Dev -> Viewer : select a model file in the rail
+Viewer -> Dev : show "Diagram | Source | Diff" toggle row (default Diagram)
+
+alt toggle = Diagram (default)
+  loop each painted frame
+    Viewer -> Page : paint_canvas (rendered SVG, pan/zoom/fisheye)
+    Page --> Dev : rendered diagram
+  end
+else toggle = Source
+  Dev -> Viewer : click "Source"
+  Viewer -> Mode : view = Source
+  alt source not yet loaded for this path
+    Viewer -> Puml : read raw text
+    Puml --> SV : .puml source (cached by path)
+  end
+  loop each painted frame
+    Viewer -> Dev : scrollable read-only text\n(@id / @ref / @desc / @sec and\n@startuml/@enduml highlighted)
+  end
+end
+
+note over SV
+  SourceView caches (loaded path, source text) so the
+  file is read once per selection, then repainted each
+  frame. Source depends on no rendered artifact — it is
+  always self-sufficient (OCL-PUML-SOURCE-NO-RENDER),
+  unlike the Diagram toggle which paints the pre-rendered
+  SVG via DiagramPage.
+end note
+@enduml

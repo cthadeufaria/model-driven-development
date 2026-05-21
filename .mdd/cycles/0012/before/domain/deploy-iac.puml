@@ -1,0 +1,117 @@
+@startuml
+' @id(DOM-DEPLOY-IAC)
+' @ref(USE-DEPLOY-GUIDANCE)
+'
+' Current-side domain model of the IaC artifact /mdd-deploy generates,
+' as implemented. Canonical source: crates/mdd-core/src/templates.rs
+' ::MDD_DEPLOY_SKILL steps 4 & 6 + .mdd/docs/deploy-profile.md
+' ("IaC dialect — operator-confirmed, one per run"), materialized into
+' .claude/.codex/skills/mdd-deploy/SKILL.md by `mdd init`.
+'
+' The skill now supports TWO dialects, one per run, gated by a
+' DialectChoice the operator must confirm before any artifact is
+' written. The skill writes files and STOPS — it never deploys.
+'
+' Stereotypes here are documentation-only per the deploy profile; this
+' file carries NO security-parity markers (/mdd-deploy is outside the
+' parity gate). No package block (PlantUML treats / and .. in package
+' names as namespace separators and crashes).
+'
+' @desc(DOM-DEPLOY-IAC, "Implemented contract in templates::MDD_DEPLOY_SKILL steps 4/6 + deploy-profile.md: a DialectChoice (value in {bicep, terraform}, confirmed:Boolean) gates artifact creation — step 4 writes nothing until confirmed, no silent default (OCL-DEPLOY-IAC-DIALECT, OCL-DEPLOY-IAC-CONFIRM-BEFORE-ARTIFACT). BicepIaC (main.bicep + modules -> ARM JSON, az deployment) and TerraformIaC (main.tf + modules, azurerm provider, remote state backend, terraform apply) both compose the identical secured topology — ACR, Container Apps env + revision (ingress 8080, non-root), Azure DB for PostgreSQL (TLS), Key Vault (Deny + bypass=AzureServices when peers private), Azure OpenAI, pre-traffic migration job — and satisfy the same secure-by-default + migration-order invariants (full parity, step 6). The skill executes nothing.")
+title /mdd-deploy generated IaC structure (current — two dialects)
+
+class DialectChoice <<gate>> {
+  value : {bicep | terraform}
+  confirmed : Boolean
+  rule = exactly one dialect per run
+  rule = no artifact written until confirmed
+  rule = no silent default
+}
+
+abstract class IaCArtifact <<artifact>> {
+  target = azure-container-apps (v1, only)
+  generatedBy = /mdd-deploy (writes files, never deploys)
+  appliedBy = operator
+}
+class BicepIaC <<artifact>> {
+  language = Bicep (Azure-native ARM DSL)
+  entrypoint = main.bicep
+  structure = main.bicep + Bicep modules
+  transpilesTo = ARM (Azure Resource Manager) JSON
+  appliedVia = az deployment
+}
+class TerraformIaC <<artifact>> {
+  language = Terraform HCL
+  entrypoint = main.tf
+  structure = main.tf + modules
+  provider = azurerm
+  stateBackend = remote (azurerm backend)
+  appliedVia = terraform plan + apply
+}
+
+class ContainerRegistry <<Azure ACR>>
+class ContainerAppsEnv <<Azure Container Apps>>
+class AppRevision <<Azure Container Apps>> {
+  ingress = 8080 external
+  user = non-root
+  env = NODE_ENV=production
+}
+class PostgresFlexibleServer <<Azure DB for PostgreSQL>> {
+  transport = sslmode=require
+  encryption = at-rest
+}
+class KeyVault <<Azure Key Vault>> {
+  holds = every secret (Container Apps secret refs)
+  networkDefaultAction = Deny
+  bypass = AzureServices
+}
+class AzureOpenAI <<Azure OpenAI>>
+class MigrationJob <<Azure Container Apps Job>> {
+  order = before any revision traffic routing
+}
+
+DialectChoice "1" --> "1" IaCArtifact : selects & gates
+IaCArtifact <|-- BicepIaC
+IaCArtifact <|-- TerraformIaC
+
+IaCArtifact "1" *-- "1" ContainerRegistry
+IaCArtifact "1" *-- "1" ContainerAppsEnv
+IaCArtifact "1" *-- "1" KeyVault
+IaCArtifact "1" *-- "1" PostgresFlexibleServer
+IaCArtifact "1" *-- "1" AzureOpenAI
+IaCArtifact "1" *-- "1" MigrationJob
+ContainerAppsEnv "1" *-- "1..*" AppRevision
+AppRevision ..> ContainerRegistry : pull image
+AppRevision ..> KeyVault : secret references
+AppRevision ..> PostgresFlexibleServer : <<Encrypt>> TLS (sslmode=require)
+AppRevision ..> AzureOpenAI : API key (landmine: NOT managed identity)
+MigrationJob ..> PostgresFlexibleServer : <<Encrypt>> schema migrate
+MigrationJob "1" --> "1" AppRevision : completes BEFORE\ntraffic routing
+
+note bottom of DialectChoice
+  Implemented step 4: mandatory blocking confirmation
+  BEFORE any deploy artifact (diagram.puml, generated
+  IaC, runbook.md). Invariants: OCL-DEPLOY-IAC-DIALECT
+  (value in the set, exactly one) and
+  OCL-DEPLOY-IAC-CONFIRM-BEFORE-ARTIFACT
+  (artifact => confirmed; no silent default).
+end note
+
+note bottom of KeyVault
+  Secure-by-default, identical for BOTH dialects
+  (step 6): when Postgres + Azure OpenAI are private,
+  Key Vault is generated with
+  networkAcls.defaultAction='Deny' + bypass=
+  'AzureServices' (or a private endpoint).
+  Invariant: OCL-DEPLOY-IAC-SECURE-BY-DEFAULT.
+end note
+
+note bottom of IaCArtifact
+  FULL PARITY: BicepIaC and TerraformIaC compose the
+  same secured topology and satisfy the same invariant
+  checklist; only language/structure/state differ.
+  Produced by SEQ-DEPLOY-GUIDANCE; written into
+  CMP-DEPLOY-TARGET. Constrained by
+  OCL-DEPLOY-IAC-SECURE-BY-DEFAULT / -MIGRATION-ORDER.
+end note
+@enduml

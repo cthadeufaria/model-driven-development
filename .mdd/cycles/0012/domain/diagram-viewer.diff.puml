@@ -1,0 +1,66 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-FONT-DATABASE)
+' @id(DOM-OCL-VIEW)
+' @id(DOM-PUML-SOURCE-VIEW)  <<added>> this cycle (0012)
+' Cycle 0012 diff (current side): one element added, none removed.
+title Viewer domain — font database + OCL view + PlantUML source · cycle 0012 diff (current)
+
+enum OclSubMode {
+  Source
+  Diagram
+}
+
+class SvgRasterizer {
+  + parse_intrinsic_size(bytes) : Vec2
+  + rebuild(ctx, zoom) : Result
+}
+
+class FontDatabase {
+  + fontCount : int
+  + defaultFamily : String
+  + loadSystemFonts() : void
+}
+
+class OclView {
+  + sub_mode : OclSubMode
+  + loaded : Option<String>
+  + source : String
+  + page : Option<DiagramPage>
+}
+
+class SourceView <<added>> {
+  + loaded : Option<String>
+  + source : String
+}
+
+SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
+OclView --> OclSubMode
+@enduml

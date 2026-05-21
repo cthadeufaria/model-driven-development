@@ -258,6 +258,18 @@ links:
   - from: USE-VIEW-DIAGRAMS
     to: CMP-VIEWER-THEME
     relation: realized_by
+  - from: USE-VIEW-PUML-SOURCE
+    to: SEQ-VIEW-PUML-SOURCE
+    relation: realizes
+  - from: USE-VIEW-PUML-SOURCE
+    to: CMP-VIEWER-SHELL
+    relation: realized_by
+  - from: SEQ-VIEW-PUML-SOURCE
+    to: DOM-PUML-SOURCE-VIEW
+    relation: depends_on
+  - from: OCL-PUML-SOURCE-NO-RENDER
+    to: DOM-PUML-SOURCE-VIEW
+    relation: constrains
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -295,6 +307,9 @@ generated_tests:
   - id: AT-USE-VIEWER-THEMED
     path: .mdd/tests/acceptance/use-viewer-themed.feature
     model_id: USE-VIEWER-THEMED
+  - id: AT-USE-VIEW-PUML-SOURCE
+    path: .mdd/tests/acceptance/use-view-puml-source.feature
+    model_id: USE-VIEW-PUML-SOURCE
 generated_ui_tests: []
 source_links:
   - model_id: CMP-VIEWER-SCAN-SCOPE
@@ -496,3 +511,12 @@ source_links:
   - model_id: CMP-DEPLOY-VIEWER-SOURCE
     path: crates/mdd-core/src/lib.rs
     symbol: Project::deploy_files
+  - model_id: USE-VIEW-PUML-SOURCE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::source_ui
+  - model_id: SEQ-VIEW-PUML-SOURCE
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::source_ui
+  - model_id: DOM-PUML-SOURCE-VIEW
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: SourceView

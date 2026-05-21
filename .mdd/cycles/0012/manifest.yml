@@ -1,0 +1,18 @@
+number: 0012
+slug: viewer-puml-source-view
+entry: generate
+description: "i need to be able to see the written puml also in the mdd view in parallel with the diagram. you can put a new button to open it by the diagram button with a similar functionality"
+status: closed
+opened_at: "2026-05-21T00:00:00Z"
+closed_at: "2026-05-21T00:20:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/sequences/view-puml-source.puml
+  - .mdd/models/objective/domain/diagram-viewer.puml
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/sequences/view-puml-source.puml
+  - .mdd/models/current/domain/diagram-viewer.puml
+  - .mdd/constraints/viewer-puml-source.ocl
+  - .mdd/trace.yml
+  - .mdd/tests/acceptance/use-view-puml-source.feature
+  - crates/mdd-viewer/src/lib.rs

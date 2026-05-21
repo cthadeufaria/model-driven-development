@@ -1,0 +1,65 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-VIEW-PUML-SOURCE)  <<added>> this cycle (0012) — new file
+' @ref(USE-VIEW-PUML-SOURCE)
+' Cycle 0012 diff (current side): whole diagram added, nothing removed.
+title View a model file's PlantUML source · cycle 0012 diff (current)
+
+actor "Developer" as Dev <<added>>
+participant "MddViewer::update\n(CentralPanel)" as Viewer <<added>>
+participant "self.view : View\n{Svg|Source|Diff}" as Mode <<added>>
+participant "self.source_view\nSourceView { loaded, source }" as SV <<added>>
+database ".mdd/models/<side>/\n<kind>/<name>.puml" as Puml <<added>>
+
+Dev -> Viewer : select a model file in the rail
+Viewer -> Dev : paint "Diagram | Source | Diff" selectable_label row
+
+alt self.view == Svg (default)
+  Viewer -> Dev : paint_canvas (rendered SVG) — existing branch
+else self.view == Source  [ADDED 0012]
+  Dev -> Viewer : click "Source"
+  Viewer -> Mode : self.view = View::Source
+  Viewer -> Viewer : source_ui(ui)  (return before OCL/canvas branch)
+  alt self.source_view.loaded != selected path
+    Viewer -> Puml : fs::read_to_string(root.join(file_rel))
+    Puml --> SV : source text (loaded = path)
+  end
+  loop each painted frame
+    Viewer -> Dev : ScrollArea::both of read-only monospace labels\n(' @ markers yellow, @start/@end blue, ' comments dim)
+  end
+end
+
+note over SV
+  source_ui caches (loaded, source) so the file is read
+  once per selection. No DiagramPage / usvg / resvg path,
+  so Source works even when the SVG is unrendered
+  (OCL-PUML-SOURCE-NO-RENDER).
+end note
+@enduml

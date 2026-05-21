@@ -1,0 +1,55 @@
+@startuml
+' @id(SEQ-RENDER-DIAGRAM-PAGE)
+' @ref(USE-VIEW-DIAGRAMS)
+' Current-side runtime flow for "writing in the UI" after the font fix:
+' system fonts are loaded once into the usvg font database before any
+' SVG is parsed, so PlantUML <text> glyphs are rasterized.
+title Render a diagram page to the canvas (current)
+
+actor "Developer" as Dev
+participant "mdd-cli\n(Commands::View)" as Cli
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "Project / ModelRegistry\n(mdd-core)" as Core
+database ".mdd/rendered/*.svg" as FS
+participant "shared_fontdb()\n(OnceLock cache)" as FontDb
+participant "usvg::Tree" as Usvg
+participant "resvg + tiny-skia" as Resvg
+participant "egui painter" as Painter
+
+Dev -> Cli : mdd view
+Cli -> Core : Project::discover(cwd)
+Cli -> Viewer : mdd_viewer::run(project)
+Viewer -> Core : model_registry()
+Core --> Viewer : ModelRegistry { files, ids }
+
+alt registry has files
+  Viewer -> Viewer : load_file(first)
+  Dev -> Viewer : click file in left rail
+  Viewer -> FS : read(.mdd/rendered/<page>.svg)
+  FS --> Viewer : svg_bytes
+  Viewer -> FontDb : shared_fontdb()
+  note right of FontDb
+    First call: usvg::fontdb::Database::new()
+    + load_system_fonts(), cached in a
+    static OnceLock. Later calls cheaply
+    clone the Arc. fontCount > 0.
+  end note
+  FontDb --> Viewer : Arc<fontdb::Database>
+  Viewer -> Usvg : parse_intrinsic_size(bytes)\nOptions { fontdb, ..default() }
+  Usvg --> Viewer : intrinsic size
+
+  loop each painted frame (zoom changed)
+    Viewer -> FontDb : shared_fontdb() (cached)
+    FontDb --> Viewer : Arc<fontdb::Database>
+    Viewer -> Usvg : Tree::from_data(bytes, Options { fontdb, ..default() })
+    Viewer -> Resvg : render(tree, scale) -> Pixmap
+    Resvg --> Viewer : premultiplied RGBA (glyphs included)
+    Viewer -> Viewer : demultiply_rgba()
+    Viewer -> Painter : load_texture() + painter.image()
+    Painter --> Dev : diagram drawn WITH text
+  end
+else registry empty / no rendered pages
+  Viewer -> Painter : text("No rendered output — run the render pipeline first")
+  Painter --> Dev : placeholder message
+end
+@enduml

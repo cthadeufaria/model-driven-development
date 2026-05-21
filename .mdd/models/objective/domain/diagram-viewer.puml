@@ -1,11 +1,14 @@
 @startuml
 ' @id(DOM-FONT-DATABASE)
 ' @id(DOM-OCL-VIEW)
+' @id(DOM-PUML-SOURCE-VIEW)
 ' @desc(DOM-FONT-DATABASE, "The font database the SVG rasterizer depends on; populated once with system fonts before the first parse/render.")
 ' @desc(DOM-OCL-VIEW, "Viewer state for a selected .ocl constraint file: sub_mode (Source = raw OCL text, Diagram = synthesized constraints SVG) and the loaded diagram page.")
+' @desc(DOM-PUML-SOURCE-VIEW, "Viewer state backing the central-panel Source toggle for ordinary model files: the path whose text is loaded and the cached raw .puml source. When the top-level View is Source the viewer paints this text read-only instead of the rendered SVG; reading the file requires no renderer.")
 ' Objective-side viewer domain: the font database the SVG rasterizer
-' depends on, plus the OCL-view state added this cycle.
-title Viewer domain — font database + OCL view (objective)
+' depends on, the OCL-view state, and the PlantUML Source-view state that
+' backs the central-panel Diagram | Source | Diff toggle.
+title Viewer domain — font database + OCL view + PlantUML source (objective)
 
 enum OclSubMode {
   Source
@@ -30,6 +33,11 @@ class OclView {
   + renderedSvg(oclPath) : Path
 }
 
+class SourceView {
+  + loaded : Option<String>
+  + source : String
+}
+
 SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
 OclView --> OclSubMode
 
@@ -46,5 +54,15 @@ note bottom of OclView
   {Source, Diagram}; Diagram requires the
   rendered SVG to exist, else a placeholder
   (OCL-OCL-VIEW-SUBMODE, OCL-OCL-DIAGRAM-NEEDS-RENDER).
+end note
+
+note bottom of SourceView
+  Backs the central-panel "Source" toggle (between
+  "Diagram" and "Diff") for ordinary model files.
+  `loaded` is the path whose text is in `source`, read
+  once per selection from disk. When the top-level View
+  is Source the viewer paints `source` read-only and
+  scrollable, never a rendered artifact — the Source
+  view is always self-sufficient (OCL-PUML-SOURCE-NO-RENDER).
 end note
 @enduml

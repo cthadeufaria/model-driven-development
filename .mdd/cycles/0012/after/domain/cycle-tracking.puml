@@ -1,0 +1,164 @@
+@startuml
+' @id(DOM-CYCLE)
+' @id(DOM-CYCLE-DIFF)
+' @id(DOM-ELEMENT-DESCRIPTION)
+' @id(DOM-CYCLE-REGISTRY)
+' @id(DOM-DIFF-VIEW)
+' @id(DOM-WHOLE-MAP)
+'
+' Current-side domain, derived from crates/mdd-core/src/cycle.rs, the
+' extract_descs / Project::descriptions read path, the viewer's
+' DiffView, and the as-built .mdd/map/ whole-map tree. Closes the
+' parity gap with the objective domain model.
+'
+' @desc(DOM-CYCLE, "Implemented as cycle::Cycle + CycleManifest (serde-read manifest.yml); Cycle::diff_puml_rel maps a model path to its .mdd/cycles/<N>/<rel>.diff.puml.")
+' @desc(DOM-CYCLE-DIFF, "Implemented as cycle::CycleDiff: per-diagram unchanged/added/removed element keys, disjoint by set construction.")
+' @desc(DOM-ELEMENT-DESCRIPTION, "Implemented as the @desc(<ID>,\"text\") marker parsed by extract_descs into Project::descriptions().")
+' @desc(DOM-CYCLE-REGISTRY, "Implemented as cycle::CycleRegistry::scan: reads .mdd/cycles/*/manifest.yml into an ordered Vec<Cycle>.")
+' @desc(DOM-DIFF-VIEW, "Implemented as mdd-viewer DiffView { sub_mode: DiffSubMode, loaded_key, page }: viewer Diff-mode state bound to selected cycle + rail file; Diagram paints the rendered svg, List the buckets.")
+' @desc(DOM-WHOLE-MAP, "Implemented as the prose-driven .mdd/map/ tree + manifest.yml: /mdd-cycle's Close step (templates::MDD_CYCLE_SKILL 'Whole-map baseline' section) folds each cycle's CycleDiff in — added @ids copied from after/ with a ' @cycle(<ID>,N) provenance line, removed dropped — and snapshots it to .mdd/cycles/<N>/whole/. No Rust struct; not read by the parity gate.")
+title Cycle tracking domain (current)
+
+enum EntryPoint {
+  Generate
+  Map
+}
+
+enum CycleStatus {
+  Open
+  Closed
+  Aborted
+}
+
+enum DiffSubMode {
+  Diagram
+  List
+}
+
+class CycleManifest {
+  + number : u32
+  + slug : String
+  + entry : EntryPoint
+  + description : String
+  + status : CycleStatus
+  + opened_at : String
+  + closed_at : Option<String>
+  + touched_files : Vec<String>
+}
+
+class Cycle {
+  + manifest : CycleManifest
+  + dir : PathBuf
+  + before_dir : PathBuf
+  + after_dir : Option<PathBuf>
+  + number() : u32
+  + is_closed() : bool
+  + label() : String
+  + diff_puml_rel(model_rel) : Option<String>
+}
+
+class CycleDiff {
+  + diagram : String
+  + unchanged : Vec<String>
+  + added : Vec<String>
+  + removed : Vec<String>
+  + is_empty() : bool
+}
+
+class CycleRegistry {
+  + cycles : Vec<Cycle>
+  + scan(root) : CycleRegistry
+  + cycle(number) : Option<Cycle>
+  + latest() : Option<Cycle>
+}
+
+class ElementDescription {
+  + targetId : String
+  + text : String
+}
+
+class DiffView {
+  + sub_mode : DiffSubMode
+  + loaded_key : Option<(u32, String)>
+  + page : Option<DiagramPage>
+  + diagram_key(model_rel) : Option<String>
+  + cycles_with_diff_for(file) : Vec<u32>
+}
+
+class WholeMap {
+  + version : int
+  + lastCycle : int?
+  + generatedAt : Timestamp
+  + files : List<Path>
+  + accumulate(diff : CycleDiff, cycle : int)
+  + provenanceOf(elementId) : int
+  + snapshotInto(cycleDir : Path)
+}
+
+class WholeMapElement {
+  + elementId : String
+  + cycle : int
+  + survivesToLastCycle : Boolean
+}
+
+CycleRegistry "1" o-- "*" Cycle : scans >
+Cycle "1" *-- "1" CycleManifest
+Cycle "1" o-- "*" CycleDiff : cycle_diffs() >
+Cycle --> CycleStatus
+CycleManifest --> EntryPoint
+ElementDescription "*" ..> "1" Cycle : authored during
+DiffView --> DiffSubMode
+DiffView ..> CycleDiff : resolves selected file/cycle to >
+Cycle "1" ..> "1" WholeMap : accumulates into at close >
+WholeMap ..> CycleDiff : applies added/removed of >
+WholeMap "1" o-- "*" WholeMapElement : provenance of >
+
+note bottom of CycleDiff
+  diff_documents() builds unchanged/added/removed
+  from element_keys (every @id plus declared
+  element aliases/labels); the three sets are
+  pairwise disjoint (OCL-CYCLE-DIFF-PARTITION).
+  annotate_cycle_diff_puml re-injects removed
+  elements as a diagram-type ghost (participant
+  in sequences, state in state diagrams, card
+  otherwise; skipped for salt) so the .diff.puml
+  stays valid PlantUML for every diagram type.
+end note
+
+note bottom of ElementDescription
+  Not a stored struct: the @desc marker is
+  parsed by extract_descs() and exposed as a
+  BTreeMap<id,text> via Project::descriptions().
+  Constrained by OCL-ELEMENT-DESC-NONEMPTY.
+end note
+
+note bottom of DiffView
+  diff_ui keys on selected_file; selected_cycle
+  is constrained to Project::cycles_with_diff_for
+  (file) — cycles whose CycleDiff is !is_empty()
+  (real added/removed change, a written .diff;
+  present-unchanged excluded) — and defaults to
+  the latest of them
+  (OCL-DIFF-CYCLE-SCOPED), then bound as the
+  (cycle,file) pair (OCL-DIFF-VIEW-BINDING).
+  Diagram sub-mode resolves Cycle::diff_puml_rel
+  -> Project::rendered_svg_path; it paints only
+  when that .diff.svg exists, else a placeholder
+  (OCL-DIFF-DIAGRAM-NEEDS-RENDER).
+end note
+
+note bottom of WholeMap
+  Maintained only by /mdd-cycle's Close step,
+  one CycleDiff application per cycle — never
+  re-derived from code, no render-time fold.
+  lastCycle names a Closed cycle or is null
+  when none (OCL-MAP-LAST-CYCLE-CLOSED). Every
+  @id carries one ' @cycle(<ID>,N), N a Closed
+  cycle <= lastCycle (OCL-MAP-PROVENANCE-CLOSED);
+  an @id added then later removed is absent, not
+  ghosted (OCL-MAP-NET-CANCELS). The OCL-MAP-*
+  invariants describe the artifact; they are
+  not parity gates — validate/review/cycle
+  never read .mdd/map/.
+end note
+@enduml
