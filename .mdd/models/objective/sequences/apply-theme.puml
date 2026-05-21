@@ -1,0 +1,54 @@
+@startuml
+' @id(SEQ-APPLY-THEME)
+' @ref(USE-VIEWER-THEMED)
+' @desc(SEQ-APPLY-THEME, "Objective: at MddViewer construction the bundled Inter + JetBrains Mono TTFs are registered via egui's FontDefinitions and installed as the Proportional and Monospace families; then on every frame (update's first call) the OS appearance is queried through dark-light and catppuccin_egui::set_theme is invoked with Mocha (dark) or Latte (light), followed by style overrides for spacing.item_spacing and widget rounding.")
+' Objective-side sequence for the Tier-1 theming change: a one-shot
+' font registration at startup, then a per-frame OS-appearance probe
+' that drives the Catppuccin variant and style tweaks.
+title Apply theme (objective)
+
+actor Developer as Dev
+participant "eframe runtime" as Eframe
+participant "MddViewer::new" as Ctor
+participant "MddViewer::update" as Upd
+participant "egui::Context" as Ctx
+participant "Bundled TTFs\n(Inter, JetBrains Mono)" as Fonts
+participant "dark-light\n::detect()" as OsAppearance
+participant "catppuccin_egui\n::set_theme" as Catppuccin
+
+Dev -> Eframe : mdd view
+Eframe -> Ctor : construct
+Ctor -> Fonts : include_bytes!\nInter-Regular.ttf,\nInter-Medium.ttf,\nJetBrainsMono-Regular.ttf
+Ctor -> Ctx : set_fonts(FontDefinitions)
+note right of Ctx
+  Inter → Proportional family,
+  JetBrains Mono → Monospace family,
+  egui defaults kept as fallback.
+end note
+
+== Per-frame chrome refresh ==
+Eframe -> Upd : update(ctx, frame)
+Upd -> OsAppearance : detect()
+OsAppearance --> Upd : Dark | Light | Default
+alt OS = Dark or Default
+  Upd -> Catppuccin : set_theme(ctx, MOCHA)
+else OS = Light
+  Upd -> Catppuccin : set_theme(ctx, LATTE)
+end
+Upd -> Ctx : style_mut().spacing.item_spacing = (8.0, 6.0)\nstyle_mut().visuals.widgets.*.rounding = 6.0
+Upd -> Ctx : draw side panels, toolbar, canvas
+
+note right of Catppuccin
+  Theme is reapplied each frame so toggling
+  the OS appearance live (System Settings →
+  Appearance) flips the viewer chrome on the
+  next paint without restart.
+end note
+
+note over Fonts
+  Bundled under crates/mdd-viewer/assets/
+  (SIL OFL / Apache-2.0). Adds ≈600 KB to
+  the binary; UI text and diff lists become
+  legible without depending on system fonts.
+end note
+@enduml

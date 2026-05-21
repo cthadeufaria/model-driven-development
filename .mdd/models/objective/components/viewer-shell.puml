@@ -1,9 +1,10 @@
 @startuml
 ' @id(CMP-VIEWER-SHELL)
 ' @ref(USE-VIEW-DIAGRAMS)
-' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer: collapsible left/right SidePanels, a toolbar with no zoom buttons, and a center-fixed fisheye canvas stage that warps the rendered texture before painting.")
+' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer: collapsible left/right SidePanels, a toolbar with no zoom buttons, a center-fixed fisheye canvas stage that warps the rendered texture before painting, and a per-frame theming step that delegates to CMP-VIEWER-THEME.")
 ' Objective-side component view of the viewer UI shell — the part this
-' cycle changes. The render/font pipeline remains CMP-VIEWER-RENDER-PIPELINE.
+' cycle changes. The render/font pipeline remains CMP-VIEWER-RENDER-PIPELINE;
+' chrome theming is owned by CMP-VIEWER-THEME.
 title mdd-viewer UI shell — ownership (objective)
 
 actor "Developer" as Dev
@@ -16,8 +17,11 @@ component "Fisheye canvas stage\n(center-fixed warp)" as Fisheye
 component "PanelLayout\n(left/right collapsed)" as PL
 component "CanvasView\n(zoom, pan, fisheye params)" as CV
 component "eframe / egui 0.30" as Egui
+component "Theme module\n(CMP-VIEWER-THEME)" as Theme
 
 Dev --> Viewer : mdd view
+Viewer --> Theme : register_fonts() + apply_theme(ctx) each frame
+Theme --> Egui : FontDefinitions + Visuals
 Viewer --> Left : draw + inner-edge collapse handle
 Viewer --> Right : draw + inner-edge collapse handle
 Left --> PL : toggleLeft()

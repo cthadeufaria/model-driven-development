@@ -1,0 +1,54 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-VIEWER-THEME)  <<added>> this cycle (0011)
+' Cycle 0011 diff: brand-new file — one element added, none removed.
+title mdd-viewer theming module · cycle 0011 diff (current)
+
+actor "Developer" as Dev
+
+component "MddViewer\n(eframe::App,\ncrates/mdd-viewer/src/lib.rs)" as Viewer
+component "theme.rs\nregister_fonts + apply_theme" as Theme <<added>>
+component "assets/fonts/\n(Inter-Regular.ttf,\n Inter-Medium.ttf,\n JetBrainsMono-Regular.ttf,\n include_bytes!)" as Assets <<added>>
+package "External crates" {
+  component "catppuccin_egui 5.7\n(feature: egui30)" as Catppuccin <<added>>
+  component "dark_light 2.0" as DarkLight <<added>>
+}
+component "egui::Context" as Ctx
+
+Viewer --> Theme : register_fonts(&cc.egui_ctx) once\n+ apply_theme(ctx) each frame
+Theme --> Assets : include_bytes!
+Theme --> Ctx : ctx.set_fonts(FontDefinitions)
+Theme --> DarkLight : detect() each frame
+DarkLight --> Theme : Mode::{Light, Dark, Unspecified}
+Theme --> Catppuccin : set_theme(ctx, MOCHA | LATTE)
+Catppuccin --> Ctx : style.visuals = palette
+Theme --> Ctx : style_mut(): spacing + rounding overrides
+Ctx --> Dev : themed panels + canvas
+@enduml

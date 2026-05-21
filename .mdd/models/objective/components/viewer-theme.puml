@@ -1,0 +1,47 @@
+@startuml
+' @id(CMP-VIEWER-THEME)
+' @ref(USE-VIEWER-THEMED)
+' @desc(CMP-VIEWER-THEME, "A new theming module inside the mdd-viewer crate that owns the bundled UI font assets and the per-frame OS-appearance-following Catppuccin theme. Pure chrome — it depends on egui through catppuccin_egui and on the OS through dark-light, but never touches the SVG render/font pipeline.")
+' Objective-side component view for the Tier-1 theming change. It
+' sits between MddViewer and egui::Context; CMP-VIEWER-RENDER-PIPELINE
+' (the SVG side) is intentionally not in this diagram.
+title mdd-viewer theming module — ownership (objective)
+
+actor "Developer" as Dev
+
+component "MddViewer\n(eframe::App)" as Viewer
+component "theme.rs\nregister_fonts + apply_theme" as Theme
+component "Bundled assets\nInter-Regular.ttf\nInter-Medium.ttf\nJetBrainsMono-Regular.ttf" as Assets
+package "External crates" {
+  component "catppuccin_egui\n0.x" as Catppuccin
+  component "dark-light\n1.x" as DarkLight
+}
+component "egui::Context" as Ctx
+
+Viewer --> Theme : construct\n+ each frame
+Theme --> Assets : include_bytes!
+Theme --> Ctx : set_fonts(FontDefinitions)
+Theme --> DarkLight : detect() each frame
+DarkLight --> Theme : Dark | Light | Default
+Theme --> Catppuccin : set_theme(ctx, MOCHA | LATTE)
+Catppuccin --> Ctx : style.visuals = ...
+Theme --> Ctx : style_mut() spacing + rounding overrides
+Ctx --> Dev : themed panels, toolbar, canvas chrome
+
+note bottom of Theme
+  Pure chrome boundary: theme.rs has no
+  knowledge of ModelRegistry, CycleRegistry,
+  CanvasView, or PanelLayout. Adding or
+  removing it does not change any model or
+  any rendered SVG; it only changes how
+  egui paints widgets.
+end note
+
+note bottom of Assets
+  TTFs ship inside the binary via
+  include_bytes!. Licences (SIL OFL for
+  Inter, OFL for JetBrains Mono) are
+  carried alongside the assets and noted
+  in the crate's NOTICE.
+end note
+@enduml

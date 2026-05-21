@@ -1,0 +1,28 @@
+number: 0011
+slug: viewer-theming-tier-1
+entry: generate
+description: "https://crates.io/crates/catppuccin-egui looks nice. follow with tier 1 option."
+status: closed
+opened_at: "2026-05-20T12:00:00Z"
+closed_at: "2026-05-20T12:20:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/sequences/apply-theme.puml
+  - .mdd/models/objective/components/viewer-theme.puml
+  - .mdd/models/objective/components/viewer-shell.puml
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/sequences/apply-theme.puml
+  - .mdd/models/current/components/viewer-theme.puml
+  - .mdd/models/current/components/viewer-shell.puml
+  - .mdd/trace.yml
+  - .mdd/tests/acceptance/use-viewer-themed.feature
+  - .mdd/docs/mdd-workflow.md
+  - crates/mdd-viewer/Cargo.toml
+  - crates/mdd-viewer/src/lib.rs
+  - crates/mdd-viewer/src/theme.rs
+  - crates/mdd-viewer/assets/fonts/Inter-Regular.ttf
+  - crates/mdd-viewer/assets/fonts/Inter-Medium.ttf
+  - crates/mdd-viewer/assets/fonts/JetBrainsMono-Regular.ttf
+  - crates/mdd-viewer/assets/fonts/Inter-LICENSE.txt
+  - crates/mdd-viewer/assets/fonts/JetBrainsMono-LICENSE.txt
+  - crates/mdd-core/src/lib.rs

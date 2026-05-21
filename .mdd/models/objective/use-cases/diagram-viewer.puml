@@ -9,11 +9,13 @@
 ' @desc(USE-VIEW-OCL, "Developer selects an .ocl constraint file and views it on the canvas with a Source/Diagram toggle: Source shows the raw OCL text, Diagram shows a synthesized PlantUML constraints diagram.")
 ' @id(USE-VIEW-DEPLOY)
 ' @desc(USE-VIEW-DEPLOY, "Developer sees /mdd-deploy deployment diagrams (.mdd/deploy/**/*.puml) in `mdd view`, listed in a DEDICATED 'DEPLOY' rail section that is visibly labelled as a utility artifact OUTSIDE the current<->objective parity gate. Selecting one paints its already-rendered .mdd/rendered/deploy/**/*.svg on the same canvas. The section is a THIRD viewer ingestion source alongside the model registry and the cycle registry; deployment files never enter ModelRegistry, so /mdd-validate and /mdd-review still never read .mdd/deploy/.")
+' @id(USE-VIEWER-THEMED)
+' @desc(USE-VIEWER-THEMED, "Developer sees the mdd-viewer chrome dressed by a Catppuccin palette (Mocha when the OS is dark, Latte when light, picked once per frame from the OS appearance), bundled Inter for UI text and JetBrains Mono for code/diff lists, and softened item spacing + corner rounding — instead of the bare egui defaults. Cross-platform single binary; chrome only — the SVG canvas rasterizer is untouched.")
 ' Objective-side use-case view. Same text-legibility acceptance as before,
 ' plus the focus+context fisheye, the collapsible side panels, an
-' OCL constraint viewer, and a dedicated non-gated DEPLOY section that
-' surfaces .mdd/deploy diagrams in the viewer; the toolbar no longer
-' carries zoom controls.
+' OCL constraint viewer, a dedicated non-gated DEPLOY section, and
+' an OS-appearance-following Catppuccin theme with bundled fonts.
+' The toolbar no longer carries zoom controls.
 title mdd view — diagram viewer (objective)
 
 left to right direction
@@ -29,6 +31,7 @@ rectangle "mdd-viewer" {
   usecase "Inspect model IDs and trace links" as Trace
   usecase "View OCL constraints\n(source or diagram)" as ViewOcl
   usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
+  usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed
 }
 
 Dev --> View
@@ -39,11 +42,13 @@ Dev --> Panels
 Dev --> Trace
 Dev --> ViewOcl
 Dev --> ViewDeploy
+Dev --> Themed
 
 View ..> Browse : <<include>>
 View ..> PanZoom : <<extend>>
 View ..> Fisheye : <<extend>>
 View ..> Panels : <<extend>>
+View ..> Themed : <<include>>
 ViewOcl ..> PanZoom : <<extend>>
 ViewDeploy ..> PanZoom : <<extend>>
 
@@ -89,6 +94,19 @@ note bottom of Panels
   an inner-edge chevron handle; clicking it collapses
   the panel to a thin sliver, clicking the sliver
   re-expands it. Realized by SEQ-PANEL-COLLAPSE.
+end note
+
+note bottom of Themed
+  Objective (USE-VIEWER-THEMED): on startup
+  MddViewer registers a bundled Inter (UI) and
+  JetBrains Mono (monospace) FontDefinitions
+  set, then on every frame asks dark-light for
+  the OS appearance and applies catppuccin_egui
+  Mocha (dark) or Latte (light) plus tightened
+  spacing.item_spacing and softened widget
+  rounding. No new SVG rendering, no new model
+  state — chrome only. Realized by SEQ-APPLY-THEME
+  and owned by CMP-VIEWER-THEME.
 end note
 
 note bottom of ViewDeploy

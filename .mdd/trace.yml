@@ -249,6 +249,15 @@ links:
   - from: CMP-DEPLOY-VIEWER-SOURCE
     to: CMP-RENDER-TREE-SET
     relation: depends_on
+  - from: USE-VIEWER-THEMED
+    to: SEQ-APPLY-THEME
+    relation: realizes
+  - from: USE-VIEWER-THEMED
+    to: CMP-VIEWER-THEME
+    relation: realized_by
+  - from: USE-VIEW-DIAGRAMS
+    to: CMP-VIEWER-THEME
+    relation: realized_by
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -283,6 +292,9 @@ generated_tests:
   - id: AT-USE-VIEW-DEPLOY
     path: .mdd/tests/acceptance/use-view-deploy.feature
     model_id: USE-VIEW-DEPLOY
+  - id: AT-USE-VIEWER-THEMED
+    path: .mdd/tests/acceptance/use-viewer-themed.feature
+    model_id: USE-VIEWER-THEMED
 generated_ui_tests: []
 source_links:
   - model_id: CMP-VIEWER-SCAN-SCOPE
@@ -309,6 +321,15 @@ source_links:
   - model_id: DOM-FONT-DATABASE
     path: crates/mdd-viewer/src/lib.rs
     symbol: shared_fontdb
+  - model_id: CMP-VIEWER-THEME
+    path: crates/mdd-viewer/src/theme.rs
+    symbol: apply_theme
+  - model_id: SEQ-APPLY-THEME
+    path: crates/mdd-viewer/src/theme.rs
+    symbol: apply_theme
+  - model_id: USE-VIEWER-THEMED
+    path: crates/mdd-viewer/src/theme.rs
+    symbol: apply_theme
   - model_id: USE-RUN-CYCLE
     path: .claude/skills/mdd-cycle/SKILL.md
   - model_id: SEQ-RUN-CYCLE

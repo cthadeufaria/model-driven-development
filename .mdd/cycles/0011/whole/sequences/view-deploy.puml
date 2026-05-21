@@ -1,0 +1,58 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-VIEW-DEPLOY, 0010)
+' @id(SEQ-VIEW-DEPLOY)
+' @ref(USE-VIEW-DEPLOY)
+' @ref(DOM-RENDER-ENGINE)
+' @desc(SEQ-VIEW-DEPLOY, "Implemented flow. MddViewer::new() calls project.deploy_files() and stores it in the deploy_files field beside registry and cycles. Project::deploy_files() (mdd-core) iterates render_sources(RenderTree::Deploy) — the single source of truth for the deploy tree — and builds a ModelFile per .mdd/deploy/**/*.puml with rendered_pages from rendered_pages_for(), kind Other, side Shared, WITHOUT pushing into ModelRegistry. update() clones deploy_files, builds deploy_tree via TreeNode::build with a constant 'deployment' kind label, and renders a 'DEPLOY' CollapsingHeader after the rail-mode match so it appears in both modes. A click resolves through lookup_file (registry chained with deploy_files) into load_file, which reads .mdd/rendered/deploy/<rel>.svg into a DiagramPage. Because deploy files never reach model_registry(), Project::review()/validate() keep ignoring .mdd/deploy/.")
+' Current-side sequence refreshed from code (crates/mdd-viewer/src/lib.rs,
+' crates/mdd-core/src/lib.rs Project::deploy_files).
+title mdd view — surface .mdd/deploy diagrams via a third source (current)
+
+actor "Developer" as Dev
+participant "mdd-cli\nCommands::View" as Cli
+participant "MddViewer::new()" as Viewer
+participant "Project::deploy_files()" as Core
+participant "render_sources(\nRenderTree::Deploy)" as RT
+database ".mdd/deploy/**/*.puml" as Deploy
+database ".mdd/rendered/deploy/**/*.svg" as Rendered
+
+Dev -> Cli : mdd view
+Cli -> Viewer : run(project) -> MddViewer::new
+
+group Two parity-gated sources (unchanged)
+  Viewer -> Viewer : model_registry()  (.mdd/models + .mdd/constraints)
+  Viewer -> Viewer : cycle_registry()  (.mdd/cycles)
+end
+
+group Third source — deploy_files() (NOT gated)
+  Viewer -> Core : project.deploy_files()
+  Core -> RT : render_sources(RenderTree::Deploy)
+  RT -> Deploy : walk_suffix(".mdd/deploy", ".puml")
+  Deploy --> RT : [diagram.puml ...]
+  RT --> Core : sources
+  Core -> Core : per file: extract_ids/refs,\nrendered_pages_for(rel)\n-> ModelFile{ kind=Other, side=Shared }
+  note right of Core
+    Returned as a Vec<ModelFile>. NOT inserted
+    into ModelRegistry, so /mdd-validate and
+    /mdd-review (which read model_registry())
+    never see .mdd/deploy/.
+  end note
+  Core --> Viewer : Vec<ModelFile> -> self.deploy_files
+end
+
+Viewer -> Viewer : update(): TreeNode::build(deploy)\n"DEPLOY · /mdd-deploy · utility, not parity-gated"\n(rendered in Directory AND By-cycle)
+Dev -> Viewer : click deploy leaf
+Viewer -> Viewer : lookup_file(path) -> load_file(file)
+Viewer -> Rendered : read .mdd/rendered/deploy/<rel>.svg
+Rendered --> Viewer : SVG bytes -> DiagramPage
+Viewer --> Dev : deployment diagram painted on canvas
+
+note over Deploy, Rendered
+  No .svg mirror -> the canvas shows the same
+  "No rendered output — run the render pipeline first"
+  placeholder as any unrendered model. The viewer
+  never rasterizes; `mdd render` covers
+  RenderTree::Deploy.
+end note
+@enduml

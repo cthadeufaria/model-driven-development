@@ -1,0 +1,72 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-VIEW-DIAGRAMS)
+' @id(USE-FISHEYE-FOCUS)
+' @id(USE-TOGGLE-PANELS)
+' @id(USE-VIEW-OCL)
+' @id(USE-VIEW-DEPLOY)
+' @id(USE-VIEWER-THEMED)  <<added>> this cycle (0011)
+' Cycle 0011 diff (current side): one element added, none removed.
+title mdd view — diagram viewer · cycle 0011 diff (current)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas\n(scroll zoom, drag pan)" as PanZoom
+  usecase "Focus via center fisheye" as Fisheye
+  usecase "Collapse / expand side panels" as Panels
+  usecase "Inspect model IDs and trace links" as Trace
+  usecase "View OCL constraints\n(source or diagram)" as ViewOcl
+  usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
+  usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed <<added>>
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Fisheye
+Dev --> Panels
+Dev --> Trace
+Dev --> ViewOcl
+Dev --> ViewDeploy
+Dev --> Themed
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+View ..> Fisheye : <<extend>>
+View ..> Panels : <<extend>>
+View ..> Themed : <<include>>
+ViewOcl ..> PanZoom : <<extend>>
+ViewDeploy ..> PanZoom : <<extend>>
+@enduml

@@ -1,0 +1,63 @@
+@startsalt
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(MCK-VIEWER-CYCLE-UI, 0001)
+' @id(MCK-VIEWER-CYCLE-UI)
+' @ref(USE-BROWSE-TREE)
+' @ref(USE-DIFF-DIAGRAM)
+' @ui-viewport(desktop,1280,800)
+'
+' Current-side as-built layout of the mdd-viewer after the Diff-mode
+' rendered-diagram implementation. Native eframe/egui app: deliberately
+' NO @ui-route and no @ui-element (UIC- ids are workspace-unique and
+' declared on the objective mockup); this is a layout reference.
+'
+' @desc(MCK-VIEWER-CYCLE-UI, "As-built viewer layout: MODELS tree rail with Directory/By-cycle toggle; Diagram/Diff tabs; Diff mode bound to the selected cycle and rail file with a Diagram/List VIEW toggle; DESCRIPTION block in MODEL CONTEXT.")
+title mdd viewer — cycle-aware layout (current)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "MODELS"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        +++ domain
+        ++++ <b>canvas-view.puml  (selected)
+        +++ use-cases
+        ++ objective
+        + Cycle 0002 — slug (closed)
+        + Unassigned
+      }
+    } |
+    {
+      { [Diagram] | [*Diff] }
+      "CYCLE: [*0002 closed] | [0001 closed]"
+      "VIEW:  [*Diagram] | [List]   diff of the rail file"
+      --
+      "canvas-view.puml — cycle 0002 (superposed)"
+      {
+        "  shared element"
+        "<color:green>+ added by this cycle</color>"
+        "<color:red>- removed by this cycle</color>"
+      }
+      .
+      "[ superposed diff diagram canvas — pan/zoom ]"
+    } |
+    {
+      "MODEL CONTEXT"
+      --
+      "file" | { current/domain/canvas-view.puml }
+      "kind" | { domain }
+      {^"DESCRIPTION"
+        "DOM-CANVAS-VIEW"
+        "Code struct CanvasView: base zoom/pan"
+        "plus the center-fixed fisheye params."
+      }
+      "IDS" | { DOM-CANVAS-VIEW }
+      "TRACE" | { SEQ-CANVAS-FISHEYE -> depends_on -> DOM-CANVAS-VIEW }
+    }
+  }
+}
+@endsalt

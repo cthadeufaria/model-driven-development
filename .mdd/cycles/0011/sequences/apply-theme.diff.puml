@@ -1,0 +1,60 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-APPLY-THEME)  <<added>> this cycle (0011)
+' Cycle 0011 diff: brand-new file — one element added, none removed.
+title Apply theme · cycle 0011 diff (current)
+
+actor Developer as Dev
+participant "eframe::run_native\n(run() closure)" as Eframe <<added>>
+participant "MddViewer::new" as Ctor <<added>>
+participant "MddViewer::update" as Upd <<added>>
+participant "egui::Context" as Ctx <<added>>
+participant "Bundled TTFs\n(assets/fonts/*.ttf,\ninclude_bytes!)" as Fonts <<added>>
+participant "dark_light::detect()" as OsAppearance <<added>>
+participant "catppuccin_egui\n::set_theme" as Catppuccin <<added>>
+
+Dev -> Eframe : mdd view
+Eframe -> Ctor : construct app
+Ctor --> Eframe : MddViewer
+Eframe -> Fonts : theme::register_fonts(&cc.egui_ctx)
+Fonts -> Ctx : ctx.set_fonts(FontDefinitions)
+
+== Per-frame chrome refresh ==
+Eframe -> Upd : update(ctx, frame)
+Upd -> OsAppearance : dark_light::detect()
+OsAppearance --> Upd : Mode::{Light | Dark | Unspecified}
+alt Mode == Light
+  Upd -> Catppuccin : set_theme(ctx, LATTE)
+else Mode == Dark or Unspecified
+  Upd -> Catppuccin : set_theme(ctx, MOCHA)
+end
+Upd -> Ctx : style_mut(): spacing + rounding overrides
+Upd -> Ctx : draw panels + canvas
+@enduml

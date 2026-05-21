@@ -1,0 +1,64 @@
+@startuml
+' @id(CMP-DEPLOY-SKILL)
+' @id(CMP-DEPLOY-STORE)
+' @id(CMP-DEPLOY-TARGET)
+' @id(CMP-DEPLOY-RENDER)
+' @id(CMP-DEPLOY-PROFILE-DOC)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-INSPECT)
+' @ref(DOM-RENDER-ENGINE)
+'
+' Current-side ownership boundaries for /mdd-deploy as implemented.
+' Canonical source of truth is crates/mdd-core/src/templates.rs; the
+' .claude/.codex SKILL.md mirrors and .mdd/docs/deploy-profile.md are
+' materialized by `mdd init` (Project::init_with_conflict_handler).
+'
+' @desc(CMP-DEPLOY-SKILL, "Implemented: templates::MDD_DEPLOY_SKILL + its SkillTemplate entry in templates::WORKFLOW_SKILLS, materialized into .claude/.codex/skills/mdd-deploy/SKILL.md. Guidance-only; never executes a deploy command; a sibling of /mdd-render, outside the parity gate.")
+' @desc(CMP-DEPLOY-STORE, "Specified by templates::MDD_DEPLOY_SKILL: .mdd/deploy/<target>/ (diagram.puml + runbook.md), created on the first /mdd-deploy run. Naturally outside /mdd-validate and /mdd-review scope, like the non-gated .mdd/map/ tree.")
+' @desc(CMP-DEPLOY-TARGET, "Specified by templates::MDD_DEPLOY_SKILL: the deployment target repo ../atlas-ate-server, read READ-ONLY for topology + security invariants; generated infra/main.bicep written there at skill-run time.")
+' @desc(CMP-DEPLOY-RENDER, "Implemented: the .mdd/deploy/**/*.puml tree is the Deploy branch of mdd_core::RenderTree (Project::render_sources), one of the trees the single `mdd render` command covers (DOM-RENDER-ENGINE), mirrored to .mdd/rendered/deploy/**/*.svg. templates::MDD_RENDER_SKILL is now a thin wrapper that calls `mdd render` and only does fuzzy subset intake + diagnostic triage. Additive, non-gating.")
+' @desc(CMP-DEPLOY-PROFILE-DOC, "Implemented: .mdd/docs/deploy-profile.md, materialized from templates::deploy_profile_doc (MDD_DEPLOY_PROFILE_DOC) by Project::init_with_conflict_handler. Documents the azure-container-apps deployment-diagram conventions and the invariant checklist.")
+title /mdd-deploy ownership (current)
+
+actor "Operator" as Op
+
+component "/mdd-deploy\n(utility skill)" as Skill
+component "/mdd-render\n(thin wrapper over `mdd render`)" as Render
+
+folder ".mdd/deploy/azure-container-apps/\ndiagram.puml, runbook.md" as Store
+folder "../atlas-ate-server/\ninfra/main.bicep (+ modules)" as Target
+folder ".mdd/rendered/deploy/\n**/*.svg" as Rendered
+folder ".mdd/docs/deploy-profile.md" as ProfileDoc
+
+package "canonical source of truth" {
+  component "crates/mdd-core/src/templates.rs\nMDD_DEPLOY_SKILL + WORKFLOW_SKILLS\n+ MDD_DEPLOY_PROFILE_DOC" as Templates
+}
+
+package "existing gated MDD pipeline\n(unaffected)" {
+  component "/mdd-cycle / /mdd-validate /\n/mdd-review (parity gate)" as Gate
+}
+
+Op --> Skill : /mdd-deploy <description>
+Templates ..> Skill : materialized by `mdd init`
+Templates ..> ProfileDoc : materialized by `mdd init`
+Skill --> Store : write diagram.puml + runbook.md
+Skill --> Target : generate infra/main.bicep (+ modules)
+Skill ..> ProfileDoc : follows conventions
+Op --> Render : /mdd-render (or `mdd render` directly)
+Render --> Store : `mdd render` reads .mdd/deploy/**/*.puml (Project-enumerated)
+Render --> Rendered : write .mdd/rendered/deploy/**/*.svg (mirror)
+Gate ..> Store : NEVER reads (outside the gate)
+
+note bottom of Skill
+  Guidance only. Never runs az / docker / brew.
+  Realizes USE-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Gate
+  /mdd-deploy is decoupled: no objective<->current
+  parity, no security-marker parity. A UML
+  deployment diagram has no code-derived
+  counterpart, so by design it is not routed into
+  the gate.
+end note
+@enduml
