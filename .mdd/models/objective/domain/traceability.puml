@@ -1,0 +1,51 @@
+@startuml
+' @id(DOM-SYMBOL-SPAN)
+' @desc(DOM-SYMBOL-SPAN, "A code symbol located by the syn engine: { path, symbol, line_start, line_end, kind }. symbol is a dotted path (e.g. MddViewer.apply_theme or Project.review_traceability) built from syn item names + impl self-type; kind is one of fn/struct/enum/impl/const/etc. Produced by CMP-TRACE-ENGINE from syn::parse_file + proc-macro2 span-locations; used to (a) resolve a source_link's symbol forward, and (b) find the enclosing symbol for a changed line range reverse.")
+' @id(DOM-TRACE-REPORT)
+' @desc(DOM-TRACE-REPORT, "Outcome of Project::review_traceability(): { forward_errors: [(model_id, path, symbol)], reverse_bucket_a: [(path, symbol_or_region, reason)], reverse_bucket_b: [(path, symbol)], matched: bool }. matched = forward_errors empty AND reverse_bucket_b empty (when traceability.parity_check = error). Folded into ReviewReport as the third pass; the combined ReviewReport.matched ANDs ID parity, security parity, and this.")
+' @id(DOM-SOURCE-LINK)
+' @desc(DOM-SOURCE-LINK, "The existing trace.yml record { model_id, path, symbol? } given a verified meaning by this cycle. model_id is a diagram @id; path a repo-relative source file; symbol an optional dotted symbol path resolvable by DOM-SYMBOL-SPAN. One @id may have many links; many @ids may share a (path, symbol). Forward parity verifies each resolves; reverse parity covers a changed symbol when some link's (path, symbol) matches it.")
+' Objective-side domain for the traceability engine (cycle 0013):
+' the symbol the syn index yields, the trace.yml record it verifies,
+' and the report the gate produces.
+title MDD traceability — domain (objective)
+
+class SymbolSpan {
+  + path : String
+  + symbol : String
+  + line_start : u32
+  + line_end : u32
+  + kind : SymbolKind
+}
+
+class SourceLink {
+  + model_id : String
+  + path : String
+  + symbol : Option<String>
+}
+
+class TraceReport {
+  + forward_errors : Vec<ForwardError>
+  + reverse_bucket_a : Vec<ReverseWarn>
+  + reverse_bucket_b : Vec<ReverseError>
+  + matched : bool
+}
+
+SourceLink "1" ..> "0..1" SymbolSpan : resolves to >
+TraceReport "1" o-- "*" SourceLink : verifies >
+
+note bottom of SymbolSpan
+  Built by syn::parse_file + proc-macro2
+  span-locations. A changed line range maps to
+  the SymbolSpan whose [line_start, line_end]
+  contains it; lines outside any span are glue
+  (escape hatch).
+end note
+
+note bottom of TraceReport
+  matched = forward_errors.is_empty() AND
+  reverse_bucket_b.is_empty() under
+  traceability.parity_check = error; bucket A
+  is informational (warn) either way.
+end note
+@enduml

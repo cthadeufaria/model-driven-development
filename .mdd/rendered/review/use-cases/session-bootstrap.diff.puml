@@ -1,0 +1,69 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(USE-SESSION-BRIEF)
+' @desc(USE-SESSION-BRIEF, "At session start a Claude Code SessionStart hook runs `mdd context`, handing the agent a compact whole-map table of contents (concepts grouped by kind, read from .mdd/map) plus the map-status freshness verdict — so the agent begins already oriented to what the system contains and whether the diagrams can be trusted. Realized by SEQ-SESSION-BRIEF; owned by CMP-SESSION-CLI (the command) and CMP-INIT-HOOK (the wiring).")
+' @id(USE-DIAGRAMS-FIRST)
+' @desc(USE-DIAGRAMS-FIRST, "The mdd init entrypoint (CLAUDE.md / AGENTS.md) directs every agent to a diagrams-first reading order: run mdd context, and if FRESH read the diagrams and follow trace.yml source_links to the code before acting; if STALE re-map the drifted area with /mdd-map FIRST, then read. Realized by SEQ-DIAGRAMS-FIRST; owned by CMP-ENTRYPOINT-DIRECTIVE.")
+' Objective use cases for agent session bootstrap (cycle 0014): surface a
+' trustworthy model briefing at session start and make the agent consult the
+' model before the code.
+title Agent session bootstrap — use cases (objective)
+
+left to right direction
+
+actor "Agent (Claude / Codex)" as Agent <<missing>>
+
+rectangle "mdd toolchain" {
+  usecase "Receive map TOC +\nfreshness brief at\nsession start" as Brief
+  usecase "Follow diagrams-first\nreading order\n(fresh: read / stale: remap)" as First
+}
+
+Agent --> Brief
+Agent --> First
+Brief ..> First : <<include>>
+
+note bottom of Brief
+  USE-SESSION-BRIEF: SessionStart hook -> `mdd context`
+  prints the whole-map TOC + the map-status verdict.
+  Realized by SEQ-SESSION-BRIEF; owned by CMP-SESSION-CLI
+  + CMP-INIT-HOOK.
+end note
+
+note bottom of First
+  USE-DIAGRAMS-FIRST: the entrypoint directive encodes
+  fresh -> read + follow source_links / stale -> /mdd-map
+  the drifted area first. Realized by SEQ-DIAGRAMS-FIRST;
+  owned by CMP-ENTRYPOINT-DIRECTIVE.
+end note
+@enduml

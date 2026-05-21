@@ -1,0 +1,26 @@
+@startuml
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-DIAGRAMS-FIRST)   <<added>> this cycle (0014)
+' Cycle 0014 diff: new file — one element added, none removed.
+title Diagrams-first reading order · cycle 0014 diff (current)
+
+actor "Agent" as Agent <<added>>
+participant "mdd context\nverdict" as Verdict <<added>>
+participant ".mdd/models + trace.yml\nsource_links" as Diagrams <<added>>
+participant "/mdd-map\n(re-derive current)" as Map <<added>>
+participant "code" as Code <<added>>
+
+Agent -> Verdict : freshness from session brief
+Verdict --> Agent : FRESH -> trusted / STALE -> drift list
+Agent -> Diagrams : FRESH: read concept diagrams
+Agent -> Code : FRESH: follow source_links, then act
+Agent -> Map : STALE: /mdd-map the drifted area FIRST
+Map --> Diagrams : current/ re-synced, then read
+@enduml

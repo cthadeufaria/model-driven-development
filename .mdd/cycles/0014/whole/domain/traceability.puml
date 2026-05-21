@@ -1,0 +1,46 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(DOM-SYMBOL-SPAN, 0013)
+' @cycle(DOM-TRACE-REPORT, 0013)
+' @cycle(DOM-SOURCE-LINK, 0013)
+' @id(DOM-SYMBOL-SPAN)
+' @desc(DOM-SYMBOL-SPAN, "Built as traceability::SymbolSpan { path, symbol, line_start, line_end, kind } in crates/mdd-core/src/traceability.rs (re-exported from lib.rs). symbol is dotted-by-:: (bare leaf for free items, Enum::Variant for variants, Type::method for impl methods); kind is fn/struct/enum/trait/type/const/static/variant. Produced by extract_symbols; consumed by resolve_source_link (forward) and changed_code (reverse). is_behaviour_kind decides bucket B vs A.")
+' @id(DOM-TRACE-REPORT)
+' @desc(DOM-TRACE-REPORT, "Built as lib.rs TraceabilityReport { matched, mode, base, forward_errors: Vec<ForwardError>, reverse_bucket_a: Vec<String>, reverse_bucket_b: Vec<ReverseViolation> } plus MapStatusReport { fresh, source_revision, drift: Vec<MapDrift> } for the freshness side. matched = forward_errors empty AND reverse_bucket_b empty; folded into ReviewReport.traceability and ANDed into ReviewReport.matched under error mode.")
+' @id(DOM-SOURCE-LINK)
+' @desc(DOM-SOURCE-LINK, "The existing lib.rs SourceLink { model_id, path, symbol: Option<String> } given verified meaning this cycle. resolve_source_link checks the path exists and, for a .rs symbol, that extract_symbols finds a symbol_matches entry; review_traceability uses it forward, changed_code coverage uses it reverse, map_status uses it for drift.")
+' Current-side domain for the traceability engine (cycle 0013), as built.
+title MDD traceability — domain (current)
+
+class SymbolSpan {
+  + path : String
+  + symbol : String
+  + line_start : usize
+  + line_end : usize
+  + kind : String
+}
+
+class SourceLink {
+  + model_id : String
+  + path : String
+  + symbol : Option<String>
+}
+
+class TraceabilityReport {
+  + matched : bool
+  + mode : ParityMode
+  + base : String
+  + forward_errors : Vec<ForwardError>
+  + reverse_bucket_a : Vec<String>
+  + reverse_bucket_b : Vec<ReverseViolation>
+}
+
+SourceLink "1" ..> "0..1" SymbolSpan : resolves to >
+TraceabilityReport "1" o-- "*" SourceLink : verifies >
+
+note bottom of SymbolSpan
+  Built by syn::parse_file + proc-macro2
+  span-locations; a changed line maps to the
+  innermost span containing it.
+end note
+@enduml

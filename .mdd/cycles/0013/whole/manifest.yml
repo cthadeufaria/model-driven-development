@@ -1,0 +1,40 @@
+version: 1
+last_cycle: 13
+generated_at: "2026-05-21T01:00:00Z"
+files:
+  - components/cycle-tracking.puml
+  - components/deploy-guidance.puml
+  - components/diagram-viewer.puml
+  - components/traceability.puml
+  - components/viewer-scan-scope.puml
+  - components/viewer-shell.puml
+  - components/viewer-theme.puml
+  - domain/canvas-view.puml
+  - domain/cycle-tracking.puml
+  - domain/diagram-viewer.puml
+  - domain/panel-layout.puml
+  - domain/render-engine.puml
+  - domain/traceability.puml
+  - mockups/viewer-canvas.puml
+  - mockups/viewer-cycle-ui.puml
+  - sequences/apply-theme.puml
+  - sequences/browse-tree.puml
+  - sequences/canvas-fisheye.puml
+  - sequences/cycle-diff-render.puml
+  - sequences/cycle-diff-view.puml
+  - sequences/cycle-orchestration.puml
+  - sequences/deploy-guidance.puml
+  - sequences/diagram-viewer.puml
+  - sequences/element-description.puml
+  - sequences/map-status.puml
+  - sequences/panel-collapse.puml
+  - sequences/trace-review.puml
+  - sequences/view-deploy.puml
+  - sequences/view-ocl.puml
+  - sequences/view-puml-source.puml
+  - sequences/whole-map-accumulate.puml
+  - states/cycle.puml
+  - use-cases/cycle-tracking.puml
+  - use-cases/deploy-guidance.puml
+  - use-cases/diagram-viewer.puml
+  - use-cases/traceability.puml

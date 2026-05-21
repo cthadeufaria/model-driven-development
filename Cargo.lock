@@ -1995,12 +1995,14 @@ name = "mdd-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "proc-macro2",
  "regex",
  "serde",
  "serde_json",
  "serde_yaml",
  "sha2",
  "similar",
+ "syn",
  "tempfile",
  "thiserror 2.0.18",
  "walkdir",

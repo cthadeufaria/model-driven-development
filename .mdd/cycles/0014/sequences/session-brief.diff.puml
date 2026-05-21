@@ -1,0 +1,28 @@
+@startuml
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-SESSION-BRIEF)   <<added>> this cycle (0014)
+' Cycle 0014 diff: new file — one element added, none removed.
+title mdd context — session brief · cycle 0014 diff (current)
+
+actor "Agent" as Agent <<added>>
+participant "SessionStart hook\n(.claude/settings.json)" as Hook <<added>>
+participant "mdd context\n(Commands::Context)" as Cli <<added>>
+participant "Project::session_context" as Ctx <<added>>
+participant "map_toc (.mdd/map)" as Map <<added>>
+participant "Project::map_status" as Status <<added>>
+
+Agent -> Hook : session starts
+Hook -> Cli : run `mdd context`
+Cli -> Ctx : session_context()
+Ctx -> Map : count concept files + @ids by kind
+Ctx -> Status : map_status() (baseline via read_map_source_revision)
+Ctx --> Cli : SessionContext { toc, fresh, source_revision, drift }
+Cli --> Hook : print_session_context -> stdout (exit 0)
+@enduml

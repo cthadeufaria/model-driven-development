@@ -1,0 +1,32 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-SESSION-CLI)          <<added>> this cycle (0014)
+' @id(CMP-INIT-HOOK)            <<added>> this cycle (0014)
+' @id(CMP-ENTRYPOINT-DIRECTIVE) <<added>> this cycle (0014)
+' Cycle 0014 diff (current side): new concept file — three components added;
+' CMP-TRACE-GATE is reused (pre-existing, not tagged).
+title Agent session bootstrap — ownership · cycle 0014 diff (current)
+
+actor "Agent" as Agent
+
+component "mdd context\n(CMP-SESSION-CLI)" as Cli <<added>>
+component "mdd init / mdd clean\nSessionStart hook merge\n(CMP-INIT-HOOK)" as Init <<added>>
+component "entrypoint directive\nCLAUDE.md + AGENTS.md\n(CMP-ENTRYPOINT-DIRECTIVE)" as Directive <<added>>
+component "Project::map_status\n(CMP-TRACE-GATE, reused)" as Gate
+folder "whole-map\n.mdd/map" as Map
+folder "settings\n.claude/settings.json" as Settings
+
+Agent --> Cli : mdd context
+Agent --> Directive : reads at session start
+Cli --> Gate : map_status() freshness
+Cli --> Map : map_toc (concepts by kind)
+Init --> Settings : upsert/strip SessionStart hook (idempotent)
+Init --> Directive : inject managed block
+@enduml

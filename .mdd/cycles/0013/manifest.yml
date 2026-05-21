@@ -1,0 +1,29 @@
+number: 0013
+slug: traceability-and-freshness-engine
+entry: generate
+description: "ship traceability + freshness together: a 3rd review parity pass (forward error / reverse A-warn / B-error) plus a source-link existence check in validate, and an mdd map-status freshness check, all on a shared git + syn engine. follow with entrypoint text + SessionStart hook in 0014."
+status: closed
+opened_at: "2026-05-21T00:00:00Z"
+closed_at: "2026-05-21T01:10:00Z"
+base_revision: "93fc747d9ffe7a552bab3679ee679142cf079334"
+touched_files:
+  - .mdd/models/objective/use-cases/traceability.puml
+  - .mdd/models/objective/sequences/trace-review.puml
+  - .mdd/models/objective/sequences/map-status.puml
+  - .mdd/models/objective/components/traceability.puml
+  - .mdd/models/objective/domain/traceability.puml
+  - .mdd/models/current/use-cases/traceability.puml
+  - .mdd/models/current/sequences/trace-review.puml
+  - .mdd/models/current/sequences/map-status.puml
+  - .mdd/models/current/components/traceability.puml
+  - .mdd/models/current/domain/traceability.puml
+  - .mdd/trace.yml
+  - .mdd/config.yml
+  - .mdd/tests/acceptance/use-trace-parity.feature
+  - .mdd/tests/acceptance/use-map-freshness.feature
+  - .mdd/tests/acceptance/use-verify-source-link.feature
+  - crates/mdd-core/Cargo.toml
+  - crates/mdd-core/src/lib.rs
+  - crates/mdd-core/src/traceability.rs
+  - crates/mdd-cli/src/main.rs
+  - crates/mdd-cli/tests/cli.rs

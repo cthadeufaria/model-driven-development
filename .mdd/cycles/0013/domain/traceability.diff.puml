@@ -1,0 +1,36 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-SYMBOL-SPAN)   <<added>> this cycle (0013)
+' @id(DOM-TRACE-REPORT)  <<added>> this cycle (0013)
+' @id(DOM-SOURCE-LINK)   <<added>> this cycle (0013)
+' Cycle 0013 diff: new concept file — all elements added.
+title MDD traceability — domain · cycle 0013 diff (current)
+
+class SymbolSpan <<added>> {
+  + path : String
+  + symbol : String
+  + line_start : usize
+  + line_end : usize
+  + kind : String
+}
+
+class SourceLink <<added>> {
+  + model_id : String
+  + path : String
+  + symbol : Option<String>
+}
+
+class TraceabilityReport <<added>> {
+  + matched : bool
+  + base : String
+  + forward_errors : Vec<ForwardError>
+  + reverse_bucket_a : Vec<String>
+  + reverse_bucket_b : Vec<ReverseViolation>
+}
+
+SourceLink ..> SymbolSpan : resolves to >
+TraceabilityReport o-- SourceLink : verifies >
+@enduml

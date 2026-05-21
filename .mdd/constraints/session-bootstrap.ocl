@@ -1,0 +1,25 @@
+-- @id(OCL-BASELINE-RESOLVES)
+-- @ref(DOM-MAP-BASELINE)
+-- The freshness baseline is either an explicit source_revision or the last
+-- commit touching the current diagrams; the resolved value, when present, is a
+-- real commit reachable from HEAD — never a fabricated or empty string.
+context MapBaseline
+inv ResolvesToRealCommitOrAbsent:
+  self.resolve()->notEmpty() implies self.resolve().reachableFromHead()
+
+-- @id(OCL-HOOK-IDEMPOTENT)
+-- @ref(DOM-SESSION-HOOK)
+-- After any number of `mdd init` runs, .claude/settings.json carries at most one
+-- mdd-managed SessionStart command hook (keyed by command), and `mdd clean`
+-- removes exactly it, leaving user-authored hooks intact.
+context SessionHook
+inv AtMostOneManagedEntry:
+  SessionHook.allInstances()->select(h | h.command = 'mdd context')->size() <= 1
+
+-- @id(OCL-CONTEXT-VERDICT)
+-- @ref(DOM-SESSION-CONTEXT)
+-- The brief always carries a verdict consistent with map_status: the diagrams
+-- are reported FRESH exactly when no tracked symbol drifted.
+context SessionContext
+inv FreshIffNoDrift:
+  self.fresh = self.drift->isEmpty()

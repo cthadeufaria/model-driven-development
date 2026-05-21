@@ -1,0 +1,29 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-TRACE-ENGINE)  <<added>> this cycle (0013)
+' @id(CMP-TRACE-GATE)    <<added>> this cycle (0013)
+' @id(CMP-TRACE-CLI)     <<added>> this cycle (0013)
+' Cycle 0013 diff: new concept file — all elements added.
+title MDD traceability + freshness — ownership · cycle 0013 diff (current)
+
+actor "Developer / Agent" as Dev
+component "mdd review / mdd map-status\n(CMP-TRACE-CLI)" as Cli <<added>>
+component "Project::review pass 3\n+ validate existence\n(CMP-TRACE-GATE)" as Gate <<added>>
+component "traceability.rs\n(CMP-TRACE-ENGINE)" as Engine <<added>>
+component "git" as Git
+component "syn + proc-macro2" as Syn
+
+Dev --> Cli
+Cli --> Gate : review()
+Cli --> Engine : map_status()
+Gate --> Engine : forward resolve + reverse changeset
+Engine --> Git : diff --unified=0 base..worktree
+Engine --> Syn : parse_file -> symbol spans
+@enduml

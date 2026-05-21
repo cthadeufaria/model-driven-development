@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "mdd context",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

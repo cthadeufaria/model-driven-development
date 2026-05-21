@@ -1,0 +1,34 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-TRACE-PARITY)    <<added>> this cycle (0013)
+' @id(USE-MAP-FRESHNESS)   <<added>> this cycle (0013)
+' @id(USE-VERIFY-SOURCE-LINK) <<added>> this cycle (0013)
+' Cycle 0013 diff (current side): new concept file — all elements added.
+title MDD traceability + freshness — use cases · cycle 0013 diff (current)
+
+left to right direction
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Gate code<->diagram\ntraceability (review pass 3)" as TraceParity <<added>>
+  usecase "Check whether diagrams\nhave drifted from code\n(mdd map-status)" as Freshness <<added>>
+  usecase "Verify source_links resolve\nto real symbols (validate)" as VerifyLink <<added>>
+}
+
+Dev --> TraceParity
+Dev --> Freshness
+Dev --> VerifyLink
+TraceParity ..> VerifyLink : <<include>>
+Freshness ..> VerifyLink : <<extend>>
+@enduml

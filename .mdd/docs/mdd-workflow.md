@@ -51,9 +51,7 @@ Implement cycle:
 
 ## Orchestrated entry point
 
-`/mdd-cycle` runs the whole loop from a single description. It selects the entry point (`/mdd-generate` when a description is given, otherwise it behaves as `/mdd-map` with no comments and stops), and it **owns the cycle boundary**: it opens a numbered cycle under `.mdd/cycles/<N>/`, snapshots `.mdd/models/current/` to `before/`, loops to parity, then on review match snapshots `after/`, writes annotated `<diagram>.diff.puml` files, and closes the manifest. Standalone `/mdd-map` and `/mdd-generate` never open or close a cycle. Whenever a decision is genuinely ambiguous, `/mdd-cycle` pauses and asks the user — it never guesses.
-
-Every significant `@id(...)` should also carry a one-line `@desc(<ID>, "what this element is")` marker in the same file. The viewer surfaces it in the MODEL CONTEXT card when the element is selected; it does not participate in ref resolution. The viewer reads `.mdd/cycles/` to group diagrams by cycle and to render the superposed before/after diff (shared elements once, additions green, removals red).
+`/mdd-cycle` runs the whole loop from a single description. It selects the entry point (`/mdd-generate` when a description is given, otherwise it behaves as `/mdd-map` with no comments and stops), and it **owns the cycle boundary**: it opens a numbered cycle under `.mdd/cycles/<N>/`, snapshots `.mdd/models/current/` to `before/`, loops to parity, then on review match snapshots `after/`, writes annotated `<diagram>.diff.puml` files, and closes the manifest. Standalone `/mdd-map` and `/mdd-generate` never open or close a cycle. Whenever a decision is genuinely ambiguous, `/mdd-cycle` pauses and asks the user — it never guesses. The viewer reads `.mdd/cycles/` to group diagrams by cycle and render the superposed before/after diff.
 
 ## Whole-map baseline
 
@@ -63,7 +61,7 @@ The whole-map is an inspection artifact **outside the parity gate**: `/mdd-valid
 
 ## ID And Ref Conventions
 
-Every PlantUML model file must contain at least one stable `@id(...)` marker. Significant model elements should also have IDs when they need traceability, review, testing, or implementation links.
+Every PlantUML model file must contain at least one stable`@id(...)` marker. Significant model elements should also have IDs when they need traceability, review, testing, or implementation links.
 
 Use readable prefixes:
 
@@ -180,7 +178,7 @@ Rules:
 - Every `@ref(...)` resolves: current-side refs to current-side IDs; objective-side refs to objective-side IDs. OCL files may reference domain model IDs in either side.
 - OCL constraints live under `.mdd/constraints/` and reference domain model IDs.
 - Mockup files under `<side>/mockups/` include at least one `MCK-...` ID.
-- UI contract element IDs from `@ui-element(...)` are unique `UIC-...` IDs **within each side** (current or objective). The same `UIC-...` may appear on both sides when current and objective mockups describe the same UI element in two states — matching the per-side uniqueness rule for `USE-/SEQ-/DOM-/CMP-/STM-/SEC-`.
+- UI contract element IDs from `@ui-element(...)` are unique `UIC-...` IDs across the workspace.
 - Implementation-ready mockups (those with `@ui-route(...)` and at least one `@ui-element(...)`) have generated Playwright UI tests linked in `generated_ui_tests`.
 - State-machine files under `<side>/states/` include at least one `STM-...` ID and exactly one `@ref(DOM-...)`.
 - Every `@sec(...)` marker parses, declares a stereotype in the active catalog (currently `ByPassing`, `Encrypt`, `BufferOverflow`, `SqlInjection`, `Flooding`, `Expiration`), has a `host=` that resolves to a same-side `@id(...)` in the same file on a host kind the stereotype accepts, and supplies the tagged values its stereotype requires (see `.mdd/docs/security-profile.md`). Unknown stereotypes fail validation.

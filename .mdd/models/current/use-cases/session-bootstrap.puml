@@ -1,0 +1,33 @@
+@startuml
+' @id(USE-SESSION-BRIEF)
+' @desc(USE-SESSION-BRIEF, "Implemented: `mdd context` (mdd-cli Commands::Context) calls Project::session_context, which builds the whole-map TOC (map_toc over .mdd/map) and folds in the map_status freshness verdict. mdd init wires it as a Claude Code SessionStart hook in .claude/settings.json (Project::write_session_hook). Realized by SEQ-SESSION-BRIEF; owned by CMP-SESSION-CLI + CMP-INIT-HOOK.")
+' @id(USE-DIAGRAMS-FIRST)
+' @desc(USE-DIAGRAMS-FIRST, "Implemented as the diagrams-first reading-order text in templates::claude_entrypoint / agents_entrypoint (injected into CLAUDE.md / AGENTS.md managed blocks by mdd init): fresh -> read + follow source_links / stale -> /mdd-map the drifted area first. The AGENTS variant tells Codex to run `mdd context` manually. Realized by SEQ-DIAGRAMS-FIRST; owned by CMP-ENTRYPOINT-DIRECTIVE.")
+' Current-side use cases for agent session bootstrap (cycle 0014), as built.
+title Agent session bootstrap — use cases (current)
+
+left to right direction
+
+actor "Agent (Claude / Codex)" as Agent
+
+rectangle "mdd toolchain" {
+  usecase "Receive map TOC +\nfreshness brief at\nsession start" as Brief
+  usecase "Follow diagrams-first\nreading order\n(fresh: read / stale: remap)" as First
+}
+
+Agent --> Brief
+Agent --> First
+Brief ..> First : <<include>>
+
+note bottom of Brief
+  USE-SESSION-BRIEF: `mdd context` -> Project::session_context
+  (map_toc + map_status). Wired by mdd init as a SessionStart
+  hook. Realized by SEQ-SESSION-BRIEF.
+end note
+
+note bottom of First
+  USE-DIAGRAMS-FIRST: directive text in templates::claude_entrypoint
+  / agents_entrypoint. Realized by SEQ-DIAGRAMS-FIRST; owned by
+  CMP-ENTRYPOINT-DIRECTIVE.
+end note
+@enduml

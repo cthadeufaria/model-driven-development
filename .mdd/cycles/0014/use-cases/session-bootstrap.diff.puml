@@ -1,0 +1,30 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-SESSION-BRIEF)    <<added>> this cycle (0014)
+' @id(USE-DIAGRAMS-FIRST)   <<added>> this cycle (0014)
+' Cycle 0014 diff (current side): new concept file — all elements added.
+title Agent session bootstrap — use cases · cycle 0014 diff (current)
+
+left to right direction
+actor "Agent (Claude / Codex)" as Agent
+
+rectangle "mdd toolchain" {
+  usecase "Receive map TOC +\nfreshness brief at\nsession start" as Brief <<added>>
+  usecase "Follow diagrams-first\nreading order\n(fresh: read / stale: remap)" as First <<added>>
+}
+
+Agent --> Brief
+Agent --> First
+Brief ..> First : <<include>>
+@enduml

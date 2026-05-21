@@ -1,0 +1,36 @@
+@startuml
+' @id(SEQ-MAP-STATUS)
+' @ref(USE-MAP-FRESHNESS)
+' @desc(SEQ-MAP-STATUS, "`mdd map-status` (mdd-cli Commands::MapStatus -> Project::map_status()) reports diagram drift. It reads .mdd/map/manifest.yml source_revision (the commit at which the whole-map was last accurate, recorded at cycle close). With no whole-map yet (greenfield) it returns Fresh{no_baseline}. Otherwise it calls the same trace engine: changed_symbols(source_revision) via git diff + syn, intersects the changed symbols with trace.yml source_links; if any tracked symbol changed it returns Stale with the (path, symbol, @id) drift list, else Fresh. Output is one line plus the drift list, exit code 0 fresh / non-zero stale, so a SessionStart hook (cycle 0014) can surface it.")
+' Objective sequence for the freshness check (cycle 0013). Reuses the
+' DOM-SYMBOL-SPAN engine that backs SEQ-TRACE-REVIEW — the only new
+' input is the recorded source_revision baseline.
+title mdd map-status freshness (objective)
+
+actor "Developer / Agent" as Dev
+participant "mdd map-status\n(Commands::MapStatus)" as Cli
+participant "Project::map_status()" as Status
+participant ".mdd/map/manifest.yml" as Manifest
+participant "Trace engine\n(git + syn)" as Engine
+participant "trace.yml\nsource_links" as Trace
+
+Dev -> Cli : mdd map-status
+Cli -> Status : run
+Status -> Manifest : read source_revision
+alt no whole-map yet
+  Manifest --> Status : absent
+  Status --> Cli : Fresh { no_baseline }
+else baseline present
+  Manifest --> Status : source_revision
+  Status -> Engine : changed_symbols(source_revision)
+  Engine --> Status : changed (path, symbol)*
+  Status -> Trace : which changed symbols are tracked by a source_link?
+  Trace --> Status : tracked drift set
+  alt drift set empty
+    Status --> Cli : Fresh
+  else drift set non-empty
+    Status --> Cli : Stale { (path, symbol, @id)* }
+  end
+end
+Cli --> Dev : status line + drift list (exit 0 fresh / non-zero stale)
+@enduml

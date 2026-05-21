@@ -1,0 +1,144 @@
+@startuml
+' @id(USE-VIEW-DIAGRAMS)
+' @desc(USE-VIEW-DIAGRAMS, "Developer views a rendered model diagram on the in-app canvas with shapes and text legible.")
+' @id(USE-FISHEYE-FOCUS)
+' @desc(USE-FISHEYE-FOCUS, "Developer focuses on part of a diagram via a center-fixed fisheye that magnifies the canvas centre and compresses content toward the edges, layered on the scroll global zoom.")
+' @id(USE-TOGGLE-PANELS)
+' @desc(USE-TOGGLE-PANELS, "Developer collapses or expands the left MODELS panel and the right MODEL CONTEXT panel via an inner-edge handle, reclaiming canvas width on demand.")
+' @id(USE-VIEW-OCL)
+' @desc(USE-VIEW-OCL, "Implemented: selecting a .ocl file shows MddViewer::ocl_ui with a Source/Diagram toggle — Source paints the raw OCL text, Diagram paints the synthesized constraints SVG.")
+' @id(USE-VIEW-DEPLOY)
+' @desc(USE-VIEW-DEPLOY, "Implemented: MddViewer::new() loads a THIRD source, project.deploy_files(), beside model_registry() and cycle_registry(). The left rail renders a dedicated 'DEPLOY · /mdd-deploy · utility, not parity-gated' CollapsingHeader (shown in BOTH Directory and By-cycle modes) listing .mdd/deploy/**/*.puml; clicking a leaf reuses load_file to paint the existing .mdd/rendered/deploy/**/*.svg. lookup_file searches registry + deploy_files; deploy files never enter ModelRegistry, so Project::review()/validate() keep ignoring .mdd/deploy/.")
+' @id(USE-VIEWER-THEMED)
+' @desc(USE-VIEWER-THEMED, "Implemented as crates/mdd-viewer/src/theme.rs: run() calls theme::register_fonts(&cc.egui_ctx) once at startup (Inter Regular + Medium installed at the head of FontFamily::Proportional, JetBrains Mono Regular at the head of FontFamily::Monospace, egui defaults kept as fallback). MddViewer::update calls theme::apply_theme(ctx) FIRST each frame: dark_light::detect() → catppuccin_egui::set_theme(ctx, MOCHA | LATTE), then style.spacing.item_spacing = (8.0, 6.0) and rounding = 6.0 on every WidgetVisuals variant + window + menu. Pure chrome: theme.rs imports egui, catppuccin_egui, dark_light; it touches nothing under .mdd/ and doesn't enter ModelRegistry / CycleRegistry / DiagramPage paths.")
+' @id(USE-VIEW-PUML-SOURCE)
+' @desc(USE-VIEW-PUML-SOURCE, "Implemented: the CentralPanel toggle row now offers Diagram | Source | Diff (View enum gains View::Source). Clicking Source sets self.view = View::Source; update() dispatches to MddViewer::source_ui before the constraint/canvas branch. source_ui lazily reads the selected file's text into SourceView { loaded, source } (cached by path) and paints it in an egui::ScrollArea::both as read-only monospace labels — lines starting `' @` highlighted yellow (markers), `@start`/`@end` blue (directives), other `'` comments dimmed. No DiagramPage, usvg/resvg or render call: the source is read straight from disk, so it works even when the SVG is unrendered.")
+' Current-side use-case view of the `mdd view` interactive diagram viewer,
+' refreshed from code: the canvas applies a center-fixed fisheye over
+' the base scroll zoom, the side panels collapse, the toolbar has no
+' zoom buttons, .ocl files render via a Source/Diagram toggle, a
+' dedicated non-gated DEPLOY section surfaces .mdd/deploy diagrams, the
+' chrome is themed by a per-frame Catppuccin variant that follows the
+' OS appearance with bundled Inter + JetBrains Mono fonts, and a
+' central-panel Source toggle shows a model file's raw PlantUML text.
+title mdd view — diagram viewer (current)
+
+left to right direction
+
+actor "Developer" as Dev
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas\n(scroll zoom, drag pan)" as PanZoom
+  usecase "Focus via center fisheye" as Fisheye
+  usecase "Collapse / expand side panels" as Panels
+  usecase "Inspect model IDs and trace links" as Trace
+  usecase "View OCL constraints\n(source or diagram)" as ViewOcl
+  usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
+  usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed
+  usecase "View PlantUML source\n(Source toggle next to Diagram)" as ViewSource
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Fisheye
+Dev --> Panels
+Dev --> Trace
+Dev --> ViewOcl
+Dev --> ViewDeploy
+Dev --> Themed
+Dev --> ViewSource
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+View ..> Fisheye : <<extend>>
+View ..> Panels : <<extend>>
+View ..> Themed : <<include>>
+View ..> ViewSource : <<extend>>
+ViewOcl ..> PanZoom : <<extend>>
+ViewDeploy ..> PanZoom : <<extend>>
+
+note bottom of ViewOcl
+  Code (USE-VIEW-OCL): when the selected file
+  kind is Constraint, MddViewer::ocl_ui shows a
+  Source | Diagram toggle. Source = raw .ocl
+  text (read-only, @id/context/inv colored);
+  Diagram = the synthesized constraints SVG
+  (mdd_render::render_ocl_diagrams) painted via
+  paint_canvas. Realized by SEQ-VIEW-OCL.
+end note
+
+note bottom of Fisheye
+  Code (USE-FISHEYE-FOCUS): the canvas paints the
+  rendered texture through a center-fixed fisheye mesh
+  (CanvasView::fisheye_mesh / warp) — the centre bulges,
+  content compresses toward the edges, corners stay put.
+  Layered on the scroll-at-cursor base zoom; drag pans.
+  Realized by SEQ-CANVAS-FISHEYE.
+end note
+
+note bottom of PanZoom
+  The toolbar has no Reset / Zoom + / Zoom - buttons
+  (removed). Zoom is scroll-only at the cursor; pan is
+  drag-only. A small hint label replaces the buttons.
+end note
+
+note bottom of Panels
+  Code (USE-TOGGLE-PANELS): each SidePanel renders an
+  inner-edge chevron; clicking it sets PanelLayout
+  collapsed and the panel shrinks to an exact-width
+  sliver button that re-expands on click. Realized by
+  SEQ-PANEL-COLLAPSE.
+end note
+
+note bottom of View
+  Reads pre-rendered SVGs from .mdd/rendered/. If no
+  models are mapped/rendered the canvas shows "No
+  rendered output". Text rendering is realized by
+  SEQ-RENDER-DIAGRAM-PAGE, which consults a populated
+  font database (DOM-FONT-DATABASE) before rasterizing.
+end note
+
+note bottom of Themed
+  Code (USE-VIEWER-THEMED): crates/mdd-viewer/src/theme.rs
+  bundles assets/fonts/Inter-Regular.ttf, Inter-Medium.ttf,
+  and JetBrainsMono-Regular.ttf via include_bytes!. run()
+  registers them once through eframe's CreationContext.
+  MddViewer::update's FIRST call is theme::apply_theme(ctx),
+  which queries dark_light::detect(), picks
+  catppuccin_egui::MOCHA / LATTE, and then mutates
+  style.spacing.item_spacing and widget rounding. Realized
+  by SEQ-APPLY-THEME, owned by CMP-VIEWER-THEME.
+end note
+
+note bottom of ViewDeploy
+  Code (USE-VIEW-DEPLOY): MddViewer::new() calls
+  project.deploy_files() as a third source; update()
+  builds deploy_tree and renders a "DEPLOY" header
+  ("/mdd-deploy · utility, not parity-gated") after
+  the rail-mode match, so it shows in Directory AND
+  By-cycle. Clicking a leaf -> lookup_file -> load_file
+  paints .mdd/rendered/deploy/<rel>.svg on the shared
+  canvas (same placeholder as any unrendered model if
+  the SVG is absent). deploy_files() reuses
+  render_sources(RenderTree::Deploy) and is NEVER in
+  ModelRegistry. Realized by SEQ-VIEW-DEPLOY.
+end note
+
+note bottom of ViewSource
+  Code (USE-VIEW-PUML-SOURCE): the CentralPanel toggle
+  row is Diagram | Source | Diff. Clicking "Source" sets
+  self.view = View::Source; update() calls
+  MddViewer::source_ui (returning before the OCL/canvas
+  branch). source_ui reads the selected file's text once
+  into SourceView { loaded, source } and paints it via
+  egui::ScrollArea::both as read-only monospace — `' @`
+  marker lines yellow, `@start`/`@end` directives blue,
+  other `'` comments dimmed. No DiagramPage / usvg call,
+  so it works with no rendered SVG
+  (OCL-PUML-SOURCE-NO-RENDER). Realized by
+  SEQ-VIEW-PUML-SOURCE; state in DOM-PUML-SOURCE-VIEW.
+end note
+@enduml

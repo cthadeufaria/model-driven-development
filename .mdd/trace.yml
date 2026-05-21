@@ -270,6 +270,82 @@ links:
   - from: OCL-PUML-SOURCE-NO-RENDER
     to: DOM-PUML-SOURCE-VIEW
     relation: constrains
+  - from: USE-TRACE-PARITY
+    to: SEQ-TRACE-REVIEW
+    relation: realizes
+  - from: USE-MAP-FRESHNESS
+    to: SEQ-MAP-STATUS
+    relation: realizes
+  - from: USE-VERIFY-SOURCE-LINK
+    to: SEQ-TRACE-REVIEW
+    relation: realizes
+  - from: USE-TRACE-PARITY
+    to: CMP-TRACE-GATE
+    relation: realized_by
+  - from: USE-VERIFY-SOURCE-LINK
+    to: CMP-TRACE-GATE
+    relation: realized_by
+  - from: USE-MAP-FRESHNESS
+    to: CMP-TRACE-CLI
+    relation: realized_by
+  - from: SEQ-TRACE-REVIEW
+    to: DOM-TRACE-REPORT
+    relation: depends_on
+  - from: SEQ-TRACE-REVIEW
+    to: DOM-SYMBOL-SPAN
+    relation: depends_on
+  - from: SEQ-MAP-STATUS
+    to: DOM-SYMBOL-SPAN
+    relation: depends_on
+  - from: CMP-TRACE-GATE
+    to: CMP-TRACE-ENGINE
+    relation: depends_on
+  - from: CMP-TRACE-CLI
+    to: CMP-TRACE-GATE
+    relation: depends_on
+  # Cycle 0014 — agent session bootstrap
+  - from: USE-SESSION-BRIEF
+    to: SEQ-SESSION-BRIEF
+    relation: realizes
+  - from: USE-DIAGRAMS-FIRST
+    to: SEQ-DIAGRAMS-FIRST
+    relation: realizes
+  - from: USE-SESSION-BRIEF
+    to: CMP-SESSION-CLI
+    relation: realized_by
+  - from: USE-SESSION-BRIEF
+    to: CMP-INIT-HOOK
+    relation: realized_by
+  - from: USE-DIAGRAMS-FIRST
+    to: CMP-ENTRYPOINT-DIRECTIVE
+    relation: realized_by
+  - from: SEQ-SESSION-BRIEF
+    to: DOM-SESSION-CONTEXT
+    relation: depends_on
+  - from: SEQ-SESSION-BRIEF
+    to: DOM-MAP-BASELINE
+    relation: depends_on
+  - from: SEQ-DIAGRAMS-FIRST
+    to: DOM-SESSION-CONTEXT
+    relation: depends_on
+  - from: CMP-SESSION-CLI
+    to: CMP-TRACE-GATE
+    relation: depends_on
+  - from: CMP-SESSION-CLI
+    to: DOM-SESSION-CONTEXT
+    relation: depends_on
+  - from: CMP-INIT-HOOK
+    to: DOM-SESSION-HOOK
+    relation: depends_on
+  - from: OCL-BASELINE-RESOLVES
+    to: DOM-MAP-BASELINE
+    relation: constrains
+  - from: OCL-HOOK-IDEMPOTENT
+    to: DOM-SESSION-HOOK
+    relation: constrains
+  - from: OCL-CONTEXT-VERDICT
+    to: DOM-SESSION-CONTEXT
+    relation: constrains
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -310,6 +386,21 @@ generated_tests:
   - id: AT-USE-VIEW-PUML-SOURCE
     path: .mdd/tests/acceptance/use-view-puml-source.feature
     model_id: USE-VIEW-PUML-SOURCE
+  - id: AT-USE-TRACE-PARITY
+    path: .mdd/tests/acceptance/use-trace-parity.feature
+    model_id: USE-TRACE-PARITY
+  - id: AT-USE-MAP-FRESHNESS
+    path: .mdd/tests/acceptance/use-map-freshness.feature
+    model_id: USE-MAP-FRESHNESS
+  - id: AT-USE-VERIFY-SOURCE-LINK
+    path: .mdd/tests/acceptance/use-verify-source-link.feature
+    model_id: USE-VERIFY-SOURCE-LINK
+  - id: AT-USE-SESSION-BRIEF
+    path: .mdd/tests/acceptance/use-session-brief.feature
+    model_id: USE-SESSION-BRIEF
+  - id: AT-USE-DIAGRAMS-FIRST
+    path: .mdd/tests/acceptance/use-diagrams-first.feature
+    model_id: USE-DIAGRAMS-FIRST
 generated_ui_tests: []
 source_links:
   - model_id: CMP-VIEWER-SCAN-SCOPE
@@ -520,3 +611,113 @@ source_links:
   - model_id: DOM-PUML-SOURCE-VIEW
     path: crates/mdd-viewer/src/lib.rs
     symbol: SourceView
+  # Cycle 0013 — traceability + freshness engine
+  - model_id: CMP-TRACE-ENGINE
+    path: crates/mdd-core/src/traceability.rs
+    symbol: extract_symbols
+  - model_id: CMP-TRACE-ENGINE
+    path: crates/mdd-core/src/traceability.rs
+    symbol: changed_code
+  - model_id: CMP-TRACE-ENGINE
+    path: crates/mdd-core/src/traceability.rs
+    symbol: git_changed_lines
+  - model_id: CMP-TRACE-ENGINE
+    path: crates/mdd-core/src/traceability.rs
+    symbol: parse_unified_diff
+  - model_id: CMP-TRACE-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::review_traceability
+  - model_id: CMP-TRACE-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::resolve_source_link
+  - model_id: CMP-TRACE-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Review
+  - model_id: CMP-TRACE-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::MapStatus
+  - model_id: SEQ-TRACE-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::review_traceability
+  - model_id: SEQ-MAP-STATUS
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::map_status
+  - model_id: SEQ-MAP-STATUS
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::read_map_source_revision
+  - model_id: DOM-SYMBOL-SPAN
+    path: crates/mdd-core/src/traceability.rs
+    symbol: SymbolSpan
+  - model_id: DOM-TRACE-REPORT
+    path: crates/mdd-core/src/lib.rs
+    symbol: TraceabilityReport
+  - model_id: DOM-TRACE-REPORT
+    path: crates/mdd-core/src/lib.rs
+    symbol: ForwardError
+  - model_id: DOM-TRACE-REPORT
+    path: crates/mdd-core/src/lib.rs
+    symbol: ReverseViolation
+  - model_id: DOM-TRACE-REPORT
+    path: crates/mdd-core/src/lib.rs
+    symbol: MapStatusReport
+  - model_id: DOM-TRACE-REPORT
+    path: crates/mdd-core/src/lib.rs
+    symbol: MapDrift
+  - model_id: CMP-TRACE-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: TraceabilityConfig
+  - model_id: SEQ-TRACE-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::traceability_base
+  - model_id: SEQ-TRACE-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::review
+  - model_id: CMP-TRACE-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::validate_inner
+  - model_id: DOM-SOURCE-LINK
+    path: crates/mdd-core/src/lib.rs
+    symbol: SourceLink
+  # Cycle 0014 — agent session bootstrap (source links added by /mdd-map)
+  - model_id: CMP-SESSION-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Context
+  - model_id: CMP-SESSION-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: print_session_context
+  - model_id: SEQ-SESSION-BRIEF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::session_context
+  - model_id: SEQ-SESSION-BRIEF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::map_toc
+  - model_id: DOM-SESSION-CONTEXT
+    path: crates/mdd-core/src/lib.rs
+    symbol: SessionContext
+  - model_id: DOM-MAP-BASELINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::read_map_source_revision
+  - model_id: DOM-MAP-BASELINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::derive_map_baseline
+  - model_id: DOM-SESSION-HOOK
+    path: crates/mdd-core/src/lib.rs
+    symbol: upsert_session_hook
+  - model_id: DOM-SESSION-HOOK
+    path: crates/mdd-core/src/templates.rs
+    symbol: SESSION_HOOK_COMMAND
+  - model_id: CMP-INIT-HOOK
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_session_hook
+  - model_id: CMP-INIT-HOOK
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::remove_session_hook
+  - model_id: CMP-INIT-HOOK
+    path: crates/mdd-core/src/lib.rs
+    symbol: strip_session_hook
+  - model_id: CMP-ENTRYPOINT-DIRECTIVE
+    path: crates/mdd-core/src/templates.rs
+    symbol: claude_entrypoint
+  - model_id: CMP-ENTRYPOINT-DIRECTIVE
+    path: crates/mdd-core/src/templates.rs
+    symbol: agents_entrypoint

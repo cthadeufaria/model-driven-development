@@ -1,0 +1,23 @@
+@startuml
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-MAP-STATUS)   <<added>> this cycle (0013)
+' Cycle 0013 diff: new file — one element added, none removed.
+title mdd map-status freshness · cycle 0013 diff (current)
+
+actor "Developer / Agent" as Dev <<added>>
+participant "mdd map-status\n(Commands::MapStatus)" as Cli <<added>>
+participant "Project::map_status" as Status <<added>>
+participant "read_map_source_revision" as Manifest <<added>>
+participant "traceability::changed_code" as Engine <<added>>
+participant "trace.yml source_links" as Trace <<added>>
+
+Dev -> Cli : mdd map-status
+Cli -> Status : map_status()
+Status -> Manifest : source_revision?
+Status -> Engine : changed_code(root, source_revision)
+Status -> Trace : changed symbols covered by a source_link?
+Status --> Cli : fresh = drift.is_empty(); drift list
+@enduml

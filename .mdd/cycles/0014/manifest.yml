@@ -1,0 +1,27 @@
+number: 0014
+slug: agent-session-bootstrap
+entry: generate
+description: "entrypoint diagrams-first directive + mdd init SessionStart hook (mdd context = map TOC + freshness) + freshness baseline derived from git (reuse git + syn); Codex told to run mdd context manually"
+status: closed
+opened_at: "2026-05-21T15:00:00Z"
+closed_at: "2026-05-21T15:30:00Z"
+base_revision: "93fc747d9ffe7a552bab3679ee679142cf079334"
+touched_files:
+  - .mdd/models/objective/use-cases/session-bootstrap.puml
+  - .mdd/models/objective/sequences/session-brief.puml
+  - .mdd/models/objective/sequences/diagrams-first.puml
+  - .mdd/models/objective/domain/session-bootstrap.puml
+  - .mdd/models/objective/components/session-bootstrap.puml
+  - .mdd/models/current/use-cases/session-bootstrap.puml
+  - .mdd/models/current/sequences/session-brief.puml
+  - .mdd/models/current/sequences/diagrams-first.puml
+  - .mdd/models/current/domain/session-bootstrap.puml
+  - .mdd/models/current/components/session-bootstrap.puml
+  - .mdd/constraints/session-bootstrap.ocl
+  - .mdd/trace.yml
+  - .mdd/tests/acceptance/use-session-brief.feature
+  - .mdd/tests/acceptance/use-diagrams-first.feature
+  - crates/mdd-core/src/templates.rs
+  - crates/mdd-core/src/lib.rs
+  - crates/mdd-cli/src/main.rs
+  - crates/mdd-cli/tests/cli.rs

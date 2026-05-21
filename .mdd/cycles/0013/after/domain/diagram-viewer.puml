@@ -1,0 +1,70 @@
+@startuml
+' @id(DOM-FONT-DATABASE)
+' @id(DOM-OCL-VIEW)
+' @id(DOM-PUML-SOURCE-VIEW)
+' @desc(DOM-FONT-DATABASE, "Implemented: usvg::fontdb::Database built once by shared_fontdb() and Arc-cloned into usvg::Options at every parse site.")
+' @desc(DOM-OCL-VIEW, "Implemented as mdd-viewer OclView { sub_mode: OclSubMode, loaded, source, page }: state for a selected .ocl file — Source paints raw text, Diagram paints the synthesized constraints SVG.")
+' @desc(DOM-PUML-SOURCE-VIEW, "Implemented as mdd-viewer SourceView { loaded: Option<String>, source: String }: state behind the CentralPanel Source toggle. When self.view == View::Source, MddViewer::source_ui reads the selected model file once (cached by loaded) and paints `source` read-only; it touches no DiagramPage / rasterizer.")
+' Current-side viewer domain: the font database the SVG rasterizer
+' depends on (populated by shared_fontdb), the OCL-view state, and the
+' PlantUML Source-view state behind the Diagram | Source | Diff toggle.
+title Viewer domain — font database + OCL view + PlantUML source (current)
+
+enum OclSubMode {
+  Source
+  Diagram
+}
+
+class SvgRasterizer {
+  + parse_intrinsic_size(bytes) : Vec2
+  + rebuild(ctx, zoom) : Result
+}
+
+class FontDatabase {
+  + fontCount : int
+  + defaultFamily : String
+  + loadSystemFonts() : void
+}
+
+class OclView {
+  + sub_mode : OclSubMode
+  + loaded : Option<String>
+  + source : String
+  + page : Option<DiagramPage>
+}
+
+class SourceView {
+  + loaded : Option<String>
+  + source : String
+}
+
+SvgRasterizer "1" o-- "1" FontDatabase : resolves <text> via >
+OclView --> OclSubMode
+
+note bottom of FontDatabase
+  Backed by usvg::fontdb::Database. Built once
+  in shared_fontdb() (static OnceLock), filled
+  by load_system_fonts(), then Arc-cloned into
+  usvg::Options.fontdb at every parse site.
+end note
+
+note bottom of OclView
+  MddViewer::ocl_ui: Source paints `source`
+  (read-only, @id/context/inv colored); Diagram
+  loads Project::rendered_svg_path(.ocl) via
+  DiagramPage and paints it with paint_canvas,
+  else a placeholder (OCL-OCL-VIEW-SUBMODE,
+  OCL-OCL-DIAGRAM-NEEDS-RENDER).
+end note
+
+note bottom of SourceView
+  MddViewer::source_ui (View::Source branch):
+  reads the selected model file once into
+  `source` (cached by `loaded`) and paints it in
+  egui::ScrollArea::both as read-only monospace,
+  highlighting `' @` markers, `@start`/`@end`
+  directives and `'` comments. No DiagramPage or
+  rasterizer call, so it needs no rendered SVG
+  (OCL-PUML-SOURCE-NO-RENDER).
+end note
+@enduml

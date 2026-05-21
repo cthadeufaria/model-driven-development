@@ -4,3 +4,5 @@ constraint_source: ocl
 rendered_dir: .mdd/rendered
 security:
   parity_check: error
+traceability:
+  parity_check: error

@@ -1,0 +1,55 @@
+@startuml
+' @id(USE-TRACE-PARITY)
+' @desc(USE-TRACE-PARITY, "A 3rd review parity pass that keeps code and diagrams in sync. FORWARD (whole gated model): every implementable @id (CMP-/SEQ-/DOM-/STM-) must carry a source_link that resolves to a real code symbol — error if it points at code that doesn't exist (a diagram must not lie). REVERSE (changeset only): every code symbol added/modified since the cycle's base_revision must be covered by a source_link — escape-hatch glue (imports, attrs, comments) warns (bucket A), behaviour-bearing code with no counterpart blocks (bucket B, error). Untouched code is never inspected, so coverage is a ratchet that grows with edits.")
+' @id(USE-MAP-FRESHNESS)
+' @desc(USE-MAP-FRESHNESS, "`mdd map-status` answers 'are the diagrams current with the code?' before an agent trusts them. It diffs the source tree from the whole-map's recorded source_revision to the working tree, maps changed lines to symbols (syn), intersects with source_links, and reports fresh, or stale with the drifted files/symbols named — so the diagrams-first reflex stays safe (stale -> /mdd-map first).")
+' @id(USE-VERIFY-SOURCE-LINK)
+' @desc(USE-VERIFY-SOURCE-LINK, "Validate now enforces what its checklist already claimed (item 5): every .mdd/trace.yml source_link points at a file that exists and, when a symbol is given, a symbol syn can actually find. A dangling link is a structural error, caught continuously by /mdd-validate rather than only at review.")
+' Objective-side use cases for the traceability + freshness engine
+' (cycle 0013). These make the diagrams-first reflex safe and enforceable:
+' validate keeps existing links honest, review gates change coverage,
+' and map-status reports drift. Built on a shared git + syn engine.
+title MDD traceability + freshness — use cases (objective)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Gate code<->diagram\ntraceability (review pass 3)" as TraceParity
+  usecase "Check whether diagrams\nhave drifted from code\n(mdd map-status)" as Freshness
+  usecase "Verify source_links resolve\nto real symbols (validate)" as VerifyLink
+}
+
+Dev --> TraceParity
+Dev --> Freshness
+Dev --> VerifyLink
+
+TraceParity ..> VerifyLink : <<include>>
+Freshness ..> VerifyLink : <<extend>>
+
+note bottom of TraceParity
+  Objective (USE-TRACE-PARITY): a third pass in
+  Project::review() after ID parity and security
+  parity. FORWARD = every implementable @id resolves
+  to a real symbol (error). REVERSE (scoped to the
+  diff since base_revision) = every changed symbol is
+  covered; glue warns (A), behaviour blocks (B).
+  Realized by SEQ-TRACE-REVIEW; owned by CMP-TRACE-GATE.
+end note
+
+note bottom of Freshness
+  Objective (USE-MAP-FRESHNESS): `mdd map-status`
+  reuses the same git + syn engine. fresh = no tracked
+  symbol changed since source_revision; stale = lists
+  the drifted (path, symbol). Realized by SEQ-MAP-STATUS.
+end note
+
+note bottom of VerifyLink
+  Objective (USE-VERIFY-SOURCE-LINK): validate_inner
+  resolves each source_link (path exists; symbol found
+  by syn). Dangling link -> error. Honors the
+  /mdd-validate checklist item 5 that was previously
+  documented but unenforced.
+end note
+@enduml

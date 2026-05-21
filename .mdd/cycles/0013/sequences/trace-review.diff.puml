@@ -1,0 +1,25 @@
+@startuml
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-TRACE-REVIEW)   <<added>> this cycle (0013)
+' Cycle 0013 diff: new file — one element added, none removed.
+title Traceability review — pass 3 · cycle 0013 diff (current)
+
+participant "Project::review()" as Review <<added>>
+participant "trace.yml source_links" as Trace <<added>>
+participant "traceability::changed_code" as Engine <<added>>
+participant "git" as Git <<added>>
+participant "traceability::extract_symbols (syn)" as Syn <<added>>
+participant "TraceabilityReport" as Rep <<added>>
+
+Review -> Trace : source_links for implementable @id
+Review -> Syn : resolve_source_link (forward)
+Review -> Engine : changed_code(root, base)
+Engine -> Git : diff --unified=0 base..worktree
+Engine -> Syn : symbols overlapping hunks
+Engine --> Review : ChangedCode { symbols, glue }
+Review -> Rep : forward_errors + bucket_a/bucket_b
+Rep --> Review : matched = forward empty AND bucket_b empty
+@enduml

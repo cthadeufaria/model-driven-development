@@ -87,6 +87,10 @@ pub const MDD_BLOCK_END: &str = "<!-- mdd:end -->";
 pub const MDD_META_PREFIX: &str = "<!-- mdd:meta ";
 /// Suffix of the JSON metadata comment line.
 pub const MDD_META_SUFFIX: &str = " -->";
+/// The command the mdd-managed Claude Code SessionStart hook runs
+/// (DOM-SESSION-HOOK / CMP-INIT-HOOK). `mdd init` merges a hook running this
+/// into `.claude/settings.json`; `mdd clean` removes exactly it.
+pub const SESSION_HOOK_COMMAND: &str = "mdd context";
 
 const MDD_MAP_SKILL: &str = r#"# MDD Map
 
@@ -791,6 +795,13 @@ Utility skills (on demand, not a workflow gate):
 - `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
 - `/mdd-deploy` — guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect, one per run); never executes deploy commands; outside the parity gate.
 
+## Session start: diagrams-first
+
+At the start of a session, run `mdd context` — a Claude Code SessionStart hook (wired by `mdd init` into `.claude/settings.json`) runs it for you and injects the result. It prints a compact whole-map table of contents plus a freshness verdict. Read in that order:
+
+- **FRESH** → trust the diagrams: read the relevant concept diagrams under `.mdd/models/current/`, follow `.mdd/trace.yml` `source_links` to the code, then act.
+- **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
+
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
 "#;
 
@@ -808,6 +819,13 @@ Codex and other agents should use the project skills in `.codex/skills/`:
 - `/mdd-cycle` — orchestration: run the whole loop from one description; owns the cycle boundary, loops to parity, pauses for clarification.
 - `/mdd-render` — utility: render PlantUML diagrams to SVG for external visual inspection.
 - `/mdd-deploy` — utility: guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect, one per run); never executes deploy commands; outside the parity gate.
+
+## Session start: diagrams-first
+
+At the start of a session, run `mdd context`. It prints a compact whole-map table of contents plus a freshness verdict. Codex and other agents cannot auto-fire a session hook, so **run `mdd context` yourself at the start of each session**. Then read in that order:
+
+- **FRESH** → trust the diagrams: read the relevant concept diagrams under `.mdd/models/current/`, follow `.mdd/trace.yml` `source_links` to the code, then act.
+- **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
 "#;

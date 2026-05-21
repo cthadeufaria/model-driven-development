@@ -1,0 +1,25 @@
+@startuml
+' @id(SEQ-SESSION-BRIEF)
+' @ref(USE-SESSION-BRIEF)
+' @desc(SEQ-SESSION-BRIEF, "Objective flow for `mdd context`: the Claude Code SessionStart hook (merged into .claude/settings.json by mdd init) runs `mdd context`. Project::session_context() builds DOM-SESSION-CONTEXT — a whole-map TOC by reading .mdd/map (manifest + per-concept @id counts grouped by kind) — and runs the existing map_status() freshness check, whose baseline is DOM-MAP-BASELINE (explicit source_revision else derived from git). The command prints the TOC plus a one-line FRESH/STALE verdict to stdout; the hook injects it as session additionalContext. Exit 0 always (a brief, not a gate).")
+' Objective sequence: how the session brief is produced (cycle 0014).
+title mdd context — session brief (objective)
+
+actor "Agent" as Agent
+participant "SessionStart hook\n(.claude/settings.json)" as Hook
+participant "mdd context\n(Commands::Context)" as Cli
+participant "Project::session_context" as Ctx
+participant "whole-map (.mdd/map)" as Map
+participant "Project::map_status\n(freshness)" as Status
+
+Agent -> Hook : session starts
+Hook -> Cli : run `mdd context`
+Cli -> Ctx : session_context()
+Ctx -> Map : read manifest + per-concept @id counts by kind
+Map --> Ctx : TOC entries (DOM-SESSION-CONTEXT)
+Ctx -> Status : map_status() (baseline = DOM-MAP-BASELINE)
+Status --> Ctx : fresh? + drift list
+Ctx --> Cli : SessionContext { toc, fresh, drift }
+Cli --> Hook : TOC + FRESH/STALE verdict (stdout)
+Hook --> Agent : injected as additionalContext
+@enduml

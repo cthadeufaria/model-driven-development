@@ -10,8 +10,10 @@ use walkdir::WalkDir;
 
 pub mod cycle;
 mod templates;
+pub mod traceability;
 
 pub use cycle::{Cycle, CycleDiff, CycleRegistry, CycleStatus, EntryPoint};
+pub use traceability::SymbolSpan;
 
 /// The complete, single enumeration of every renderable source tree.
 /// The `mdd render` command, the `/mdd-cycle` close step, and the
@@ -120,10 +122,21 @@ pub struct MddConfig {
     pub rendered_dir: String,
     #[serde(default)]
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub traceability: TraceabilityConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct SecurityConfig {
+    #[serde(default)]
+    pub parity_check: ParityMode,
+}
+
+/// Config for the traceability parity pass (CMP-TRACE-GATE). `error`
+/// (default) makes reverse bucket B and forward errors block cycle closure;
+/// `warn` opts the whole pass down to advisory, like `security.parity_check`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+pub struct TraceabilityConfig {
     #[serde(default)]
     pub parity_check: ParityMode,
 }
@@ -288,6 +301,8 @@ pub struct ReviewReport {
     pub diff_puml_paths: Vec<String>,
     /// Security-marker parity pass, always run as part of `review()`.
     pub security: SecurityReviewReport,
+    /// Traceability parity pass (pass 3), always run as part of `review()`.
+    pub traceability: TraceabilityReport,
 }
 
 #[derive(Debug, Clone, Serialize, Eq, PartialEq)]
@@ -308,6 +323,86 @@ pub struct SecurityReviewReport {
     pub diff_puml_paths: Vec<String>,
 }
 
+/// DOM-TRACE-REPORT: outcome of `Project::review_traceability()`.
+/// `matched = forward_errors.is_empty() && reverse_bucket_b.is_empty()`
+/// when `traceability.parity_check = error`; under `warn` everything is
+/// advisory and `matched` is always true.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct TraceabilityReport {
+    pub matched: bool,
+    pub mode: ParityMode,
+    /// The base revision the reverse changeset was computed against.
+    pub base: String,
+    /// Implementable `@id`s whose source_link points at code that does not
+    /// exist (FORWARD; error).
+    pub forward_errors: Vec<ForwardError>,
+    /// Edited glue (imports/attrs/comments/consts/tests) with no diagram
+    /// counterpart (REVERSE bucket A; warn + show).
+    pub reverse_bucket_a: Vec<String>,
+    /// Edited behaviour-bearing symbols with no diagram counterpart
+    /// (REVERSE bucket B; error, blocks closure under `error` mode).
+    pub reverse_bucket_b: Vec<ReverseViolation>,
+}
+
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+pub struct ForwardError {
+    pub model_id: String,
+    pub path: String,
+    pub symbol: String,
+}
+
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+pub struct ReverseViolation {
+    pub path: String,
+    pub symbol: String,
+    pub kind: String,
+}
+
+/// Result of `Project::map_status()` — the freshness check (USE-MAP-FRESHNESS).
+#[derive(Debug, Clone, Serialize)]
+pub struct MapStatusReport {
+    /// True when no tracked symbol changed since the recorded `source_revision`.
+    pub fresh: bool,
+    /// The recorded baseline, or `None` when there is no whole-map yet.
+    pub source_revision: Option<String>,
+    /// Tracked symbols that drifted since the baseline.
+    pub drift: Vec<MapDrift>,
+}
+
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+pub struct MapDrift {
+    pub path: String,
+    pub symbol: String,
+    pub model_id: String,
+}
+
+/// DOM-SESSION-CONTEXT: the session-start brief printed by `mdd context` and
+/// injected by the SessionStart hook — a whole-map table of contents plus the
+/// freshness verdict (mirrored from [`MapStatusReport`]). A brief, not a gate.
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionContext {
+    /// One entry per whole-map concept kind, in canonical reading order.
+    pub toc: Vec<TocEntry>,
+    /// True when no tracked symbol changed since the freshness baseline.
+    pub fresh: bool,
+    /// The resolved baseline (explicit or derived), or `None` when there is no
+    /// whole-map yet.
+    pub source_revision: Option<String>,
+    /// Tracked symbols that drifted since the baseline.
+    pub drift: Vec<MapDrift>,
+}
+
+/// One row of the whole-map table of contents: a concept kind and how many
+/// concept files and `@id`s it contributes.
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+pub struct TocEntry {
+    /// Concept directory under `.mdd/map`: use-cases, sequences, domain,
+    /// components, mockups, states.
+    pub kind: String,
+    pub concept_count: usize,
+    pub id_count: usize,
+}
+
 impl Default for MddConfig {
     fn default() -> Self {
         Self {
@@ -316,6 +411,7 @@ impl Default for MddConfig {
             constraint_source: "ocl".to_string(),
             rendered_dir: ".mdd/rendered".to_string(),
             security: SecurityConfig::default(),
+            traceability: TraceabilityConfig::default(),
         }
     }
 }
@@ -418,28 +514,17 @@ impl Project {
             }
         }
 
-        self.write_yaml_with_conflict_handler(
-            CONFIG_FILE,
-            &MddConfig::default(),
-            &mut on_conflict,
-            &mut created,
-            &mut overwritten,
-            &mut skipped,
-        )?;
-        self.write_yaml_with_conflict_handler(
-            TRACE_FILE,
-            &Trace::default(),
-            &mut on_conflict,
-            &mut created,
-            &mut overwritten,
-            &mut skipped,
-        )?;
-        self.write_yaml_with_conflict_handler(
+        // Authoritative, accumulating state (trace links, parity config,
+        // approval hashes) is created only when missing — init must never
+        // offer to overwrite it with empty defaults. (Regenerable docs and
+        // skills below keep the prompt-on-conflict path so upgrades can
+        // refresh them.)
+        self.write_yaml_create_only(CONFIG_FILE, &MddConfig::default(), &mut created, &mut skipped)?;
+        self.write_yaml_create_only(TRACE_FILE, &Trace::default(), &mut created, &mut skipped)?;
+        self.write_yaml_create_only(
             APPROVALS_FILE,
             &Approvals::default(),
-            &mut on_conflict,
             &mut created,
-            &mut overwritten,
             &mut skipped,
         )?;
         self.write_text_if_missing(
@@ -508,6 +593,8 @@ impl Project {
             )?;
         }
 
+        self.write_session_hook(&mut created, &mut overwritten)?;
+
         Ok(InitReport {
             root: self.root.clone(),
             created,
@@ -521,6 +608,9 @@ impl Project {
         let mut skipped = Vec::new();
 
         self.remove_dir_all_if_exists(".mdd", &mut removed, &mut skipped)?;
+        // Strip the SessionStart hook before pruning .claude, so an
+        // mdd-only settings.json is removed and the dir can be reclaimed.
+        self.remove_session_hook(&mut removed, &mut skipped)?;
 
         for agent_dir in [".claude", ".codex"] {
             for skill in templates::WORKFLOW_SKILLS {
@@ -894,7 +984,12 @@ impl Project {
 
         let security = self.review_security()?;
         let security_gate_satisfied = security.matched || security.mode == ParityMode::Warn;
-        let matched = ids_matched && security_gate_satisfied;
+
+        let traceability = self.review_traceability(&registry)?;
+        let traceability_gate_satisfied =
+            traceability.matched || traceability.mode == ParityMode::Warn;
+
+        let matched = ids_matched && security_gate_satisfied && traceability_gate_satisfied;
 
         Ok(ReviewReport {
             matched,
@@ -903,6 +998,7 @@ impl Project {
             extra_ids: extra.into_iter().collect(),
             diff_puml_paths,
             security,
+            traceability,
         })
     }
 
@@ -1005,6 +1101,317 @@ impl Project {
             extra_markers: extra,
             diff_puml_paths,
         })
+    }
+
+    /// Implementable `@id` prefixes — the kinds whose source_links the
+    /// forward traceability pass resolves (CMP-TRACE-GATE). Use cases
+    /// (`USE-`), constraints (`OCL-`), and security IDs are excluded; they
+    /// reach code through an implementable element, not directly.
+    const IMPLEMENTABLE_PREFIXES: [&'static str; 4] = ["CMP-", "SEQ-", "DOM-", "STM-"];
+
+    /// Resolve a source_link against the working tree. Returns an error
+    /// string when the link is broken: the file is missing, or (for a `.rs`
+    /// file) the named symbol is not found by the syn index. A file-only
+    /// link, or a symbol on a non-Rust file, passes once the file exists.
+    /// Shared by `validate` (USE-VERIFY-SOURCE-LINK) and the forward pass.
+    fn resolve_source_link(&self, link: &SourceLink) -> Option<String> {
+        let abs = self.root.join(&link.path);
+        if !abs.exists() {
+            return Some(format!(
+                "source_link for {} points at missing file {}",
+                link.model_id, link.path
+            ));
+        }
+        if let Some(symbol) = &link.symbol {
+            if link.path.ends_with(".rs") {
+                let Ok(src) = fs::read_to_string(&abs) else {
+                    return Some(format!(
+                        "source_link for {} could not read {}",
+                        link.model_id, link.path
+                    ));
+                };
+                let symbols = traceability::extract_symbols(&link.path, &src);
+                let found = symbols
+                    .iter()
+                    .any(|s| traceability::symbol_matches(&s.symbol, symbol));
+                if !found {
+                    return Some(format!(
+                        "source_link for {} points at symbol `{}` not found in {}",
+                        link.model_id, symbol, link.path
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    /// Pass 3 of `review()` (SEQ-TRACE-REVIEW). FORWARD: every source_link on
+    /// an implementable current-side `@id` must resolve to real code (broken
+    /// link = error, a diagram must not lie). REVERSE: every code symbol
+    /// changed since the cycle base must be covered by a source_link —
+    /// behaviour-bearing symbols block (bucket B), glue only warns (bucket A).
+    pub fn review_traceability(&self, registry: &ModelRegistry) -> Result<TraceabilityReport> {
+        let mode = self.read_config()?.traceability.parity_check;
+        let trace = self.read_trace()?;
+        let base = self.traceability_base()?;
+
+        // FORWARD
+        let mut forward_errors = Vec::new();
+        for element in &registry.ids {
+            if element.side != ModelSide::Current
+                || !Self::IMPLEMENTABLE_PREFIXES
+                    .iter()
+                    .any(|p| element.id.starts_with(p))
+            {
+                continue;
+            }
+            for link in trace.source_links.iter().filter(|l| l.model_id == element.id) {
+                if self.resolve_source_link(link).is_some() {
+                    forward_errors.push(ForwardError {
+                        model_id: element.id.clone(),
+                        path: link.path.clone(),
+                        symbol: link.symbol.clone().unwrap_or_default(),
+                    });
+                }
+            }
+        }
+
+        // REVERSE (changeset since base)
+        let changed = traceability::changed_code(&self.root, &base)?;
+        let mut reverse_bucket_a: BTreeSet<String> = BTreeSet::new();
+        let mut reverse_bucket_b = Vec::new();
+        for sym in &changed.symbols {
+            let covered = trace.source_links.iter().any(|l| {
+                l.path == sym.path
+                    && l.symbol
+                        .as_deref()
+                        .map(|s| traceability::symbol_matches(&sym.symbol, s))
+                        .unwrap_or(true)
+            });
+            if covered {
+                continue;
+            }
+            if traceability::is_behaviour_kind(&sym.kind) {
+                reverse_bucket_b.push(ReverseViolation {
+                    path: sym.path.clone(),
+                    symbol: sym.symbol.clone(),
+                    kind: sym.kind.clone(),
+                });
+            } else {
+                reverse_bucket_a.insert(format!("{} ({} {})", sym.path, sym.kind, sym.symbol));
+            }
+        }
+        for glue in &changed.glue {
+            reverse_bucket_a.insert(format!("{} [{}]", glue.path, glue.label));
+        }
+
+        let matched = forward_errors.is_empty() && reverse_bucket_b.is_empty();
+        Ok(TraceabilityReport {
+            matched,
+            mode,
+            base,
+            forward_errors,
+            reverse_bucket_a: reverse_bucket_a.into_iter().collect(),
+            reverse_bucket_b,
+        })
+    }
+
+    /// Freshness check (SEQ-MAP-STATUS): are the diagrams still current with
+    /// the code? Diffs the source tree from the whole-map's recorded
+    /// `source_revision` to the working tree and reports any tracked symbol
+    /// (one a source_link points at) that drifted. No whole-map yet -> fresh.
+    pub fn map_status(&self) -> Result<MapStatusReport> {
+        let Some(source_revision) = self.read_map_source_revision()? else {
+            return Ok(MapStatusReport {
+                fresh: true,
+                source_revision: None,
+                drift: Vec::new(),
+            });
+        };
+        let trace = self.read_trace()?;
+        let changed = traceability::changed_code(&self.root, &source_revision)?;
+        let mut drift = Vec::new();
+        for sym in &changed.symbols {
+            for link in &trace.source_links {
+                let symbol_match = link
+                    .symbol
+                    .as_deref()
+                    .map(|s| traceability::symbol_matches(&sym.symbol, s))
+                    .unwrap_or(true);
+                if link.path == sym.path && symbol_match {
+                    drift.push(MapDrift {
+                        path: sym.path.clone(),
+                        symbol: sym.symbol.clone(),
+                        model_id: link.model_id.clone(),
+                    });
+                }
+            }
+        }
+        drift.sort_by(|a, b| {
+            a.path
+                .cmp(&b.path)
+                .then_with(|| a.symbol.cmp(&b.symbol))
+                .then_with(|| a.model_id.cmp(&b.model_id))
+        });
+        drift.dedup();
+        Ok(MapStatusReport {
+            fresh: drift.is_empty(),
+            source_revision: Some(source_revision),
+            drift,
+        })
+    }
+
+    /// SEQ-SESSION-BRIEF / CMP-SESSION-CLI: the session-start brief. Builds the
+    /// whole-map table of contents (concepts grouped by kind under `.mdd/map`)
+    /// and folds in the [`Project::map_status`] freshness verdict. Reuses the
+    /// existing freshness engine rather than re-deriving anything; it is a
+    /// briefing, never a gate (the CLI always exits 0).
+    pub fn session_context(&self) -> Result<SessionContext> {
+        let toc = self.map_toc()?;
+        let status = self.map_status()?;
+        Ok(SessionContext {
+            toc,
+            fresh: status.fresh,
+            source_revision: status.source_revision,
+            drift: status.drift,
+        })
+    }
+
+    /// The whole-map table of contents: one [`TocEntry`] per concept directory
+    /// present under `.mdd/map`, counting concept files and `@id`s. Empty when
+    /// there is no whole-map yet. Canonical kinds lead, in reading order; any
+    /// unexpected directory follows alphabetically.
+    fn map_toc(&self) -> Result<Vec<TocEntry>> {
+        const KIND_ORDER: &[&str] = &[
+            "use-cases",
+            "sequences",
+            "domain",
+            "components",
+            "mockups",
+            "states",
+        ];
+        let map_dir = self.mdd_dir().join("map");
+        let mut files: BTreeMap<String, usize> = BTreeMap::new();
+        let mut ids: BTreeMap<String, usize> = BTreeMap::new();
+        if map_dir.is_dir() {
+            for entry in WalkDir::new(&map_dir)
+                .into_iter()
+                .filter_map(std::result::Result::ok)
+            {
+                let path = entry.path();
+                if !entry.file_type().is_file()
+                    || path.extension().and_then(|e| e.to_str()) != Some("puml")
+                {
+                    continue;
+                }
+                let Ok(rel) = path.strip_prefix(&map_dir) else {
+                    continue;
+                };
+                let Some(kind) = rel.components().next().and_then(|c| c.as_os_str().to_str())
+                else {
+                    continue;
+                };
+                let content = fs::read_to_string(path)
+                    .with_context(|| format!("failed to read {}", path.display()))?;
+                *files.entry(kind.to_string()).or_default() += 1;
+                *ids.entry(kind.to_string()).or_default() += extract_ids(&content)?.len();
+            }
+        }
+        let mut toc = Vec::new();
+        let mut seen = BTreeSet::new();
+        for kind in KIND_ORDER {
+            if let Some(&concept_count) = files.get(*kind) {
+                toc.push(TocEntry {
+                    kind: (*kind).to_string(),
+                    concept_count,
+                    id_count: ids.get(*kind).copied().unwrap_or(0),
+                });
+                seen.insert((*kind).to_string());
+            }
+        }
+        for (kind, &concept_count) in &files {
+            if !seen.contains(kind) {
+                toc.push(TocEntry {
+                    kind: kind.clone(),
+                    concept_count,
+                    id_count: ids.get(kind).copied().unwrap_or(0),
+                });
+            }
+        }
+        Ok(toc)
+    }
+
+    /// The base revision for the reverse changeset: the `base_revision` of
+    /// the highest-numbered open cycle (so review inside `/mdd-cycle` scopes
+    /// to that cycle), or `HEAD` when no cycle is open (standalone review).
+    fn traceability_base(&self) -> Result<String> {
+        let cycles_dir = self.mdd_dir().join("cycles");
+        let mut best: Option<(String, String)> = None; // (cycle dir name, base_revision)
+        if let Ok(entries) = fs::read_dir(&cycles_dir) {
+            for entry in entries.flatten() {
+                let manifest = entry.path().join("manifest.yml");
+                let Ok(text) = fs::read_to_string(&manifest) else {
+                    continue;
+                };
+                let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&text) else {
+                    continue;
+                };
+                let open = value.get("status").and_then(|s| s.as_str()) == Some("open");
+                let base = value
+                    .get("base_revision")
+                    .and_then(|s| s.as_str())
+                    .map(str::to_string);
+                if let (true, Some(base)) = (open, base) {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if best.as_ref().map(|(n, _)| name > *n).unwrap_or(true) {
+                        best = Some((name, base));
+                    }
+                }
+            }
+        }
+        Ok(best.map(|(_, base)| base).unwrap_or_else(|| "HEAD".to_string()))
+    }
+
+    /// Resolve the freshness baseline (DOM-MAP-BASELINE). An explicit
+    /// `source_revision` in the whole-map manifest wins; when the manifest
+    /// exists but carries none, derive it from git — the last commit that
+    /// touched the current-side diagrams. No whole-map manifest means no
+    /// baseline (greenfield: `map_status` reports FRESH, no baseline). Nothing
+    /// is ever written: the baseline self-maintains off commit history.
+    fn read_map_source_revision(&self) -> Result<Option<String>> {
+        let manifest = self.mdd_dir().join("map").join("manifest.yml");
+        let Ok(text) = fs::read_to_string(&manifest) else {
+            return Ok(None);
+        };
+        let value: serde_yaml::Value = serde_yaml::from_str(&text)
+            .with_context(|| "failed to parse .mdd/map/manifest.yml")?;
+        if let Some(rev) = value
+            .get("source_revision")
+            .and_then(|s| s.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return Ok(Some(rev.to_string()));
+        }
+        Ok(self.derive_map_baseline())
+    }
+
+    /// The last commit that touched the current-side diagrams
+    /// (`.mdd/models/current`), or `None` when git is unavailable or no such
+    /// commit exists yet. Reuses git the same way the traceability engine does;
+    /// it writes nothing.
+    fn derive_map_baseline(&self) -> Option<String> {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&self.root)
+            .args(["log", "-1", "--format=%H", "--", ".mdd/models/current"])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let rev = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if rev.is_empty() { None } else { Some(rev) }
     }
 
     pub fn approve(&self) -> Result<ApprovalReport> {
@@ -1877,6 +2284,21 @@ impl Project {
             }
         }
 
+        // Source-link existence (USE-VERIFY-SOURCE-LINK): honor checklist
+        // item 5 — every source_link must point at a file that exists and,
+        // when a symbol is given on a .rs file, a symbol syn can resolve.
+        for link in &trace.source_links {
+            if !all_ids.contains(&link.model_id) {
+                errors.push(format!(
+                    "source_link references unknown model ID {}",
+                    link.model_id
+                ));
+            }
+            if let Some(error) = self.resolve_source_link(link) {
+                errors.push(error);
+            }
+        }
+
         if check_approval {
             let approval = self.approval_status()?;
             if approval.approved && !approval.current {
@@ -1973,28 +2395,32 @@ impl Project {
         Ok(files)
     }
 
-    fn write_yaml_with_conflict_handler<T: Serialize, F>(
+    /// Write a YAML state file only if it does not already exist. An existing
+    /// file is left untouched and recorded as skipped — never overwritten.
+    /// Used for authoritative, accumulating state (`trace.yml`, `config.yml`,
+    /// `approvals.yml`) so a re-`init` can never destroy it.
+    fn write_yaml_create_only<T: Serialize>(
         &self,
         relative: &str,
         value: &T,
-        on_conflict: &mut F,
         created: &mut Vec<String>,
-        overwritten: &mut Vec<String>,
         skipped: &mut Vec<String>,
-    ) -> Result<()>
-    where
-        F: FnMut(&str) -> Result<InitFileConflict>,
-    {
+    ) -> Result<()> {
+        let path = self.root.join(relative);
+        if path.exists() {
+            skipped.push(relative.to_string());
+            return Ok(());
+        }
         let content = serde_yaml::to_string(value)
             .with_context(|| format!("failed to serialize {relative}"))?;
-        self.write_text_with_conflict_handler(
-            relative,
-            &content,
-            on_conflict,
-            created,
-            overwritten,
-            skipped,
-        )
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        fs::write(&path, content)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        created.push(relative.to_string());
+        Ok(())
     }
 
     fn write_text_if_missing<F>(
@@ -2108,6 +2534,97 @@ impl Project {
         fs::write(&path, &updated)
             .with_context(|| format!("failed to write {}", path.display()))?;
         overwritten.push(relative.to_string());
+        Ok(())
+    }
+
+    /// CMP-INIT-HOOK: merge the mdd-managed SessionStart hook (DOM-SESSION-HOOK)
+    /// into `.claude/settings.json`. Idempotent and keyed by command — re-init
+    /// never duplicates it, and any user-authored hooks/permissions are
+    /// preserved. The JSON analogue of [`Project::write_managed_block`]; the
+    /// init conflict handler is intentionally not consulted.
+    fn write_session_hook(
+        &self,
+        created: &mut Vec<String>,
+        overwritten: &mut Vec<String>,
+    ) -> Result<()> {
+        let relative = ".claude/settings.json";
+        let path = self.root.join(relative);
+        let existed = path.exists();
+        let mut settings = if existed {
+            let text = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
+            if text.trim().is_empty() {
+                serde_json::Value::Object(Default::default())
+            } else {
+                serde_json::from_str(&text)
+                    .with_context(|| format!("failed to parse {} as JSON", path.display()))?
+            }
+        } else {
+            serde_json::Value::Object(Default::default())
+        };
+
+        let changed = upsert_session_hook(&mut settings, templates::SESSION_HOOK_COMMAND);
+        if existed && !changed {
+            return Ok(());
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        let mut json = serde_json::to_string_pretty(&settings)
+            .with_context(|| "failed to serialize .claude/settings.json")?;
+        json.push('\n');
+        fs::write(&path, json)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        if existed {
+            overwritten.push(relative.to_string());
+        } else {
+            created.push(relative.to_string());
+        }
+        Ok(())
+    }
+
+    /// Strip the mdd-managed SessionStart hook from `.claude/settings.json`,
+    /// preserving any user-authored settings. The file is deleted only when the
+    /// hook was its sole content. A settings file that cannot be parsed is
+    /// skipped (never clobbered).
+    fn remove_session_hook(
+        &self,
+        removed: &mut Vec<String>,
+        skipped: &mut Vec<CleanSkip>,
+    ) -> Result<()> {
+        let relative = ".claude/settings.json";
+        let path = self.root.join(relative);
+        if !path.exists() {
+            return Ok(());
+        }
+        let text = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let mut settings: serde_json::Value = match serde_json::from_str(&text) {
+            Ok(value) => value,
+            Err(_) => {
+                skipped.push(CleanSkip {
+                    path: relative.to_string(),
+                    reason: "could not parse settings.json as JSON; left untouched".to_string(),
+                });
+                return Ok(());
+            }
+        };
+        if !strip_session_hook(&mut settings, templates::SESSION_HOOK_COMMAND) {
+            return Ok(());
+        }
+        let now_empty = settings.as_object().is_some_and(serde_json::Map::is_empty);
+        if now_empty {
+            fs::remove_file(&path)
+                .with_context(|| format!("failed to remove {}", path.display()))?;
+        } else {
+            let mut json = serde_json::to_string_pretty(&settings)
+                .with_context(|| "failed to serialize .claude/settings.json")?;
+            json.push('\n');
+            fs::write(&path, json)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+        }
+        removed.push(format!("{relative} (mdd hook)"));
         Ok(())
     }
 
@@ -2750,6 +3267,98 @@ fn parse_block_meta(content: &str, span: (usize, usize)) -> Option<ManagedBlockM
     serde_json::from_str(rest[..meta_end].trim()).ok()
 }
 
+/// Ensure `settings` carries the mdd-managed SessionStart command hook exactly
+/// once. Returns true when `settings` was modified. Idempotent: a second call
+/// is a no-op (OCL-HOOK-IDEMPOTENT). User-authored hooks are left in place.
+fn upsert_session_hook(settings: &mut serde_json::Value, command: &str) -> bool {
+    use serde_json::{Map, Value};
+    if !settings.is_object() {
+        *settings = Value::Object(Map::new());
+    }
+    let root = settings.as_object_mut().expect("settings is an object");
+    let hooks = root
+        .entry("hooks")
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !hooks.is_object() {
+        *hooks = Value::Object(Map::new());
+    }
+    let hooks = hooks.as_object_mut().expect("hooks is an object");
+    let session = hooks
+        .entry("SessionStart")
+        .or_insert_with(|| Value::Array(Vec::new()));
+    if !session.is_array() {
+        *session = Value::Array(Vec::new());
+    }
+    let groups = session.as_array_mut().expect("SessionStart is an array");
+    if groups.iter().any(|group| group_has_command(group, command)) {
+        return false;
+    }
+    groups.push(serde_json::json!({
+        "hooks": [ { "type": "command", "command": command } ]
+    }));
+    true
+}
+
+/// Remove every mdd-managed SessionStart command hook from `settings`, pruning
+/// emptied groups and keys. Returns true when anything was removed. Surgical:
+/// only the matching command hook is touched.
+fn strip_session_hook(settings: &mut serde_json::Value, command: &str) -> bool {
+    use serde_json::Value;
+    let Some(root) = settings.as_object_mut() else {
+        return false;
+    };
+    let Some(hooks) = root.get_mut("hooks").and_then(Value::as_object_mut) else {
+        return false;
+    };
+    let mut changed = false;
+    let session_empty;
+    {
+        let Some(session) = hooks.get_mut("SessionStart").and_then(Value::as_array_mut) else {
+            return false;
+        };
+        let before = session.len();
+        for group in session.iter_mut() {
+            if let Some(inner) = group.get_mut("hooks").and_then(Value::as_array_mut) {
+                let n = inner.len();
+                inner.retain(|hook| !command_hook_matches(hook, command));
+                changed |= inner.len() != n;
+            }
+        }
+        session.retain(|group| {
+            group
+                .get("hooks")
+                .and_then(Value::as_array)
+                .map(|inner| !inner.is_empty())
+                .unwrap_or(true)
+        });
+        changed |= session.len() != before;
+        session_empty = session.is_empty();
+    }
+    if session_empty {
+        hooks.remove("SessionStart");
+    }
+    if hooks.is_empty() {
+        root.remove("hooks");
+    }
+    changed
+}
+
+/// True when `group` (a SessionStart matcher group) contains a command hook
+/// running `command`.
+fn group_has_command(group: &serde_json::Value, command: &str) -> bool {
+    group
+        .get("hooks")
+        .and_then(serde_json::Value::as_array)
+        .map(|inner| inner.iter().any(|hook| command_hook_matches(hook, command)))
+        .unwrap_or(false)
+}
+
+/// True when `hook` is `{ "type": "command", "command": <command> }`.
+fn command_hook_matches(hook: &serde_json::Value, command: &str) -> bool {
+    hook.get("type").and_then(serde_json::Value::as_str) == Some("command")
+        && hook.get("command").and_then(serde_json::Value::as_str) == Some(command)
+}
+
 fn now_timestamp() -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -3286,6 +3895,56 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn session_hook_upsert_is_idempotent() {
+        let mut settings = serde_json::json!({});
+        assert!(upsert_session_hook(&mut settings, "mdd context"));
+        assert!(!upsert_session_hook(&mut settings, "mdd context"));
+        let groups = settings["hooks"]["SessionStart"].as_array().unwrap();
+        let count = groups
+            .iter()
+            .filter(|group| group_has_command(group, "mdd context"))
+            .count();
+        assert_eq!(count, 1, "re-init must not duplicate the managed hook");
+    }
+
+    #[test]
+    fn session_hook_preserves_user_settings() {
+        let mut settings = serde_json::json!({
+            "permissions": { "allow": ["Bash(ls)"] },
+            "hooks": {
+                "SessionStart": [
+                    { "hooks": [ { "type": "command", "command": "echo hi" } ] }
+                ]
+            }
+        });
+        assert!(upsert_session_hook(&mut settings, "mdd context"));
+        let groups = settings["hooks"]["SessionStart"].as_array().unwrap();
+        assert_eq!(groups.len(), 2, "our hook is added alongside the user's");
+
+        // strip removes only ours, keeping the user's hook and permissions
+        assert!(strip_session_hook(&mut settings, "mdd context"));
+        assert!(settings.get("permissions").is_some());
+        let groups = settings["hooks"]["SessionStart"].as_array().unwrap();
+        assert_eq!(groups.len(), 1);
+        assert!(group_has_command(&groups[0], "echo hi"));
+        assert!(!group_has_command(&groups[0], "mdd context"));
+    }
+
+    #[test]
+    fn session_hook_strip_to_empty_clears_object() {
+        let mut settings = serde_json::json!({});
+        upsert_session_hook(&mut settings, "mdd context");
+        assert!(strip_session_hook(&mut settings, "mdd context"));
+        assert_eq!(
+            settings,
+            serde_json::json!({}),
+            "an mdd-only settings object empties out so the file can be removed"
+        );
+        // stripping again is a no-op
+        assert!(!strip_session_hook(&mut settings, "mdd context"));
+    }
+
+    #[test]
     fn init_creates_expected_structure() {
         let dir = tempdir().unwrap();
         let project = Project::at(dir.path());
@@ -3303,6 +3962,25 @@ mod tests {
         assert!(dir.path().join(".mdd/trace.yml").is_file());
         assert!(dir.path().join(".mdd/approvals.yml").is_file());
         assert!(dir.path().join(".mdd/tests/ui").is_dir());
+    }
+
+    #[test]
+    fn reinit_never_overwrites_populated_trace() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+
+        // Simulate accumulated state from prior cycles.
+        let populated = "version: 1\nlinks:\n  - from: USE-LOGIN\n    to: SEQ-LOGIN\n    relation: realizes\ngenerated_tests: []\ngenerated_ui_tests: []\nsource_links: []\n";
+        let trace = dir.path().join(".mdd/trace.yml");
+        fs::write(&trace, populated).unwrap();
+
+        // A re-init must leave the populated state untouched and report it
+        // as skipped — never overwritten with the empty default.
+        let report = project.init().unwrap();
+        assert!(report.skipped.contains(&".mdd/trace.yml".to_string()));
+        assert!(!report.overwritten.contains(&".mdd/trace.yml".to_string()));
+        assert_eq!(fs::read_to_string(&trace).unwrap(), populated);
     }
 
     #[test]

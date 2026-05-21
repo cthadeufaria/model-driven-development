@@ -28,6 +28,18 @@ enum Commands {
     },
     /// Open the interactive diagram viewer for the current project.
     View,
+    /// Run the cycle-closure review gate: ID parity, security parity, and
+    /// traceability parity. Exits non-zero on a blocking mismatch.
+    Review,
+    /// Report whether the diagrams are current with the source (freshness).
+    /// Exits non-zero when a tracked symbol has drifted since the
+    /// whole-map's recorded source_revision.
+    #[command(name = "map-status")]
+    MapStatus,
+    /// Print the session brief: a compact whole-map table of contents plus the
+    /// freshness verdict. Wired by `mdd init` as the Claude Code SessionStart
+    /// hook; always exits 0 (a briefing, not a gate).
+    Context,
     /// Rasterize sources to SVG.
     ///
     /// With no arguments this renders the full tree set (models, cycle
@@ -73,6 +85,81 @@ fn main() -> Result<()> {
         Commands::View => {
             let project = Project::discover(env::current_dir()?)?;
             mdd_viewer::run(project)?;
+        }
+        Commands::Review => {
+            let project = Project::discover(env::current_dir()?)?;
+            let report = project.review()?;
+            println!("ID parity:       {}", pass_fail(report.ids_matched));
+            for id in &report.missing_ids {
+                println!("  missing in current: {id}");
+            }
+            println!(
+                "security parity: {} ({:?})",
+                pass_fail(report.security.matched),
+                report.security.mode
+            );
+            for marker in &report.security.missing_markers {
+                println!("  missing marker: {} on {}", marker.stereotype, marker.host);
+            }
+
+            let trace = &report.traceability;
+            println!(
+                "traceability:    {} ({:?}, base {})",
+                pass_fail(trace.matched),
+                trace.mode,
+                trace.base
+            );
+            for err in &trace.forward_errors {
+                println!(
+                    "  forward (error): {} -> {} `{}` not found",
+                    err.model_id, err.path, err.symbol
+                );
+            }
+            if !trace.reverse_bucket_b.is_empty() {
+                println!("  reverse bucket B (error) — edited behaviour with no diagram counterpart:");
+                for v in &trace.reverse_bucket_b {
+                    println!("    {} ({} {})", v.path, v.kind, v.symbol);
+                }
+            }
+            if !trace.reverse_bucket_a.is_empty() {
+                println!("  reverse bucket A (warn) — edited glue with no counterpart:");
+                for a in &trace.reverse_bucket_a {
+                    println!("    {a}");
+                }
+            }
+
+            println!(
+                "\nreview {}",
+                if report.matched { "PASSED" } else { "FAILED" }
+            );
+            if !report.matched {
+                std::process::exit(1);
+            }
+        }
+        Commands::MapStatus => {
+            let project = Project::discover(env::current_dir()?)?;
+            let report = project.map_status()?;
+            match &report.source_revision {
+                None => println!("map-status: FRESH (no whole-map baseline yet)"),
+                Some(rev) => {
+                    if report.fresh {
+                        println!("map-status: FRESH (no tracked symbol changed since {rev})");
+                    } else {
+                        println!("map-status: STALE since {rev} — {} drifted:", report.drift.len());
+                        for d in &report.drift {
+                            println!("  {} `{}` -> {}", d.path, d.symbol, d.model_id);
+                        }
+                    }
+                }
+            }
+            if !report.fresh {
+                std::process::exit(1);
+            }
+        }
+        Commands::Context => {
+            let project = Project::discover(env::current_dir()?)?;
+            let ctx = project.session_context()?;
+            print_session_context(&ctx);
         }
         Commands::Render { only, paths } => {
             let project = Project::discover(env::current_dir()?)?;
@@ -139,6 +226,44 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn pass_fail(ok: bool) -> &'static str {
+    if ok { "PASS" } else { "FAIL" }
+}
+
+/// Render the session brief (`mdd context`): the whole-map table of contents
+/// followed by the freshness verdict. Always informational — never exits.
+fn print_session_context(ctx: &mdd_core::SessionContext) {
+    if ctx.toc.is_empty() {
+        println!("map: (no whole-map yet — run a cycle to accumulate one)");
+    } else {
+        let total: usize = ctx.toc.iter().map(|entry| entry.id_count).sum();
+        println!("map ({total} ids across {} kinds):", ctx.toc.len());
+        for entry in &ctx.toc {
+            println!(
+                "  {:<11} {} concepts, {} ids",
+                entry.kind, entry.concept_count, entry.id_count
+            );
+        }
+    }
+    match &ctx.source_revision {
+        None => println!("freshness: FRESH (no baseline yet)"),
+        Some(rev) => {
+            let short = rev.get(..7).unwrap_or(rev.as_str());
+            if ctx.fresh {
+                println!("freshness: FRESH (no drift since {short})");
+            } else {
+                println!(
+                    "freshness: STALE since {short} — {} symbol(s) drifted; /mdd-map the area first:",
+                    ctx.drift.len()
+                );
+                for drift in &ctx.drift {
+                    println!("  {} `{}` -> {}", drift.path, drift.symbol, drift.model_id);
+                }
+            }
+        }
+    }
 }
 
 fn prompt_init_conflict(path: &str) -> Result<InitFileConflict> {

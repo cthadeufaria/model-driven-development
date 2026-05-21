@@ -1,0 +1,49 @@
+@startuml
+' @id(CMP-TRACE-ENGINE)
+' @desc(CMP-TRACE-ENGINE, "The shared deterministic git + syn engine in mdd-core (new module, e.g. crates/mdd-core/src/traceability.rs). Given source roots it: (a) extracts a symbol index per .rs file via syn::parse_file + proc-macro2 span-locations -> DOM-SYMBOL-SPAN { path, symbol, line_start, line_end, kind }; (b) shells out to `git diff --unified=0 <base>..worktree -- <roots>` and parses hunks to (file, line ranges); (c) maps hunks to enclosing symbols and classifies leftover regions through the escape-hatch list. Pure: no model authoring, reused by both the gate and freshness.")
+' @id(CMP-TRACE-GATE)
+' @desc(CMP-TRACE-GATE, "The verdict layer in mdd-core: Project::review_traceability() -> DOM-TRACE-REPORT (forward errors, reverse bucket A warnings, reverse bucket B errors), folded into Project::review()/ReviewReport as pass 3 alongside ID + security parity; plus the source_link existence check added to validate_inner (USE-VERIFY-SOURCE-LINK). Reads traceability.parity_check from MddConfig (default error). Calls CMP-TRACE-ENGINE for both the forward symbol resolution and the reverse changeset.")
+' @id(CMP-TRACE-CLI)
+' @desc(CMP-TRACE-CLI, "Two new mdd-cli subcommands in crates/mdd-cli/src/main.rs: `mdd review` (Commands::Review -> Project::review(), prints ID/security/traceability results, non-zero on a blocking mismatch) and `mdd map-status` (Commands::MapStatus -> Project::map_status(), prints fresh/stale + drift, non-zero on stale). These give the deterministic gate and the freshness check a real entry point — previously review had none.")
+' Objective-side ownership for the traceability + freshness engine.
+' Bucket A (deterministic Rust) detector + verdict; the /mdd-review and
+' /mdd-cycle skills (Bucket C) orchestrate around it. The render/font
+' and viewer components are intentionally not in this diagram.
+title MDD traceability + freshness — ownership (objective)
+
+actor "Developer / Agent" as Dev
+
+component "mdd review / mdd map-status\n(CMP-TRACE-CLI)" as Cli
+component "Project::review() pass 3\n+ validate existence\n(CMP-TRACE-GATE)" as Gate
+component "git + syn engine\n(CMP-TRACE-ENGINE)" as Engine
+component "MddConfig\ntraceability.parity_check" as Config
+component "trace.yml\nsource_links" as Trace
+folder ".mdd/map/manifest.yml\nsource_revision" as Manifest
+component "git" as Git
+component "syn + proc-macro2\n(span-locations)" as Syn
+
+Dev --> Cli : mdd review / mdd map-status
+Cli --> Gate : review()
+Cli --> Engine : map_status() (freshness)
+Gate --> Engine : forward resolve + reverse changeset
+Gate --> Config : parity_check (error | warn)
+Gate --> Trace : source_links
+Engine --> Git : diff --unified=0 base..worktree
+Engine --> Syn : parse_file -> symbol spans
+Engine --> Manifest : read source_revision (map-status)
+
+note bottom of Engine
+  Single language (Rust) -> syn, not a full LSP
+  client. proc-macro2 span-locations gives line
+  spans without running a language server. Swap
+  to a real LSP client only if the repo goes
+  polyglot. Realized by SEQ-TRACE-REVIEW + SEQ-MAP-STATUS.
+end note
+
+note bottom of Gate
+  Mirrors how security parity was added as pass 2:
+  deterministic verdict in Rust so it can BLOCK;
+  the /mdd-review skill (Bucket C) owns the reaction
+  (author source_link, loop to implement, pause).
+end note
+@enduml

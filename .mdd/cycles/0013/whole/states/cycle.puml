@@ -1,0 +1,43 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(STM-CYCLE-LIFECYCLE, 0001)
+' @id(STM-CYCLE-LIFECYCLE)
+' @ref(DOM-CYCLE)
+'
+' Current-side lifecycle as implemented: cycle::CycleStatus is
+' { Open, Closed, Aborted }; transitions are driven by the /mdd-cycle
+' skill. The clarification pause is enforced by the skill but is not a
+' persisted status, so it is shown as a self-transition on Open.
+'
+' @desc(STM-CYCLE-LIFECYCLE, "As-built Cycle lifecycle: CycleStatus Open->Closed on /mdd-review parity (after snapshot + diff written), or Open->Aborted on user cancel.")
+title Cycle lifecycle (current)
+
+[*] --> Open : /mdd-cycle opens cycle\n(manifest status: open, before/ snapshot)
+
+state Open {
+  [*] --> Looping
+  Looping --> Looping : implement -> map ->\nvalidate -> review (mismatch)
+  Looping --> AwaitingClarification : ambiguous decision
+  AwaitingClarification --> Looping : user answers
+}
+
+Open --> Closed : /mdd-review parity matches\n(after/ snapshot + <diagram>.diff.puml)
+Open --> Aborted : user cancels the run
+
+Closed --> [*]
+Aborted --> [*]
+
+note right of Open
+  before/ captured at open. The
+  AwaitingClarification step is enforced by
+  SKILL.md (never guess) but is not a
+  CycleStatus variant in code.
+end note
+
+note right of Closed
+  manifest: status=closed, closed_at set,
+  touched_files populated. .mdd/cycles/<N>/
+  now has before/, after/, and the annotated
+  diff the viewer renders.
+end note
+@enduml

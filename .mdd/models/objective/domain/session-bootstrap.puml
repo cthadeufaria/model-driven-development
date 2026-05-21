@@ -1,0 +1,48 @@
+@startuml
+' @id(DOM-SESSION-CONTEXT)
+' @desc(DOM-SESSION-CONTEXT, "The briefing payload Project::session_context() returns and `mdd context` prints: a whole-map table of contents (one TocEntry per concept kind -> count of concepts and @ids, derived from .mdd/map) plus a freshness verdict mirrored from MapStatusReport (the fresh flag and drift list). Implemented as a SessionContext struct in mdd-core.")
+' @id(DOM-MAP-BASELINE)
+' @desc(DOM-MAP-BASELINE, "The freshness baseline map_status diffs from. Resolution rule (cycle 0014): an explicit source_revision in .mdd/map/manifest.yml wins; when absent, derive it from git as the last commit that touched the current-side diagrams, reusing the existing git+syn changed_code engine. No stored field is required and nothing is written to .git. Resolves to absent only when there is no git history yet (-> FRESH, no baseline).")
+' @id(DOM-SESSION-HOOK)
+' @desc(DOM-SESSION-HOOK, "The mdd-managed Claude Code SessionStart hook entry that mdd init merges into .claude/settings.json: type=command, command=`mdd context`. The merge is idempotent and keyed by command so re-init never duplicates it; mdd clean removes exactly this entry and leaves any user-authored hooks untouched.")
+' Objective domain model for agent session bootstrap (cycle 0014).
+title Agent session bootstrap — domain (objective)
+
+class SessionContext <<value>> {
+  + toc : TocEntry[]
+  + fresh : boolean
+  + drift : MapDrift[]
+}
+
+class TocEntry <<value>> {
+  + kind : ModelKind
+  + concept_count : int
+  + id_count : int
+}
+
+class MapBaseline <<value>> {
+  + explicit : Revision [0..1]
+  + resolve() : Revision [0..1]
+}
+
+class SessionHook <<value>> {
+  + event : "SessionStart"
+  + type : "command"
+  + command : "mdd context"
+}
+
+SessionContext "1" o-- "*" TocEntry
+SessionContext ..> MapBaseline : freshness via map_status
+
+note right of MapBaseline
+  resolve(): the explicit source_revision when set,
+  otherwise the last commit touching the current
+  diagrams (git log over .mdd/models/current).
+  Absent only when no git history exists.
+end note
+
+note bottom of SessionHook
+  Merged into .claude/settings.json by mdd init;
+  removed by mdd clean. Idempotent, keyed by command.
+end note
+@enduml

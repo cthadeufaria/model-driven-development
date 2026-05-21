@@ -1,0 +1,38 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-SESSION-CONTEXT)   <<added>> this cycle (0014)
+' @id(DOM-MAP-BASELINE)      <<added>> this cycle (0014)
+' @id(DOM-SESSION-HOOK)      <<added>> this cycle (0014)
+' Cycle 0014 diff (current side): new concept file — all elements added.
+title Agent session bootstrap — domain · cycle 0014 diff (current)
+
+class SessionContext <<added>> {
+  + toc : TocEntry[]
+  + fresh : boolean
+  + source_revision : String [0..1]
+  + drift : MapDrift[]
+}
+
+class TocEntry <<added>> {
+  + kind : String
+  + concept_count : int
+  + id_count : int
+}
+
+class MapBaseline <<added>> {
+  + explicit : Revision [0..1]
+  + resolve() : Revision [0..1]
+}
+
+class SessionHook <<added>> {
+  + event : "SessionStart"
+  + type : "command"
+  + command : "mdd context"
+}
+
+SessionContext "1" o-- "*" TocEntry
+SessionContext ..> MapBaseline : freshness via map_status
+@enduml

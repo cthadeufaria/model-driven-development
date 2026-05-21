@@ -1,0 +1,48 @@
+@startuml
+' @id(SEQ-TRACE-REVIEW)
+' @ref(USE-TRACE-PARITY)
+' @desc(SEQ-TRACE-REVIEW, "Project::review() runs traceability as pass 3 (after ID + security). FORWARD: for every implementable @id (CMP-/SEQ-/DOM-/STM-) on the current side, look up its source_links; if a link's symbol is not found by the syn symbol index for its file, push a forward error. REVERSE: ask the engine for symbols changed since base_revision (git diff --unified=0 base..worktree -- source dirs, hunks mapped to enclosing syn symbols); for each changed symbol with no source_link, classify via the escape hatch — exempt glue -> bucket A (warn), behaviour-bearing -> bucket B (error). matched = forward_ok AND bucket_b_empty (subject to traceability.parity_check).")
+' Objective sequence for review pass 3 (cycle 0013). The same engine
+' (DOM-SYMBOL-SPAN extraction + git changeset) backs both directions
+' and is reused by SEQ-MAP-STATUS.
+title Traceability review — pass 3 (objective)
+
+participant "Project::review()" as Review
+participant "trace.yml\nsource_links" as Trace
+participant "Trace engine\n(git + syn)" as Engine
+participant "git" as Git
+participant "syn symbol index" as Syn
+participant "escape hatch\nclassifier" as Hatch
+participant "TraceReport" as Rep
+
+== Forward (whole gated model) ==
+loop each implementable @id (CMP-/SEQ-/DOM-/STM-) on current side
+  Review -> Trace : source_links for @id
+  Trace --> Review : (path, symbol)*
+  loop each link
+    Review -> Syn : symbol found in path?
+    alt resolves
+      Syn --> Review : span
+    else missing
+      Review -> Rep : FORWARD ERROR (diagram points at absent code)
+    end
+  end
+end
+
+== Reverse (changeset since base_revision) ==
+Review -> Engine : changed_symbols(base_revision)
+Engine -> Git : diff --unified=0 base..worktree -- <source dirs>
+Git --> Engine : hunks (file, line ranges)
+Engine -> Syn : symbols overlapping hunks
+Syn --> Engine : enclosing symbols (+ glue regions)
+Engine --> Review : ChangedSymbols
+loop each ChangedSymbol with no source_link
+  Review -> Hatch : classify(symbol / region)
+  alt exempt glue (import, attr, comment)
+    Hatch --> Rep : BUCKET A (warn + show)
+  else behaviour-bearing
+    Hatch --> Rep : BUCKET B (error, blocks)
+  end
+end
+Rep --> Review : matched = forward_ok AND bucket_b_empty
+@enduml
