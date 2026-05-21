@@ -180,7 +180,7 @@ Rules:
 - Every `@ref(...)` resolves: current-side refs to current-side IDs; objective-side refs to objective-side IDs. OCL files may reference domain model IDs in either side.
 - OCL constraints live under `.mdd/constraints/` and reference domain model IDs.
 - Mockup files under `<side>/mockups/` include at least one `MCK-...` ID.
-- UI contract element IDs from `@ui-element(...)` are unique `UIC-...` IDs across the workspace.
+- UI contract element IDs from `@ui-element(...)` are unique `UIC-...` IDs **within each side** (current or objective). The same `UIC-...` may appear on both sides when current and objective mockups describe the same UI element in two states — matching the per-side uniqueness rule for `USE-/SEQ-/DOM-/CMP-/STM-/SEC-`.
 - Implementation-ready mockups (those with `@ui-route(...)` and at least one `@ui-element(...)`) have generated Playwright UI tests linked in `generated_ui_tests`.
 - State-machine files under `<side>/states/` include at least one `STM-...` ID and exactly one `@ref(DOM-...)`.
 - Every `@sec(...)` marker parses, declares a stereotype in the active catalog (currently `ByPassing`, `Encrypt`, `BufferOverflow`, `SqlInjection`, `Flooding`, `Expiration`), has a `host=` that resolves to a same-side `@id(...)` in the same file on a host kind the stereotype accepts, and supplies the tagged values its stereotype requires (see `.mdd/docs/security-profile.md`). Unknown stereotypes fail validation.

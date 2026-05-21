@@ -1468,7 +1468,12 @@ impl Project {
             );
         }
 
-        let mut ui_contract_ids = BTreeMap::<String, String>::new();
+        // Per-side uniqueness for UIC-... IDs, matching the rule for
+        // USE-/SEQ-/DOM-/CMP-/STM-/SEC-: the same UIC may appear in
+        // current/ and objective/ mockups when both sides describe the
+        // same UI element in two states. A UIC- collision is only an
+        // error when it happens twice on the same side.
+        let mut ui_contract_ids = BTreeMap::<(ModelSide, String), String>::new();
         let mut implementation_ready_mockups = BTreeSet::<String>::new();
         let mut sec_id_registrations: Vec<(String, ModelSide, String)> = Vec::new();
         let mut sec_impl_ready: BTreeSet<String> = BTreeSet::new();
@@ -1513,11 +1518,11 @@ impl Project {
                             element.id, file.path
                         ));
                     }
-                    if let Some(first_file) =
-                        ui_contract_ids.insert(element.id.clone(), file.path.clone())
+                    if let Some(first_file) = ui_contract_ids
+                        .insert((file.side, element.id.clone()), file.path.clone())
                     {
                         errors.push(format!(
-                            "duplicate UI contract ID {} in {} and {}",
+                            "duplicate UI contract ID {} in {} and {} (same side)",
                             element.id, first_file, file.path
                         ));
                     }
@@ -3806,6 +3811,35 @@ mod tests {
                 .errors
                 .iter()
                 .any(|error| error.contains("duplicate UI contract ID UIC-DUPLICATE"))
+        );
+    }
+
+    #[test]
+    fn validate_allows_same_ui_contract_id_across_current_and_objective() {
+        // Cycle 0011: UIC- uniqueness is per-side, matching USE-/DOM-/CMP-/...
+        // The same logical UI element naturally appears on both sides
+        // when current/ mirrors an implemented objective/ contract.
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        write_login_mockup(&project, "MCK-LOGIN-FORM", "UIC-LOGIN-SUBMIT", "/login");
+        fs::write(
+            dir.path()
+                .join(".mdd/models/objective/mockups/login.puml"),
+            "@startsalt\n' @id(MCK-LOGIN-FORM)\n' @ref(USE-LOGIN)\n' @ui-route(/login)\n' @ui-viewport(desktop,1280,720)\n' @ui-element(UIC-LOGIN-SUBMIT, role=button, name=\"Log in\", required=true)\n{\n  [Log in]\n}\n@endsalt\n",
+        )
+        .unwrap();
+        write_ui_test_trace_link(&project, "MCK-LOGIN-FORM");
+
+        let report = project.validate().unwrap();
+
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| error.contains("duplicate UI contract ID UIC-LOGIN-SUBMIT")),
+            "expected no duplicate-UIC error across sides, got: {:?}",
+            report.errors,
         );
     }
 
