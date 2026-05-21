@@ -1,3 +1,4 @@
+mod theme;
 mod tree;
 
 use std::collections::BTreeMap;
@@ -23,7 +24,13 @@ pub fn run(project: Project) -> Result<()> {
     eframe::run_native(
         "mdd-viewer",
         native_options,
-        Box::new(move |_cc| Ok(Box::new(app))),
+        Box::new(move |cc| {
+            // Tier-1 theming — register bundled fonts once at startup
+            // (SEQ-APPLY-THEME construction half). Per-frame theme
+            // application happens in MddViewer::update.
+            theme::register_fonts(&cc.egui_ctx);
+            Ok(Box::new(app))
+        }),
     )
     .map_err(|e| anyhow!("eframe error: {e}"))
 }
@@ -444,6 +451,12 @@ impl MddViewer {
 
 impl eframe::App for MddViewer {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        // Tier-1 theming (SEQ-APPLY-THEME, per-frame half): reapply
+        // catppuccin + spacing/rounding each frame so flipping OS
+        // appearance live (System Settings → Appearance) flips the
+        // viewer chrome on the next paint.
+        theme::apply_theme(ctx);
+
         egui::TopBottomPanel::top("topbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("mdd");
