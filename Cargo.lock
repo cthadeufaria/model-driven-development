@@ -1987,6 +1987,7 @@ dependencies = [
  "mdd-render",
  "mdd-viewer",
  "predicates",
+ "serde_json",
  "tempfile",
 ]
 

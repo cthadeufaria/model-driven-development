@@ -170,7 +170,7 @@ Rules:
 
 ## Validation Checklist
 
-`/mdd-validate` walks both `.mdd/models/current/` and `.mdd/models/objective/` and checks:
+`/mdd-validate` runs the deterministic gate `mdd validate` (engine: `Project::validate()`; `--json` emits a slim `{ok, errors, warnings}` object) rather than re-deriving the checks by hand. It is independent of `mdd review` — it never runs the parity gate. The command walks both `.mdd/models/current/` and `.mdd/models/objective/` and checks:
 
 - UML and PlantUML files are in `.mdd/models/current/<kind>/` or `.mdd/models/objective/<kind>/`.
 - Every PlantUML model has at least one `@id(...)`.

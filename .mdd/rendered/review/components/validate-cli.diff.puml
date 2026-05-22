@@ -1,0 +1,60 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(CMP-VALIDATE-CLI)
+' @desc(CMP-VALIDATE-CLI, "The new `mdd validate` subcommand in crates/mdd-cli/src/main.rs: a Commands::Validate { json: bool } variant and its match arm. The arm discovers the Project, calls Project::validate() (the existing deterministic engine in mdd-core — not reimplemented here), and renders the ValidationReport. A small CLI-side helper serializes the slim {ok, errors, warnings} shape for --json (e.g. via serde_json on a borrowed view, excluding the ModelRegistry); text mode prints lines + a PASSED/FAILED summary and exits non-zero on !ok. This is a thin presentation layer over mdd-core, mirroring how Commands::Review / Commands::MapStatus / Commands::Context already surface their engines; it does not call review.")
+' Objective ownership for cycle 0015. The verdict logic stays in
+' mdd-core (Project::validate, already tested); the CLI only adds an
+' entry point and output formatting. No new engine, no review coupling.
+title MDD validate CLI — ownership (objective)
+
+actor "Developer / Agent" as Dev <<missing>>
+
+component "mdd validate [--json]\n(CMP-VALIDATE-CLI)\nmdd-cli/src/main.rs" as Cli
+component "Project::validate()\nstructural engine\n(mdd-core)" as Engine
+component "ValidationReport\n{ok, errors, warnings}" as Report
+component "slim JSON view\n(serde_json)" as Json
+
+Dev --> Cli : mdd validate [--json]
+Cli --> Engine : validate()
+Engine --> Report : ok / errors / warnings
+Cli --> Report : read for text output
+Cli --> Json : --json -> {ok, errors, warnings}
+
+note bottom of Cli
+  Thin presentation layer, like Commands::Review and
+  Commands::Context. Exit 1 on !report.ok; warnings
+  (approvals, tests, SVGs) are printed but never block.
+  Deliberately independent of `mdd review`.
+end note
+@enduml

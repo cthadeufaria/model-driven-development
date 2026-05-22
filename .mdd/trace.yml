@@ -346,6 +346,16 @@ links:
   - from: OCL-CONTEXT-VERDICT
     to: DOM-SESSION-CONTEXT
     relation: constrains
+  # Cycle 0015 — validate CLI
+  - from: USE-VALIDATE-CLI
+    to: SEQ-VALIDATE-CLI
+    relation: realizes
+  - from: USE-VALIDATE-CLI
+    to: CMP-VALIDATE-CLI
+    relation: realized_by
+  - from: SEQ-VALIDATE-CLI
+    to: CMP-VALIDATE-CLI
+    relation: depends_on
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -401,6 +411,9 @@ generated_tests:
   - id: AT-USE-DIAGRAMS-FIRST
     path: .mdd/tests/acceptance/use-diagrams-first.feature
     model_id: USE-DIAGRAMS-FIRST
+  - id: AT-USE-VALIDATE-CLI
+    path: .mdd/tests/acceptance/use-validate-cli.feature
+    model_id: USE-VALIDATE-CLI
 generated_ui_tests: []
 source_links:
   - model_id: CMP-VIEWER-SCAN-SCOPE
@@ -721,3 +734,13 @@ source_links:
   - model_id: CMP-ENTRYPOINT-DIRECTIVE
     path: crates/mdd-core/src/templates.rs
     symbol: agents_entrypoint
+  # Cycle 0015 — validate CLI (source links added by /mdd-map)
+  - model_id: CMP-VALIDATE-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Validate
+  - model_id: CMP-VALIDATE-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: main
+  - model_id: SEQ-VALIDATE-CLI
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::validate

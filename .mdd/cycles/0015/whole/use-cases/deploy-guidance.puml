@@ -1,0 +1,51 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(USE-DEPLOY-GUIDANCE, 0007)
+' @cycle(USE-DEPLOY-INSPECT, 0007)
+' @id(USE-DEPLOY-GUIDANCE)
+' @id(USE-DEPLOY-INSPECT)
+'
+' Current-side use cases for /mdd-deploy, derived from the implemented
+' code: templates::MDD_DEPLOY_SKILL + its WORKFLOW_SKILLS entry, the
+' .claude/.codex/skills/mdd-deploy/SKILL.md mirrors materialized by
+' `mdd init`, the extended templates::MDD_RENDER_SKILL step, and
+' .mdd/docs/deploy-profile.md. The skill is a standalone utility,
+' a sibling of /mdd-render, and is NOT routed into any gate.
+'
+' @desc(USE-DEPLOY-GUIDANCE, "Implemented: /mdd-deploy is registered as a WORKFLOW_SKILLS entry and materialized into .claude/.codex/skills/mdd-deploy/SKILL.md. Its body instructs the agent to produce a deployment diagram + generated Bicep + a STOP-gated runbook for azure-container-apps, executing no deploy command.")
+' @desc(USE-DEPLOY-INSPECT, "Implemented: templates::MDD_RENDER_SKILL gained a step instructing /mdd-render to rasterize .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive, non-gating.")
+title /mdd-deploy deployment guidance — use cases (current)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+}
+
+Op --> Guide
+Op --> Inspect
+
+Guide ..> Inspect : <<extend>>
+
+note bottom of Guide
+  Implemented in templates::MDD_DEPLOY_SKILL:
+  v1 supports only azure-container-apps
+  (../atlas-ate-server); any other target is
+  rejected. Reads MDD models + the target repo
+  read-only, pauses on ambiguity, writes the
+  deployment diagram + runbook + generated infra,
+  then reports and STOPS. Never runs az/docker/
+  brew. The diagram stereotypes are documentation
+  only — NOT the gated security-marker parity
+  mechanism. Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Inspect
+  Not a gate. /mdd-validate, /mdd-review and the
+  /mdd-cycle parity loop never read .mdd/deploy/.
+  Realized by SEQ-DEPLOY-INSPECT.
+end note
+@enduml

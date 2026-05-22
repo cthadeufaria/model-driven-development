@@ -28,6 +28,18 @@ enum Commands {
     },
     /// Open the interactive diagram viewer for the current project.
     View,
+    /// Run the structural validation gate over the current and objective
+    /// sides. Exits non-zero on a blocking structural error.
+    ///
+    /// Checks id presence/uniqueness, per-side @ref resolution, trace-link
+    /// and source-link integrity, and the security-marker contract.
+    /// Readiness gaps (approvals, acceptance coverage, rendered SVGs) are
+    /// reported but never block. Independent of `mdd review`.
+    Validate {
+        /// Emit a slim {ok, errors, warnings} JSON object instead of text.
+        #[arg(long)]
+        json: bool,
+    },
     /// Run the cycle-closure review gate: ID parity, security parity, and
     /// traceability parity. Exits non-zero on a blocking mismatch.
     Review,
@@ -85,6 +97,34 @@ fn main() -> Result<()> {
         Commands::View => {
             let project = Project::discover(env::current_dir()?)?;
             mdd_viewer::run(project)?;
+        }
+        Commands::Validate { json } => {
+            let project = Project::discover(env::current_dir()?)?;
+            let report = project.validate()?;
+            if json {
+                // Slim machine contract for the /mdd-validate skill: the
+                // verdict and messages only, never the full ModelRegistry.
+                let view = serde_json::json!({
+                    "ok": report.ok,
+                    "errors": report.errors,
+                    "warnings": report.warnings,
+                });
+                println!("{}", serde_json::to_string_pretty(&view)?);
+            } else {
+                for error in &report.errors {
+                    println!("error:   {error}");
+                }
+                for warning in &report.warnings {
+                    println!("warning: {warning}");
+                }
+                println!(
+                    "\nVALIDATION: {}",
+                    if report.ok { "PASSED" } else { "FAILED" }
+                );
+            }
+            if !report.ok {
+                std::process::exit(1);
+            }
         }
         Commands::Review => {
             let project = Project::discover(env::current_dir()?)?;

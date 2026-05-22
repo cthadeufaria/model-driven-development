@@ -1,0 +1,27 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-VALIDATE-CLI) <<added>> this cycle (0015)
+' Cycle 0015 diff (current side): new component owning the `mdd validate`
+' subcommand — a thin presentation layer over the existing engine.
+title MDD validate CLI — ownership · cycle 0015 diff (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd validate [--json]\n(CMP-VALIDATE-CLI)\nmdd-cli/src/main.rs" as Cli <<added>>
+component "Project::validate()\nstructural engine\n(mdd-core)" as Engine <<added>>
+component "ValidationReport\n{ok, errors, warnings}" as Report <<added>>
+component "slim JSON view\n(serde_json)" as Json <<added>>
+
+Dev --> Cli : mdd validate [--json]
+Cli --> Engine : validate()
+Engine --> Report : ok / errors / warnings
+Cli --> Report : read for text output
+Cli --> Json : --json -> {ok, errors, warnings}
+@enduml

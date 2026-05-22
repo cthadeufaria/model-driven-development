@@ -1,0 +1,55 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(SEQ-VALIDATE-CLI)
+' @ref(USE-VALIDATE-CLI)
+' @desc(SEQ-VALIDATE-CLI, "Objective flow for `mdd validate` (mdd-cli Commands::Validate { json } -> Project::validate()). The command discovers the project, runs the existing deterministic engine over both current/ and objective/, and receives a ValidationReport { ok, errors, warnings }. In text mode it prints each error and warning line plus a VALIDATION: PASSED/FAILED summary; in --json mode it prints a slim {ok, errors, warnings} object (the ModelRegistry field is intentionally excluded). It exits 1 when !report.ok (a blocking structural error) and 0 otherwise; warnings never change the exit code. No coupling to review.")
+' Objective sequence for cycle 0015: the validate subcommand surfacing
+' the already-tested Project::validate engine, with a text and a --json mode.
+title mdd validate — deterministic structural gate (objective)
+
+actor "Developer / Agent" as Dev <<missing>>
+participant "mdd validate [--json]\n(Commands::Validate)" as Cli
+participant "Project::validate()" as Engine
+participant "ValidationReport\n{ok, errors, warnings}" as Report
+
+Dev -> Cli : mdd validate [--json]
+Cli -> Engine : validate() over current/ + objective/
+Engine --> Cli : ValidationReport { ok, errors, warnings }
+alt --json
+  Cli --> Dev : slim {ok, errors, warnings} JSON (registry excluded)
+else text (default)
+  Cli --> Dev : error/warning lines + VALIDATION: PASSED/FAILED
+end
+Cli --> Dev : exit 1 if !ok, else 0 (warnings never block)
+@enduml

@@ -1,0 +1,27 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-VALIDATE-CLI) <<added>> this cycle (0015)
+' Cycle 0015 diff (current side): new concept file — the structural gate
+' gains a CLI use case. Nothing removed or reused.
+title MDD validate CLI · cycle 0015 diff (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Run the structural gate\nfrom the CLI\n(mdd validate)" as ValidateCli <<added>>
+  usecase "Emit a machine-readable\nverdict (--json)" as ValidateJson <<added>>
+}
+
+Dev --> ValidateCli
+Dev --> ValidateJson
+ValidateCli ..> ValidateJson : <<extend>>
+@enduml

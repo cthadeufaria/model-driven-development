@@ -232,10 +232,11 @@ fn help_exposes_init_clean_and_render_commands() {
         // freshness entry points added with the traceability engine.
         .stdout(predicate::str::contains("review"))
         .stdout(predicate::str::contains("map-status"))
+        // `mdd validate` exposes the deterministic structural gate engine.
+        .stdout(predicate::str::contains("validate"))
         // `mdd context` is the session brief wired as the SessionStart hook.
         .stdout(predicate::str::contains("context"))
         .stdout(predicate::str::contains("describe").not())
-        .stdout(predicate::str::contains("validate").not())
         .stdout(predicate::str::contains("diff").not())
         .stdout(predicate::str::contains("approve").not())
         .stdout(predicate::str::contains("test").not())
@@ -245,9 +246,7 @@ fn help_exposes_init_clean_and_render_commands() {
 
 #[test]
 fn removed_commands_fail_as_unknown() {
-    for command in [
-        "describe", "map", "validate", "diff", "approve", "test", "code", "app",
-    ] {
+    for command in ["describe", "map", "diff", "approve", "test", "code", "app"] {
         Command::cargo_bin("mdd")
             .unwrap()
             .arg(command)
@@ -431,6 +430,86 @@ fn context_lists_whole_map_table_of_contents() {
         .stdout(predicate::str::contains("use-cases"))
         .stdout(predicate::str::contains("domain"))
         .stdout(predicate::str::contains("2 ids"));
+}
+
+#[test]
+fn validate_passes_on_a_structurally_sound_model() {
+    let dir = tempdir().unwrap();
+    init(dir.path());
+    write_minimal_valid_model(dir.path());
+
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("validate")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("VALIDATION: PASSED"));
+}
+
+#[test]
+fn validate_fails_and_reports_a_structural_error() {
+    let dir = tempdir().unwrap();
+    init(dir.path());
+    write_minimal_valid_model(dir.path());
+    // A duplicate @id on the same side is a blocking structural error.
+    fs::write(
+        dir.path().join(".mdd/models/current/use-cases/dup.puml"),
+        "@startuml\n' @id(USE-SAMPLE)\n@enduml\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("validate")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("USE-SAMPLE"))
+        .stdout(predicate::str::contains("VALIDATION: FAILED"));
+}
+
+#[test]
+fn validate_json_emits_slim_shape_without_registry() {
+    let dir = tempdir().unwrap();
+    init(dir.path());
+    write_minimal_valid_model(dir.path());
+
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .args(["validate", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"ok\": true"))
+        .stdout(predicate::str::contains("\"errors\""))
+        .stdout(predicate::str::contains("\"warnings\""))
+        .stdout(predicate::str::contains("registry").not());
+}
+
+/// A minimal current-side model that satisfies the structural gate: a use
+/// case, a sequence that realizes it, and the required trace link.
+fn write_minimal_valid_model(dir: &Path) {
+    fs::write(
+        dir.join(".mdd/models/current/use-cases/sample.puml"),
+        "@startuml\n' @id(USE-SAMPLE)\nusecase \"Sample\" as S\n@enduml\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join(".mdd/models/current/sequences/sample.puml"),
+        "@startuml\n' @id(SEQ-SAMPLE)\n' @ref(USE-SAMPLE)\nactor A\nA -> A : go\n@enduml\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join(".mdd/models/current/domain/sample.puml"),
+        "@startuml\n' @id(DOM-SAMPLE)\nclass Sample\n@enduml\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join(".mdd/trace.yml"),
+        "version: 1\nlinks:\n  - from: USE-SAMPLE\n    to: SEQ-SAMPLE\n    relation: realizes\ngenerated_tests: []\ngenerated_ui_tests: []\nsource_links: []\n",
+    )
+    .unwrap();
 }
 
 fn init(dir: &Path) {

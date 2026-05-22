@@ -1,0 +1,46 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-TRACE-REVIEW, 0013)
+' @id(SEQ-TRACE-REVIEW)
+' @ref(USE-TRACE-PARITY)
+' @desc(SEQ-TRACE-REVIEW, "Implemented as Project::review_traceability (crates/mdd-core/src/lib.rs), called by Project::review after ID + security parity. FORWARD: for each registry @id on the current side whose prefix is in IMPLEMENTABLE_PREFIXES, every matching trace source_link is checked with resolve_source_link (file exists; .rs symbol found by traceability::extract_symbols); failures become forward_errors. REVERSE: traceability::changed_code(root, base) returns symbols + glue changed since base; an uncovered behaviour-bearing symbol (is_behaviour_kind) -> reverse_bucket_b (error), other uncovered changes -> reverse_bucket_a (warn). matched = forward_errors.is_empty() && reverse_bucket_b.is_empty(); the review gate honors traceability.parity_check.")
+' Current-side sequence for review pass 3 (cycle 0013), as built.
+title Traceability review — pass 3 (current)
+
+participant "Project::review()" as Review
+participant "trace.yml\nsource_links" as Trace
+participant "traceability::\nchanged_code" as Engine
+participant "git" as Git
+participant "traceability::\nextract_symbols (syn)" as Syn
+participant "TraceabilityReport" as Rep
+
+== Forward (whole gated model) ==
+loop each current-side @id with an IMPLEMENTABLE_PREFIX
+  Review -> Trace : source_links for @id
+  Trace --> Review : (path, symbol)*
+  loop each link
+    Review -> Syn : resolve_source_link (symbol in path?)
+    alt resolves
+      Syn --> Review : ok
+    else missing
+      Review -> Rep : forward_errors.push(model_id, path, symbol)
+    end
+  end
+end
+
+== Reverse (changeset since base) ==
+Review -> Engine : changed_code(root, base)
+Engine -> Git : diff --unified=0 base..worktree
+Git --> Engine : hunks (file, line ranges)
+Engine -> Syn : symbols overlapping hunks
+Syn --> Engine : enclosing symbols + glue
+Engine --> Review : ChangedCode { symbols, glue }
+loop each changed symbol with no source_link
+  alt is_behaviour_kind
+    Review -> Rep : reverse_bucket_b.push (error)
+  else glue / const / variant
+    Review -> Rep : reverse_bucket_a.insert (warn)
+  end
+end
+Rep --> Review : matched = forward empty AND bucket_b empty
+@enduml

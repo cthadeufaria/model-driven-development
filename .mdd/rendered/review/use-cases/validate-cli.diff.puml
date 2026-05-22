@@ -1,0 +1,67 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(USE-VALIDATE-CLI)
+' @desc(USE-VALIDATE-CLI, "Run the structural validation gate deterministically from the CLI (`mdd validate`). The engine Project::validate() already implements the whole /mdd-validate checklist (id presence/uniqueness, per-side @ref resolution, trace-link + use-case->sequence integrity, source_link existence, the @sec contract) and is tested — but it had no command, so the /mdd-validate skill re-derived the checks by inspection (non-deterministic). This use case exposes the engine: `mdd validate` walks both sides and exits non-zero on a blocking structural error; `--json` emits a slim {ok,errors,warnings} machine shape the skill parses. Approvals, acceptance tests, and rendered-SVG gaps stay non-blocking readiness warnings. Realized by SEQ-VALIDATE-CLI; owned by CMP-VALIDATE-CLI.")
+' Objective use case for cycle 0015: give the deterministic structural
+' gate a real entry point so the skill stops re-deriving it by hand.
+title MDD validate CLI — deterministic structural gate (objective)
+
+left to right direction
+
+actor "Developer / Agent" as Dev <<missing>>
+
+rectangle "mdd toolchain" {
+  usecase "Run the structural gate\nfrom the CLI\n(mdd validate)" as ValidateCli
+  usecase "Emit a machine-readable\nverdict (--json)" as ValidateJson
+}
+
+Dev --> ValidateCli
+Dev --> ValidateJson
+
+ValidateCli ..> ValidateJson : <<extend>>
+
+note bottom of ValidateCli
+  Objective (USE-VALIDATE-CLI): `mdd validate` ->
+  Project::validate() over both sides. Exit 0 when
+  report.ok, non-zero on a blocking structural error.
+  Warnings (approvals, tests, SVGs) never affect exit.
+  Independent of `mdd review` — no chaining.
+end note
+
+note bottom of ValidateJson
+  --json prints a slim {ok, errors, warnings} object
+  (not the full registry) so the /mdd-validate skill
+  parses a stable contract instead of scraping text.
+end note
+@enduml

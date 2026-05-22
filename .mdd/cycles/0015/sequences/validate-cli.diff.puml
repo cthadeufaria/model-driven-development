@@ -1,0 +1,28 @@
+@startuml
+skinparam sequence {
+  ParticipantBackgroundColor<<added>> #90EE90
+  ParticipantBackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-VALIDATE-CLI) <<added>> this cycle (0015)
+' Cycle 0015 diff (current side): new sequence realizing USE-VALIDATE-CLI.
+title mdd validate · cycle 0015 diff (current)
+
+actor "Developer / Agent" as Dev
+participant "mdd validate [--json]\n(Commands::Validate)" as Cli <<added>>
+participant "Project::validate()" as Engine <<added>>
+participant "ValidationReport\n{ok, errors, warnings}" as Report <<added>>
+
+Dev -> Cli : mdd validate [--json]
+Cli -> Engine : validate() over current/ + objective/
+Engine --> Cli : ValidationReport { ok, errors, warnings }
+alt --json
+  Cli --> Dev : slim {ok, errors, warnings} JSON (registry excluded)
+else text (default)
+  Cli --> Dev : error/warning lines + VALIDATION: PASSED/FAILED
+end
+Cli --> Dev : exit 1 if !ok, else 0 (warnings never block)
+@enduml

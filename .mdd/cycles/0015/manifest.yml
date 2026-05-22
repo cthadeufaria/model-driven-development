@@ -1,0 +1,24 @@
+number: 0015
+slug: validate-cli-deterministic-gate
+entry: generate
+description: "wire the existing deterministic Project::validate() into the CLI as `mdd validate` (with a --json slim {ok,errors,warnings} shape) so the /mdd-validate skill calls a real engine instead of re-deriving the checklist by inspection; review stays independent (no chaining)"
+status: closed
+opened_at: "2026-05-21T16:16:04Z"
+closed_at: "2026-05-22T00:00:00Z"
+base_revision: "e0381e92baf12964660193ff30d151ae8dd3fe72"
+touched_files:
+  - .mdd/models/objective/use-cases/validate-cli.puml
+  - .mdd/models/objective/sequences/validate-cli.puml
+  - .mdd/models/objective/components/validate-cli.puml
+  - .mdd/models/current/use-cases/validate-cli.puml
+  - .mdd/models/current/sequences/validate-cli.puml
+  - .mdd/models/current/components/validate-cli.puml
+  - .mdd/trace.yml
+  - .mdd/tests/acceptance/use-validate-cli.feature
+  - .mdd/docs/mdd-workflow.md
+  - .claude/skills/mdd-validate/SKILL.md
+  - crates/mdd-cli/src/main.rs
+  - crates/mdd-cli/Cargo.toml
+  - crates/mdd-cli/tests/cli.rs
+  - crates/mdd-core/src/templates.rs
+  - Cargo.lock

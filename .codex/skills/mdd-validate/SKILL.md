@@ -11,7 +11,22 @@ Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md
 
 Use this skill as the gate after every `/mdd-map` or `/mdd-generate`, and again after the post-implement `/mdd-map` before `/mdd-review`. Validation walks both `.mdd/models/current/` and `.mdd/models/objective/`.
 
-Validation checklist:
+## Run the deterministic gate
+
+The structural checks are implemented and tested in `Project::validate()` and exposed as a CLI command — **run it, do not re-derive the checklist by hand**:
+
+```bash
+mdd validate --json
+```
+
+It prints a slim `{ "ok": bool, "errors": [...], "warnings": [...] }` object. Interpret it:
+
+- **`ok: true`** → the structural gate passes. Surface `warnings` as readiness notes (approvals, acceptance tests, rendered SVGs) and unlock the next step.
+- **`ok: false`** → the gate fails. Relay each `errors` entry, stop, and fix the offending diagram or trace data before running any other skill.
+
+`mdd validate` (text mode) is the human-readable equivalent and exits non-zero on a blocking error. It is independent of `mdd review` — it never runs the parity gate. Use the checklist below to understand and explain what the engine enforces; the command is the source of truth.
+
+Validation checklist (what `mdd validate` enforces):
 
 1. Every PlantUML model file under `.mdd/models/current/` or `.mdd/models/objective/` has at least one stable `@id(...)`.
 2. Every `@id(...)` is unique **within the same side** (current may share IDs with objective; the two sides represent the same logical model in different states).
@@ -24,10 +39,10 @@ Validation checklist:
 9. Every `@sec(...)` marker parses, declares a stereotype in the active catalog (currently `ByPassing`, `Encrypt`, `BufferOverflow`, `SqlInjection`, `Flooding`, `Expiration`), has a `host=` that resolves to a same-side `@id(...)` in the same file on a host kind the stereotype accepts, and supplies the tagged values its stereotype requires. `id=SEC-...` (when present) participates in per-side ID uniqueness. The full per-stereotype contract — required and optional tagged values, accepted host kinds, enumerated value sets (`scope`, `sanitizer`) — lives in `.mdd/docs/security-profile.md`. Common failure modes to fix at the source: unknown stereotype (typo or reserved name not yet active), missing required tagged value, host kind wrong for the stereotype, invalid enumerated value (e.g. `scope=somewhere`), non-positive integer for `max_length` / `max_rate` / `max_concurrent`.
 10. Approval entries in `.mdd/approvals.yml` match current model and constraint hashes when review metadata is present.
 
-If validation passes (no errors), unlock the next step in the workflow:
+If `mdd validate` reports `ok: true` (no errors), unlock the next step in the workflow:
 - After `/mdd-map` or `/mdd-generate`, the user may run either skill again or `/mdd-implement` if both sides have content.
 - After the post-implement `/mdd-map`, hand off to `/mdd-review`.
 
-If validation fails, stop and fix the structural errors in the affected diagrams or trace data before running any other skill.
+If it reports `ok: false`, stop and fix the structural errors in the affected diagrams or trace data before running any other skill.
 
 Report missing or stale approvals, rendered SVGs, and acceptance-test coverage as readiness warnings (non-blocking).
