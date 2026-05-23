@@ -1,0 +1,23 @@
+number: 0016
+slug: deploy-skill-adaptive-ambiguity
+entry: generate
+description: "make /mdd-deploy adaptive to the class of ambiguity surfaced in the Key Vault provisioning + DB-SKU sessions: ground the deployment purpose (dev/staging/prod) before purpose-driven defaults; run a read+write access-completeness pass over every secured store (each with an identity and a network path the posture admits) before emitting; surface holes/hardened-default choices for the operator instead of jumping to a solution; and widen landmine detection from the app-config axis to any choice whose correctness depends on a fact not grounded in the inputs — a general habit, not point-fixes"
+status: closed
+opened_at: "2026-05-23T15:07:26Z"
+closed_at: "2026-05-23T15:15:00Z"
+base_revision: "dd30e667187b56059d3b9f082a3c252b1d9abf90"
+touched_files:
+  - .mdd/models/objective/use-cases/deploy-guidance.puml
+  - .mdd/models/objective/domain/deploy-iac.puml
+  - .mdd/models/objective/sequences/deploy-guidance.puml
+  - .mdd/models/current/use-cases/deploy-guidance.puml
+  - .mdd/models/current/domain/deploy-iac.puml
+  - .mdd/models/current/sequences/deploy-guidance.puml
+  - .mdd/constraints/deploy-iac.ocl
+  - .mdd/trace.yml
+  - .mdd/docs/deploy-profile.md
+  - .claude/skills/mdd-deploy/SKILL.md
+  - .codex/skills/mdd-deploy/SKILL.md
+  - crates/mdd-core/src/templates.rs
+  - .mdd/map/use-cases/deploy-guidance.puml
+  - .mdd/map/manifest.yml

@@ -1,0 +1,40 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-DEPLOY-PURPOSE) <<added>> this cycle (0016)
+' @id(USE-DEPLOY-ACCESS-CHECK) <<added>> this cycle (0016)
+' Cycle 0016 diff (current side): /mdd-deploy gains two adaptive gates —
+' deployment-purpose confirmation and an access-completeness pass —
+' joining the existing dialect gate. Nothing removed; Guide / Dialect /
+' Inspect are reused unchanged.
+title /mdd-deploy adaptive gates · cycle 0016 diff (current)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
+  usecase "Choose & CONFIRM the IaC dialect\n(Bicep XOR Terraform)" as Dialect
+  usecase "Confirm the deployment PURPOSE\n(dev/staging/prod) before any\npurpose-driven default" as Purpose <<added>>
+  usecase "Account for who READS and WRITES\nevery secured store (identity +\nadmitted path) before emitting" as AccessCheck <<added>>
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+}
+
+Op --> Guide
+Op --> Dialect
+Op --> Purpose
+Op --> AccessCheck
+Op --> Inspect
+
+Guide ..> Dialect : <<include>>
+Guide ..> Purpose : <<include>>
+Guide ..> AccessCheck : <<include>>
+Guide ..> Inspect : <<extend>>
+@enduml

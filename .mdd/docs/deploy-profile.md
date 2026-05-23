@@ -71,6 +71,32 @@ identical invariant checklist and secure-by-default network posture
 below. The only differences are language, file structure, and (Terraform)
 the remote state backend.
 
+## Deployment purpose — operator-confirmed
+
+Infrastructure sizing and posture depend on a fact the skill must not
+guess: is this **dev, staging, or prod**? The skill resolves the
+deployment purpose and **blocks for explicit operator confirmation**
+before generating any purpose-driven default — the same discipline as the
+dialect gate, with **no silent default** (never assume prod-grade or
+dev-grade). The confirmed purpose then drives:
+
+- **Azure Database for PostgreSQL tier / redundancy** — e.g. a burstable
+  (B-series) tier for dev vs. a general-purpose / zone-redundant tier for
+  prod. The skill must not emit a production-grade SKU for a dev
+  deployment, nor an under-provisioned one for prod.
+- **Backup retention** and other durability knobs.
+- **Which network / doorway posture is recommended** (see
+  Access-completeness).
+
+The skill **surfaces** the purpose-appropriate options for the operator to
+confirm; it does not bake one in. Purpose *recommends*; the operator
+decides. Secure-by-default is preserved regardless of purpose — the vault
+stays most-restrictive and any relaxation remains an explicit, surfaced
+decision. Invariants: `OCL-DEPLOY-IAC-PURPOSE` (value in the set,
+confirmed before any purpose-driven default) and
+`OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE` (surface the choice, never bake in an
+answer).
+
 ## Documentation-only security stereotypes
 
 For visual consistency the deployment diagram MAY reuse the existing stereotype
@@ -110,7 +136,10 @@ Automatable hardening is part of the guidance, not a deferred human
 decision. The generated IaC must never emit a secret or data store more
 openly network-reachable than its peers. Rule: choose the most
 restrictive network posture consistent with the connectivity the runbook
-actually requires; relax it only via an explicit, surfaced decision.
+actually requires — **runtime AND provisioning** — and relax it only via
+an explicit, surfaced decision. Hardening that creates a new requirement
+(a locked vault now needs a writer path) must propagate that requirement:
+surface the doorway, never bake one in and never silently relax.
 
 This posture is identical for both IaC dialects (full parity) — the skill
 hardens whichever dialect was confirmed, never one more than the other.
@@ -124,23 +153,72 @@ with an `Allow` default. A Key Vault left publicly reachable while its
 peers are private is a secure-by-default failure the skill must fix
 automatically, not a decision it may defer.
 
+## Access-completeness — every secured store has both ends
+
+Before the deployment diagram is "done", account for **both ends** of
+every secured store — Azure Key Vault, Azure Database for PostgreSQL, the
+container registry, the remote state backend. For each, name:
+
+- **who READS it** (usually the running app, via its managed identity), and
+- **who WRITES / provisions it** (usually the **deployer** — the operator
+  or CI that runs `apply`),
+
+and give each a concrete **identity** and a **network path the chosen
+posture actually admits**. The recurring failure this prevents: a vault
+modelled only with the app's read path, hardened to the most-restrictive
+posture, with **no writer and no admitted path** — so `apply` fails
+writing the secrets nobody was shown provisioning, on the path the diagram
+never drew.
+
+A store **read but never written**, or a **writer with no admitted path**
+through a door the skill just hardened, is an **incomplete diagram** — the
+skill **surfaces it as a blocking question** with the connectivity options,
+framed by the deployment purpose:
+
+- **allowlist the deployer's IP** — smallest change, keeps default-Deny;
+  suited to a dev deployment from a workstation;
+- **provision from inside the VNet** (a one-shot job, a jump host, a
+  VNet-integrated Cloud Shell, or a self-hosted CI runner) — no public
+  exposure; suited to prod;
+- **a private tunnel** (VPN / Bastion) — reusable, highest setup.
+
+The skill does **not** pick the option; it surfaces the menu and the
+operator chooses. The IaC then emits **both** access grants — the reader's
+read-only role and the writer's write role — plus the chosen connectivity.
+Invariant: `OCL-DEPLOY-IAC-ACCESS-COMPLETE`.
+
 ## Landmine detection — mandatory pause
 
-A **go-live landmine** is a contradiction between a config default the
-skill would generate and what the shipped target code actually supports —
-statically detectable from inputs the skill already reads (`.mdd/models`,
-the target repo `src/`, `Dockerfile`, `.env.example`). When the skill
+A **go-live landmine** is any choice whose correctness depends on a fact
+**not grounded in the inputs the skill read** (`.mdd/models`, the target
+repo `src/`, `Dockerfile`, `.env.example`, the operator's answers) — most
+often a confident default the skill filled in for an unasked question. It
+is **not a fixed list of known traps; recognize the shape.** When the skill
 detects one it MUST pause with a **blocking clarification** (the same
-discipline as `/mdd-cycle`) before writing the contradicting artifact. It
-must NOT bury the contradiction as a runbook STOP note: a STOP note is
-procedural and easy to skip past; a landmine is a surfaced decision the
-operator has to make before go-live is even safe to attempt.
+discipline as `/mdd-cycle`) before writing the contradicting artifact, and
+must NOT bury it as a runbook STOP note: a STOP note is procedural and easy
+to skip past; a landmine is a surfaced decision the operator has to make
+before go-live is even safe to attempt.
 
-Worked example: the skill would default `azureOpenAiUseManagedIdentity =
-true`, but the shipped server authenticates Azure OpenAI only with an API
-key — there is no `@azure/identity` code path. Generating the
-managed-identity default would ship an app that cannot reach Azure OpenAI
-at go-live. This is a blocking pause, not a STOP note.
+Three axes recur (the list grows as new shapes appear):
+
+1. **App-config axis** — a generated config default contradicts what the
+   shipped code supports. Worked example: defaulting
+   `azureOpenAiUseManagedIdentity = true` while the shipped server
+   authenticates Azure OpenAI only with an API key (no `@azure/identity`
+   code path) would ship an app that cannot reach Azure OpenAI at go-live.
+2. **Purpose axis** — sizing or posture chosen without knowing dev vs.
+   prod. Worked example: emitting a production-grade PostgreSQL SKU for a
+   dev / first deployment (≈30× the cost), or an under-provisioned one for
+   prod. Resolved by the Deployment-purpose gate.
+3. **Access-path axis** — a secured store hardened without a way in for
+   whoever must reach it. Worked example: a Key Vault locked to
+   default-Deny with only the app's read path modelled, so `apply` fails
+   writing secrets the deployer has neither the role nor a network path to
+   write. Resolved by the Access-completeness pass.
+
+The general rule subsumes all three: surface the ungrounded choice; never
+ship a confident default in its place.
 
 ## Known tradeoff (not auto-changed)
 

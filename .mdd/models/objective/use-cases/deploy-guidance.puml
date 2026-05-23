@@ -2,23 +2,34 @@
 ' @id(USE-DEPLOY-GUIDANCE)
 ' @id(USE-DEPLOY-INSPECT)
 ' @id(USE-DEPLOY-DIALECT)
+' @id(USE-DEPLOY-PURPOSE)
+' @id(USE-DEPLOY-ACCESS-CHECK)
 '
 ' Objective-side use cases for the /mdd-deploy utility skill. STANDALONE,
 ' a sibling of /mdd-render: NOT wired into /mdd-cycle, /mdd-map,
 ' /mdd-validate, or /mdd-review; never executes a deploy command.
 '
-' CHANGE (this cycle): /mdd-deploy gains a second IaC dialect. The
-' operator picks ONE dialect per run — Bicep XOR Terraform — and that
-' choice MUST be explicitly confirmed via a blocking pause BEFORE any
-' deploy artifact (diagram.puml, runbook.md, or generated IaC) is
-' written. There is NO silent default: even Bicep, implicit today, now
-' requires the confirmation. Both dialects enforce the SAME invariant
-' checklist and the SAME secure-by-default network posture (full
-' parity); only the generated IaC structure differs.
+' CHANGE (cycle 0016): /mdd-deploy is made ADAPTIVE to the class of
+' ambiguity that produced the Key Vault provisioning failure and the
+' dev-vs-prod DB-SKU mismatch. Two new operator-facing gates join the
+' dialect gate, and the existing landmine pause is GENERALIZED:
+'   - USE-DEPLOY-PURPOSE: confirm the deployment purpose (dev/staging/
+'     prod) BEFORE any purpose-driven default (DB tier, redundancy, the
+'     recommended network/doorway posture). No silent default; the skill
+'     SURFACES purpose-appropriate options for the operator to confirm.
+'   - USE-DEPLOY-ACCESS-CHECK: before emitting, account for who READS and
+'     who WRITES every secured store, each with an identity and a network
+'     path the chosen posture actually admits; a store read-but-never-
+'     written, or a writer with no admitted path, is SURFACED as a
+'     blocking question rather than shipped as a complete-looking diagram.
+' Both gates SURFACE the choice; they never bake in an answer (no default
+' allowlist, no default DB tier). The skill still executes nothing.
 '
-' @desc(USE-DEPLOY-GUIDANCE, "Operator runs /mdd-deploy with a one-line deployment description; the skill produces a UML deployment diagram, secure-by-default generated IaC in the CONFIRMED dialect (Bicep XOR Terraform — one per run, no silent default), and an explicit copy-pasteable runbook that preserves the target's security invariants identically for either dialect. It pauses with a blocking clarification on ambiguity, on any statically detectable go-live landmine, AND — new — to confirm the IaC dialect before writing anything. The skill executes nothing — the human runs the commands.")
+' @desc(USE-DEPLOY-GUIDANCE, "Operator runs /mdd-deploy with a one-line deployment description; the skill produces a UML deployment diagram, secure-by-default generated IaC in the CONFIRMED dialect, and an explicit runbook that preserves the target's security invariants. It pauses with a BLOCKING clarification on ambiguity and on any GENERALIZED landmine — any choice whose correctness depends on a fact not grounded in the inputs it read (now covering the access-path axis: who reaches a secured store; and the purpose axis: dev vs prod — not just the original app-config axis). It SURFACES such gaps and hardened-default trade-offs for the operator to decide instead of jumping to a solution. The skill executes nothing — the human runs the commands.")
 ' @desc(USE-DEPLOY-INSPECT, "Operator inspects the generated deployment diagram visually: /mdd-render also rasterizes .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive and non-gating.")
-' @desc(USE-DEPLOY-DIALECT, "Before any deploy artifact is created, /mdd-deploy resolves the requested IaC dialect from the description (Bicep or Terraform), presents it back, and BLOCKS for an explicit operator confirmation — the same discipline as the landmine pause. No silent default: an unconfirmed or unspecified dialect halts the skill before diagram.puml / runbook.md / generated IaC are written. Exactly one dialect per run; Terraform enforces the same invariants + secure-by-default posture as Bicep, differing only in structure (main.tf + modules + azurerm provider + remote state backend).")
+' @desc(USE-DEPLOY-DIALECT, "Before any deploy artifact is created, /mdd-deploy resolves the requested IaC dialect (Bicep or Terraform), presents it back, and BLOCKS for an explicit operator confirmation. No silent default; exactly one dialect per run; Terraform enforces the same invariants + secure-by-default posture as Bicep, differing only in structure (main.tf + modules + azurerm provider + remote state backend).")
+' @desc(USE-DEPLOY-PURPOSE, "Before any purpose-driven default is generated, /mdd-deploy establishes the deployment purpose — dev, staging, or prod — and BLOCKS for explicit operator confirmation, the same discipline as the dialect gate. No silent default: the skill never assumes prod-grade or dev-grade. The confirmed purpose then drives the defaults that hang on it — Azure DB for PostgreSQL tier/redundancy, backup retention, and which network/doorway posture is RECOMMENDED — but the skill surfaces purpose-appropriate options for the operator to confirm; the vault stays most-restrictive by default and any relaxation remains an explicit, surfaced decision (secure-by-default is preserved, not overridden).")
+' @desc(USE-DEPLOY-ACCESS-CHECK, "Before writing the deployment diagram and IaC, /mdd-deploy runs an access-completeness pass over every secured store (Key Vault, the database, the registry, remote state): for each it must name who READS it and who WRITES/provisions it, each with an identity and a network path the chosen posture actually admits. A store that is read but never written (e.g. secrets nobody is shown provisioning), or a writer with no admitted path through a door the skill just locked, is a hole the skill SURFACES as a BLOCKING question — it never ships a diagram that only looks complete. It surfaces the connectivity options (e.g. allowlist / in-VNet / tunnel) framed by the deployment purpose; the operator chooses.")
 title /mdd-deploy deployment guidance — use cases (objective)
 
 left to right direction
@@ -28,39 +39,70 @@ actor "Operator" as Op
 rectangle "mdd toolchain (utility, outside the parity gate)" {
   usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
   usecase "Choose & CONFIRM the IaC dialect\n(Bicep XOR Terraform) before any\nartifact is written — no silent default" as Dialect
+  usecase "Confirm the deployment PURPOSE\n(dev/staging/prod) before any\npurpose-driven default — no silent default" as Purpose
+  usecase "Account for who READS and WRITES\nevery secured store (identity + admitted\npath) before emitting — surface holes" as AccessCheck
   usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
 }
 
 Op --> Guide
 Op --> Dialect
+Op --> Purpose
+Op --> AccessCheck
 Op --> Inspect
 
 Guide ..> Dialect : <<include>>
+Guide ..> Purpose : <<include>>
+Guide ..> AccessCheck : <<include>>
 Guide ..> Inspect : <<extend>>
 
 note bottom of Guide
   v1 target: azure-container-apps (../atlas-ate-server).
   Reads .mdd/models + the target repo READ-ONLY.
   PAUSES with a BLOCKING clarification on ambiguity OR
-  a statically detectable go-live landmine — same
-  discipline as /mdd-cycle, never a buried runbook
-  STOP note. Writes the deployment diagram + runbook
-  + SECURE-BY-DEFAULT generated IaC in the confirmed
-  dialect (no store left more network-open than its
-  peers; migrations-before-traffic stays a documented
-  procedural tradeoff); then reports and STOPS.
-  NEVER runs az / docker / terraform / brew.
-  Diagram stereotypes are DOCUMENTATION ONLY.
+  a GENERALIZED go-live landmine — any choice whose
+  correctness depends on a fact NOT grounded in the
+  inputs (access-path axis + purpose axis, not just
+  app-config). Surfaces the gap/trade-off instead of
+  jumping to a solution; never a buried runbook STOP
+  note. Writes diagram + runbook + SECURE-BY-DEFAULT
+  IaC in the confirmed dialect, then STOPS. NEVER runs
+  az / docker / terraform / brew.
   Realized by SEQ-DEPLOY-GUIDANCE.
 end note
 
 note bottom of Dialect
   Mandatory <<include>>: guidance cannot proceed until
-  the dialect is explicitly confirmed. One dialect per
-  run (Bicep XOR Terraform). FULL PARITY — both
-  dialects enforce the identical invariant checklist
-  and secure-by-default posture; only IaC structure
-  differs. Realized by SEQ-DEPLOY-GUIDANCE.
+  the dialect is explicitly confirmed. One per run
+  (Bicep XOR Terraform). FULL PARITY — both enforce the
+  identical invariant checklist + secure-by-default
+  posture; only IaC structure differs.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Purpose
+  Mandatory <<include>>: no purpose-driven default
+  (DB tier/redundancy, backup retention, recommended
+  doorway) is generated until dev/staging/prod is
+  confirmed. No silent default; the skill never assumes
+  prod- or dev-grade. Purpose RECOMMENDS; the operator
+  confirms. Secure-by-default is preserved — the vault
+  stays most-restrictive and any relaxation is explicit.
+  Constrained by OCL-DEPLOY-IAC-PURPOSE /
+  OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of AccessCheck
+  Mandatory <<include>>: before emitting, every secured
+  store must have a named READER and WRITER, each with
+  an identity and a network path the posture admits.
+  A read-but-never-written store, or a writer with no
+  admitted path, is SURFACED as a blocking question —
+  not shipped as a complete-looking diagram. Surfaces
+  the connectivity options framed by purpose; operator
+  chooses. Constrained by OCL-DEPLOY-IAC-ACCESS-COMPLETE
+  / OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE.
+  Realized by SEQ-DEPLOY-GUIDANCE.
 end note
 
 note bottom of Inspect

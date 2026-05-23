@@ -1,0 +1,35 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-SESSION-CLI, 0014)
+' @cycle(CMP-INIT-HOOK, 0014)
+' @cycle(CMP-ENTRYPOINT-DIRECTIVE, 0014)
+' @id(CMP-SESSION-CLI)
+' @desc(CMP-SESSION-CLI, "Built as mdd-cli Commands::Context in crates/mdd-cli/src/main.rs, calling Project::session_context (mdd-core) and printing via print_session_context. session_context composes map_toc (.mdd/map TOC) with map_status (freshness), reusing CMP-TRACE-GATE's map_status rather than re-implementing freshness. Always exits 0 — a brief, not a gate.")
+' @id(CMP-INIT-HOOK)
+' @desc(CMP-INIT-HOOK, "Built as Project::write_session_hook (init) + Project::remove_session_hook (clean) in crates/mdd-core/src/lib.rs, over the pure upsert_session_hook / strip_session_hook helpers: a JSON-structured idempotent merge of the SessionStart hook into .claude/settings.json (the analogue of write_managed_block for JSON). Re-init never duplicates it; clean strips exactly it and reclaims an mdd-only settings.json; user-authored hooks/permissions are preserved.")
+' @id(CMP-ENTRYPOINT-DIRECTIVE)
+' @desc(CMP-ENTRYPOINT-DIRECTIVE, "Built as the diagrams-first reading-order section in templates::claude_entrypoint and templates::agents_entrypoint (crates/mdd-core/src/templates.rs), injected into the CLAUDE.md / AGENTS.md managed blocks by mdd init. The AGENTS variant adds the line telling Codex and other agents to run `mdd context` manually since they cannot auto-fire a hook. Realizes USE-DIAGRAMS-FIRST.")
+' Current-side ownership for agent session bootstrap (cycle 0014), as built.
+title Agent session bootstrap — ownership (current)
+
+actor "Agent" as Agent
+
+component "mdd context\n(CMP-SESSION-CLI)" as Cli
+component "mdd init / mdd clean\nSessionStart hook merge\n(CMP-INIT-HOOK)" as Init
+component "entrypoint directive\nCLAUDE.md + AGENTS.md\n(CMP-ENTRYPOINT-DIRECTIVE)" as Directive
+component "Project::map_status\n(CMP-TRACE-GATE, reused)" as Gate
+folder "whole-map\n.mdd/map" as Map
+folder "settings\n.claude/settings.json" as Settings
+
+Agent --> Cli : mdd context
+Agent --> Directive : reads at session start
+Cli --> Gate : map_status() freshness
+Cli --> Map : map_toc (concepts by kind)
+Init --> Settings : upsert/strip SessionStart hook (idempotent)
+Init --> Directive : inject managed block
+
+note bottom of Gate
+  Freshness reuses the cycle-0013 git+syn engine;
+  the baseline is DOM-MAP-BASELINE (derived from git).
+end note
+@enduml

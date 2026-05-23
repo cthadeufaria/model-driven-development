@@ -225,6 +225,28 @@ links:
   - from: OCL-DEPLOY-IAC-MIGRATION-ORDER
     to: DOM-DEPLOY-IAC
     relation: constrains
+  # Cycle 0016 — deploy skill adaptive ambiguity
+  - from: USE-DEPLOY-PURPOSE
+    to: SEQ-DEPLOY-GUIDANCE
+    relation: realizes
+  - from: USE-DEPLOY-ACCESS-CHECK
+    to: SEQ-DEPLOY-GUIDANCE
+    relation: realizes
+  - from: USE-DEPLOY-PURPOSE
+    to: CMP-DEPLOY-SKILL
+    relation: realized_by
+  - from: USE-DEPLOY-ACCESS-CHECK
+    to: CMP-DEPLOY-SKILL
+    relation: realized_by
+  - from: OCL-DEPLOY-IAC-PURPOSE
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-IAC-ACCESS-COMPLETE
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE
+    to: DOM-DEPLOY-IAC
+    relation: constrains
   - from: SEQ-RENDER-DIFF-SVG
     to: DOM-RENDER-ENGINE
     relation: depends_on
@@ -577,6 +599,16 @@ source_links:
   - model_id: USE-DEPLOY-DIALECT
     path: .claude/skills/mdd-deploy/SKILL.md
   - model_id: USE-DEPLOY-DIALECT
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: USE-DEPLOY-PURPOSE
+    path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-PURPOSE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: USE-DEPLOY-ACCESS-CHECK
+    path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-ACCESS-CHECK
     path: crates/mdd-core/src/templates.rs
     symbol: MDD_DEPLOY_SKILL
   - model_id: USE-DEPLOY-INSPECT

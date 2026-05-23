@@ -3,9 +3,15 @@
 -- utility skill outside the parity / security gate, so these document
 -- the intended contract rather than acting as a parity check.
 --
--- Objective (this cycle): two IaC dialects, one per run, confirmed
--- before any artifact is written; secure-by-default + migration-order
--- hold identically for either dialect (full parity).
+-- Objective (cycle 0016): /mdd-deploy is adaptive to the class of
+-- ambiguity behind the Key Vault provisioning failure and the dev-vs-
+-- prod DB-SKU mismatch. Alongside the dialect gate it confirms a
+-- DeploymentPurpose (dev/staging/prod) before any purpose-driven
+-- default, runs a ResourceAccess completeness check (every secured
+-- store needs a named reader AND writer, each with an admitted network
+-- path) before the diagram is "done", and surfaces choices rather than
+-- baking in an answer. Secure-by-default + migration-order still hold
+-- identically for either dialect (full parity).
 
 -- @id(OCL-DEPLOY-IAC-DIALECT)
 -- @ref(DOM-DEPLOY-IAC)
@@ -34,3 +40,37 @@ inv NoStoreMoreNetworkOpenThanItsPeers:
 context MigrationJob
 inv MigrationCompletesBeforeTrafficRouting:
   self.order = 'before any revision traffic routing'
+
+-- @id(OCL-DEPLOY-IAC-PURPOSE)
+-- @ref(DOM-DEPLOY-IAC)
+context DeploymentPurpose
+inv PurposeConfirmedBeforePurposeDrivenDefault:
+  -- The deployment purpose is exactly one of dev/staging/prod and must be
+  -- explicitly confirmed before any purpose-driven default (DB tier,
+  -- redundancy, backup retention, the recommended network/doorway posture)
+  -- is generated. No silent default: the skill never assumes prod- or
+  -- dev-grade.
+  Set{'dev', 'staging', 'prod'}->includes(self.value)
+    and (self.purposeDrivenDefaultGenerated implies self.confirmed)
+
+-- @id(OCL-DEPLOY-IAC-ACCESS-COMPLETE)
+-- @ref(DOM-DEPLOY-IAC)
+context ResourceAccess
+inv EverySecuredStoreHasReaderAndWriterWithAdmittedPath:
+  -- Before the deployment diagram is "done", every secured store must have
+  -- a named reader AND a named writer, each with an identity and a network
+  -- path the chosen posture admits. A store read-but-never-written, or a
+  -- writer with no admitted path, is surfaced as a blocking question.
+  self.reader->notEmpty() and self.writer->notEmpty()
+    and self.reader.hasAdmittedPath and self.writer.hasAdmittedPath
+
+-- @id(OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE)
+-- @ref(DOM-DEPLOY-IAC)
+context DeploymentPurpose
+inv SurfaceChoicesNeverBakeInAnAnswer:
+  -- Where a default is purpose-dependent, or a hardening creates a new
+  -- requirement (e.g. a locked vault needs a writer path), the skill
+  -- surfaces the option for the operator to decide; it never bakes in a
+  -- specific answer (no default IP allowlist, no default DB tier) and
+  -- never silently relaxes secure-by-default.
+  self.purposeDrivenDefaultsSurfaced and not self.bakesInAnswer
