@@ -144,6 +144,19 @@ links:
   - from: MCK-VIEWER-CYCLE-UI
     to: USE-DIFF-DIAGRAM
     relation: realizes
+  # MCK-VIEWER-FULL — comprehensive current-side viewer mockup (added by /mdd-map)
+  - from: MCK-VIEWER-FULL
+    to: USE-VIEW-DIAGRAMS
+    relation: realizes
+  - from: MCK-VIEWER-FULL
+    to: USE-BROWSE-TREE
+    relation: realizes
+  - from: MCK-VIEWER-FULL
+    to: USE-TOGGLE-PANELS
+    relation: realizes
+  - from: MCK-VIEWER-FULL
+    to: USE-DIFF-DIAGRAM
+    relation: realizes
   - from: USE-VIEW-OCL
     to: SEQ-VIEW-OCL
     relation: realizes
@@ -546,6 +559,9 @@ source_links:
     path: crates/mdd-viewer/src/lib.rs
     symbol: MddViewer::update
   - model_id: MCK-VIEWER-CANVAS
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::update
+  - model_id: MCK-VIEWER-FULL
     path: crates/mdd-viewer/src/lib.rs
     symbol: MddViewer::update
   - model_id: USE-DIFF-DIAGRAM
