@@ -1,0 +1,54 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(CMP-AGENT-PREPARE)
+' @desc(CMP-AGENT-PREPARE, "The `mdd agent` subcommand in crates/mdd-cli/src/main.rs: the Commands::Agent { kind: String } variant and its match arm. The arm discovers the Project, maps the kind string through AgentKind::parse, and delegates to mdd_agent::prepare_agent — it adds no new behaviour, only a CLI entry point, mirroring Commands::Validate / Commands::Context as thin presentation over a core crate. This makes mdd-agent (previously an orphan workspace crate with no caller) a real mdd-cli dependency and closes its mapping gap.")
+title MDD agent prepare CLI — ownership (objective)
+
+actor "Developer / Agent" as Dev <<missing>>
+
+component "mdd agent --kind\n(CMP-AGENT-PREPARE)\nmdd-cli/src/main.rs" as Cli
+component "prepare_agent / AgentKind\n(mdd-agent crate)" as Agent
+component "AgentPreparationReport\n{instruction_file, hooks_run}" as Report
+
+Dev --> Cli : mdd agent --kind <agent>
+Cli --> Agent : prepare_agent(&project, kind)
+Agent --> Report : instruction_file + hooks_run
+Cli --> Report : read for stdout
+
+note bottom of Cli
+  Thin presentation layer like Commands::Validate. mdd-agent
+  becomes a declared mdd-cli dependency; behaviour stays in
+  the crate. No new engine.
+end note
+@enduml

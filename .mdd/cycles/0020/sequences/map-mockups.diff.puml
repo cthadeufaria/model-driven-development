@@ -1,0 +1,45 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-MAP-MOCKUPS)
+' @ref(USE-MAP-MOCKUPS)
+' @desc(SEQ-MAP-MOCKUPS, "How /mdd-map produces mockups at whole-repo scope (SKILL.md step 3a): after the five UML kinds, the skill scans the repo for UI apps (a mockups/ dir or other UI surface). For each screen it reads the components and their data-testids and authors a current-side @startsalt mockup under current/mockups/<name>.puml — MCK- id, @ref to the relevant USE-, and one @ui-element(UIC-..., ...) per data-testid — then hands off to /mdd-validate. A route is marked only when a real route + linked Playwright UI test exists, to satisfy the deterministic validate rule. This is a step in the agent-executed skill, not Rust.")
+title MDD map mockups — whole-repo authoring flow (current)
+
+actor "Developer / Agent" as Dev <<added>>
+participant "/mdd-map skill\n(.claude/skills/mdd-map)" as Map
+participant "UI app source\n(e.g. mockups/src)" as App
+participant "current/mockups/*.puml" as Mck
+
+Dev -> Map : /mdd-map whole repository
+Map -> App : scan components + data-testids
+Map -> Mck : author @startsalt MCK- with UIC- per data-testid
+Map -> Map : @ref the related USE-
+Map --> Dev : current map complete across all kinds
+@enduml

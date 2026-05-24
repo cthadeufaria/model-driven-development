@@ -1,0 +1,23 @@
+number: 0020
+slug: wire-agent-cli-and-mockups-in-map
+entry: generate
+description: "Wire mdd-agent into the CLI (real caller) and map it; teach /mdd-map to auto-include mockups for whole-repo scope. Foundations (Cycle A); the dedicated mockup skill + Salt->React sync is deferred to a later cycle."
+status: closed
+opened_at: "2026-05-24T20:22:16Z"
+closed_at: "2026-05-24T20:40:00Z"
+base_revision: "f6232bfb58a893c30a69fdbecb72a34ecf876491"
+touched_files:
+  - .mdd/models/objective/use-cases/agent-prepare.puml
+  - .mdd/models/objective/sequences/agent-prepare.puml
+  - .mdd/models/objective/components/agent-prepare.puml
+  - .mdd/models/objective/domain/agent-prepare.puml
+  - .mdd/models/objective/use-cases/map-mockups.puml
+  - .mdd/models/objective/sequences/map-mockups.puml
+  - .mdd/models/objective/components/map-mockups.puml
+  - .mdd/models/current/use-cases/agent-prepare.puml
+  - .mdd/models/current/sequences/agent-prepare.puml
+  - .mdd/models/current/components/agent-prepare.puml
+  - .mdd/models/current/domain/agent-prepare.puml
+  - .mdd/models/current/use-cases/map-mockups.puml
+  - .mdd/models/current/sequences/map-mockups.puml
+  - .mdd/models/current/components/map-mockups.puml

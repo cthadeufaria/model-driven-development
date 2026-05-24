@@ -1,0 +1,53 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-VIEW-OCL, 0004)
+' @id(SEQ-VIEW-OCL)
+' @ref(USE-VIEW-OCL)
+'
+' Current-side flow as implemented: when the selected file kind is
+' Constraint, MddViewer::ocl_ui shows a Source/Diagram toggle; Diagram
+' reuses DiagramPage + paint_canvas on the mirrored rendered SVG.
+'
+' @desc(SEQ-VIEW-OCL, "As-built: ocl_ui reads the .ocl into OclView.source for Source mode; Diagram resolves Project::rendered_svg_path(.ocl), loads it via DiagramPage::load and paints it with paint_canvas, else a placeholder.")
+title View an OCL constraint file (current)
+
+actor "Developer" as Dev
+participant "MddViewer::update\n(eframe::App)" as Viewer
+participant "MddViewer::ocl_ui\nOclView{sub_mode}" as OV
+database ".mdd/constraints/\n<name>.ocl" as Ocl
+participant "mdd_render::\nrender_ocl_diagrams" as Rend
+database ".mdd/rendered/constraints/\n<name>.svg" as Out
+participant "DiagramPage::load\n+ paint_canvas" as Page
+
+Dev -> Viewer : select a .ocl file in the rail
+Viewer -> Viewer : kind == ModelKind::Constraint
+Viewer -> OV : ocl_ui(ui, ctx)
+OV -> Ocl : read_to_string when loaded != file
+Ocl --> OV : OCL source -> OclView.source
+OV -> Dev : "Source | Diagram" toggle (default Source)
+
+alt sub_mode = Source (default)
+  loop each painted frame
+    OV -> Dev : ScrollArea of read-only lines\n(@id/context/inv colored)
+  end
+else sub_mode = Diagram
+  OV -> Out : Project::rendered_svg_path(file_rel)
+  alt rendered SVG present
+    Out --> Page : DiagramPage::load(svg)
+    loop each painted frame
+      OV -> Page : paint_canvas (pan/zoom reused)
+      Page --> Dev : synthesized constraints diagram
+    end
+  else SVG missing
+    OV -> Dev : "No rendered constraints diagram —\nrun the render pipeline"
+  end
+end
+
+note over Rend
+  render_ocl_diagrams enumerates
+  Project::constraint_files(); synthesize_ocl_puml
+  builds a context/inv/@ref diagram; rasterized to
+  the .mdd/rendered/constraints/<name>.svg mirror.
+  Invoked by /mdd-render and the cycle close.
+end note
+@enduml

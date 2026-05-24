@@ -1,0 +1,50 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-AGENT-PREPARE)
+' @desc(CMP-AGENT-PREPARE, "The `mdd agent` subcommand in crates/mdd-cli/src/main.rs: the Commands::Agent { kind: String } variant and its match arm. The arm discovers the Project, maps the kind string through AgentKind::parse, and delegates to mdd_agent::prepare_agent — a thin presentation layer over the crate, mirroring Commands::Validate / Commands::Context. mdd-agent is now a declared mdd-cli dependency (crates/mdd-cli/Cargo.toml), so the crate that was an uncalled orphan now has a real consumer and a current-side mapping.")
+title MDD agent prepare CLI — ownership (current)
+
+actor "Developer / Agent" as Dev <<added>>
+
+component "mdd agent --kind\n(CMP-AGENT-PREPARE)\nmdd-cli/src/main.rs" as Cli
+component "prepare_agent / AgentKind\n(mdd-agent crate)" as Agent
+component "AgentPreparationReport\n{instruction_file, hooks_run}" as Report
+
+Dev --> Cli : mdd agent --kind <agent>
+Cli --> Agent : prepare_agent(&project, kind)
+Agent --> Report : instruction_file + hooks_run
+Cli --> Report : read for stdout
+
+note bottom of Cli
+  Thin presentation layer like Commands::Validate. mdd-agent
+  is now a declared mdd-cli dependency; behaviour stays in
+  the crate. No new engine.
+end note
+@enduml

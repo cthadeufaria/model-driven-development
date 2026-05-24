@@ -170,6 +170,46 @@ fn init_force_does_not_overwrite_state_files() {
 }
 
 #[test]
+fn agent_prepare_writes_instruction_file() {
+    let dir = tempdir().unwrap();
+    init(dir.path());
+
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("agent")
+        .arg("--kind")
+        .arg("claude")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("wrote .mdd/docs/claude-mdd.md"));
+
+    let doc = dir.path().join(".mdd/docs/claude-mdd.md");
+    assert!(doc.is_file());
+    assert!(
+        fs::read_to_string(&doc)
+            .unwrap()
+            .contains("Model-Driven Development Instructions for Claude")
+    );
+}
+
+#[test]
+fn agent_prepare_rejects_unknown_kind() {
+    let dir = tempdir().unwrap();
+    init(dir.path());
+
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("agent")
+        .arg("--kind")
+        .arg("bogus")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown agent `bogus`"));
+}
+
+#[test]
 fn clean_strips_block_but_keeps_user_content() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("CLAUDE.md"), "my own notes\n").unwrap();

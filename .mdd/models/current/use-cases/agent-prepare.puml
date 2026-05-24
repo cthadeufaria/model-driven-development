@@ -1,0 +1,25 @@
+@startuml
+' @id(USE-AGENT-PREPARE)
+' @desc(USE-AGENT-PREPARE, "`mdd agent --kind <cursor|codex|claude|generic>` prepares a coding agent's MDD working context from the CLI. The Commands::Agent { kind } arm in crates/mdd-cli/src/main.rs discovers the Project, maps the kind through AgentKind::parse, and calls mdd_agent::prepare_agent(&project, kind), which writes .mdd/docs/<agent>-mdd.md and runs any executable .mdd/hooks/pre-code* hooks in sorted order (fail-fast). The CLI prints the instruction file written and the hooks run. This gives the previously-orphan mdd-agent crate a real caller. Realized by SEQ-AGENT-PREPARE; owned by CMP-AGENT-PREPARE over DOM-AGENT-PREP.")
+' Current use case (cycle 0020): mdd-agent::prepare_agent now has a
+' CLI entry point; the crate is wired into mdd-cli and no longer an
+' uncalled, unmapped workspace member.
+title MDD agent prepare CLI — wired mdd-agent (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Prepare an agent's MDD context\n(mdd agent --kind <agent>)" as AgentPrepare
+}
+
+Dev --> AgentPrepare
+
+note bottom of AgentPrepare
+  Current (USE-AGENT-PREPARE): Commands::Agent { kind } ->
+  mdd_agent::prepare_agent(). Writes .mdd/docs/<agent>-mdd.md
+  and runs .mdd/hooks/pre-code* in order. Local dev tooling;
+  fixed command, kind is an enum — no auth/crypto surface.
+end note
+@enduml

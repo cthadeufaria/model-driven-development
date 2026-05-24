@@ -1,0 +1,27 @@
+@startuml
+' @id(CMP-VALIDATE-CLI)
+' @desc(CMP-VALIDATE-CLI, "The `mdd validate` subcommand in crates/mdd-cli/src/main.rs: the Commands::Validate { json: bool } variant and its match arm. The arm discovers the Project, calls Project::validate() (the deterministic engine in mdd-core — not reimplemented), and renders the ValidationReport: --json prints a slim json!({ok, errors, warnings}) via serde_json (registry excluded), text mode prints lines + a PASSED/FAILED summary, and it exits non-zero on !ok. A thin presentation layer over mdd-core, mirroring Commands::Review / Commands::MapStatus / Commands::Context; serde_json is a new mdd-cli dependency. It does not call review.")
+' Current ownership (cycle 0015). Verdict logic stays in mdd-core
+' (Project::validate, tested); the CLI adds only an entry point and
+' output formatting. No new engine, no review coupling.
+title MDD validate CLI — ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd validate [--json]\n(CMP-VALIDATE-CLI)\nmdd-cli/src/main.rs" as Cli
+component "Project::validate()\nstructural engine\n(mdd-core)" as Engine
+component "ValidationReport\n{ok, errors, warnings}" as Report
+component "slim JSON view\n(serde_json)" as Json
+
+Dev --> Cli : mdd validate [--json]
+Cli --> Engine : validate()
+Engine --> Report : ok / errors / warnings
+Cli --> Report : read for text output
+Cli --> Json : --json -> {ok, errors, warnings}
+
+note bottom of Cli
+  Thin presentation layer, like Commands::Review and
+  Commands::Context. Exit 1 on !report.ok; warnings
+  printed but never block. Independent of `mdd review`.
+end note
+@enduml

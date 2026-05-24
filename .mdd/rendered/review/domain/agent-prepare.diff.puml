@@ -1,0 +1,58 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(DOM-AGENT-PREP)
+' @desc(DOM-AGENT-PREP, "The mdd-agent crate's domain: AgentKind (Cursor | Codex | Claude | Generic) with parse() from a string and per-kind file_stem/label; prepare_agent(project, kind) producing an AgentPreparationReport { instruction_file: String, hooks_run: Vec<String> }. write_agent_instructions writes .mdd/docs/<stem>-mdd.md; run_pre_code_hooks discovers and runs .mdd/hooks/pre-code* in sorted order. These types existed in crates/mdd-agent/src/lib.rs but were unmapped and uncalled; this cycle maps them and gives them a CLI caller (CMP-AGENT-PREPARE).")
+title MDD agent preparation — domain (objective)
+
+class AgentKind <<enum>> <<missing>> {
+  Cursor
+  Codex
+  Claude
+  Generic
+  +parse(value): AgentKind
+}
+
+class AgentPreparationReport {
+  +instruction_file: String
+  +hooks_run: Vec<String>
+}
+
+AgentKind --> AgentPreparationReport : prepare_agent() produces
+
+note bottom of AgentPreparationReport
+  prepare_agent writes .mdd/docs/<agent>-mdd.md and runs
+  .mdd/hooks/pre-code* (sorted, fail-fast). Reported back to
+  the CLI for stdout.
+end note
+@enduml

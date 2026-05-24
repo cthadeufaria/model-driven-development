@@ -1,0 +1,62 @@
+@startuml
+' @id(CMP-VIEWER-SHELL)
+' @ref(USE-VIEW-DIAGRAMS)
+' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer as built by MddViewer::update: collapsible left/right SidePanels, a toolbar with no zoom buttons, the center-fixed fisheye canvas stage that warps the rendered texture before painting, and a per-frame theming step that delegates to CMP-VIEWER-THEME (theme.rs).")
+' @id(CMP-MOCKUP-LAUNCH)
+' @ref(USE-OPEN-RENDER)
+' @desc(CMP-MOCKUP-LAUNCH, "As built (crates/mdd-viewer/src/lib.rs): the launch helpers behind the view-tab 'Open render' button. selected_render_slug() gates the button; open_mockup_render(root, slug) spawns a thread that calls mockup_server_up() to probe localhost:4317, spawns npm run dev with cwd <root>/mockups only if the port is not serving (polling until it binds), then open_in_browser opens the OS default browser at /mockup/<slug>. No npm install, no child-process shutdown tracking.")
+' Current-side component view derived from MddViewer::update in
+' crates/mdd-viewer/src/lib.rs. Chrome theming is owned by
+' CMP-VIEWER-THEME (theme.rs).
+title mdd-viewer UI shell — ownership (current)
+
+actor "Developer" as Dev
+
+component "MddViewer\n(eframe::App)\nupdate()" as Viewer
+component "SidePanel left\n\"rail\" / sliver" as Left
+component "SidePanel right\n\"context\" / sliver" as Right
+component "svg_toolbar\n(PAGE selector + hint;\nno Reset/Zoom+/Zoom-)" as Toolbar
+component "Fisheye canvas stage\nCanvasView::fisheye_mesh" as Fisheye
+component "PanelLayout" as PL
+component "CanvasView" as CV
+component "eframe / egui 0.30\npainter.add(Shape::mesh)" as Egui
+component "Theme module\n(theme.rs,\nCMP-VIEWER-THEME)" as Theme
+
+Dev --> Viewer : mdd view
+Viewer --> Theme : theme::register_fonts(&cc.egui_ctx) once\n+ theme::apply_theme(ctx) first per frame
+Theme --> Egui : FontDefinitions + Visuals + Style overrides
+Viewer --> Left : draw + collapse chevron / sliver
+Viewer --> Right : draw + collapse chevron / sliver
+Left --> PL : toggle_left()
+Right --> PL : toggle_right()
+Viewer --> Toolbar : draw (no zoom controls)
+Viewer --> Fisheye : warp rendered texture per frame
+Fisheye --> CV : focal=centre, strength, radius, warp()
+Viewer --> Egui : textured Mesh, clipped to canvas rect
+Egui --> Dev : centre-magnified diagram, collapsible panels
+
+note bottom of Fisheye
+  The fisheye is a display-time stage on top of the base
+  zoom/pan placement; it does not change the render/font
+  pipeline (CMP-VIEWER-RENDER-PIPELINE) — it only remaps
+  where the already-rasterized texture is painted.
+end note
+
+component "MockupLauncher\n(CMP-MOCKUP-LAUNCH)\nopen_mockup_render · mockup_server_up · open_in_browser" as Launch
+component "npm run dev\n(Vite dev server, :4317, cwd mockups/)" as Vite
+component "OS default browser\n(open / xdg-open / start)" as Browser
+
+Viewer --> Launch : open_mockup_render(root, slug)\non "Open render" click (UIC-OPEN-RENDER)
+Launch --> Vite : spawn in mockups/ only if :4317 not serving
+Launch --> Browser : open /mockup/<slug>
+
+note bottom of Launch
+  Code (CMP-MOCKUP-LAUNCH / USE-OPEN-RENDER): selected_render_slug()
+  enables the button only for a ModelKind::Mockup whose
+  mockups/src/mockups/<slug>.tsx exists. open_mockup_render runs
+  off the UI thread (std::thread): mockup_server_up() probes :4317,
+  spawns npm run dev (cwd <root>/mockups) if down and polls until it
+  binds, then open_in_browser opens /mockup/<slug>. Realized by
+  SEQ-OPEN-RENDER.
+end note
+@enduml

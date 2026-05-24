@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
+use mdd_agent::{AgentKind, prepare_agent};
 use mdd_core::{InitFileConflict, Project, RenderTree};
 use mdd_render::RenderSelection;
 use std::env;
@@ -79,6 +80,17 @@ enum Commands {
         /// Explicit source files or directories to render instead of
         /// the full set (directories are walked for *.puml / *.ocl).
         paths: Vec<PathBuf>,
+    },
+    /// Prepare a coding agent's MDD working context.
+    ///
+    /// Writes .mdd/docs/<agent>-mdd.md with the MDD ground rules for the
+    /// chosen agent and runs any executable .mdd/hooks/pre-code* hooks in
+    /// sorted order (failing fast on a non-zero hook). A thin CLI entry
+    /// point over mdd_agent::prepare_agent.
+    Agent {
+        /// Which agent to prepare for: cursor, codex, claude, or generic.
+        #[arg(long)]
+        kind: String,
     },
 }
 
@@ -268,6 +280,19 @@ fn main() -> Result<()> {
             }
             if !report.diagnostics.is_empty() {
                 std::process::exit(1);
+            }
+        }
+        Commands::Agent { kind } => {
+            let project = Project::discover(env::current_dir()?)?;
+            let agent_kind = AgentKind::parse(&kind)?;
+            let report = prepare_agent(&project, agent_kind)?;
+            println!("wrote {}", report.instruction_file);
+            if report.hooks_run.is_empty() {
+                println!("no pre-code hooks");
+            } else {
+                for hook in &report.hooks_run {
+                    println!("ran {hook}");
+                }
             }
         }
         Commands::Clean { force } => {

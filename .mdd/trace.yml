@@ -1,5 +1,24 @@
 version: 1
 links:
+  # cycle 0020 — wire mdd-agent into the CLI + map it; mockups in /mdd-map
+  - from: USE-AGENT-PREPARE
+    to: SEQ-AGENT-PREPARE
+    relation: realizes
+  - from: USE-AGENT-PREPARE
+    to: CMP-AGENT-PREPARE
+    relation: realized_by
+  - from: SEQ-AGENT-PREPARE
+    to: DOM-AGENT-PREP
+    relation: depends_on
+  - from: CMP-AGENT-PREPARE
+    to: DOM-AGENT-PREP
+    relation: depends_on
+  - from: USE-MAP-MOCKUPS
+    to: SEQ-MAP-MOCKUPS
+    relation: realizes
+  - from: USE-MAP-MOCKUPS
+    to: CMP-MAP-SKILL
+    relation: realized_by
   - from: USE-VIEW-DIAGRAMS
     to: SEQ-RENDER-DIAGRAM-PAGE
     relation: realizes
@@ -904,3 +923,25 @@ source_links:
   - model_id: CMP-INIT-ENGINE
     path: crates/mdd-core/src/lib.rs
     symbol: InitReport
+  # cycle 0020 — agent CLI wiring + mockups in /mdd-map
+  - model_id: USE-AGENT-PREPARE
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Agent
+  - model_id: CMP-AGENT-PREPARE
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Agent
+  - model_id: SEQ-AGENT-PREPARE
+    path: crates/mdd-agent/src/lib.rs
+    symbol: prepare_agent
+  - model_id: DOM-AGENT-PREP
+    path: crates/mdd-agent/src/lib.rs
+    symbol: AgentKind
+  - model_id: DOM-AGENT-PREP
+    path: crates/mdd-agent/src/lib.rs
+    symbol: AgentPreparationReport
+  - model_id: USE-MAP-MOCKUPS
+    path: .claude/skills/mdd-map/SKILL.md
+  - model_id: SEQ-MAP-MOCKUPS
+    path: .claude/skills/mdd-map/SKILL.md
+  - model_id: CMP-MAP-SKILL
+    path: .claude/skills/mdd-map/SKILL.md

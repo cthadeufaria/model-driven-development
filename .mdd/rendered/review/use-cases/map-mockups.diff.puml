@@ -1,0 +1,56 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(USE-MAP-MOCKUPS)
+' @desc(USE-MAP-MOCKUPS, "When /mdd-map runs at whole-repository scope it auto-includes mockup diagrams: for any UI app it finds in the repo (today the repo-root mockups/ React app) it authors a current-side Salt mockup under .mdd/models/current/mockups/<name>.puml carrying an MCK- id whose @ui-element UIC ids mirror the app's data-testids, so the current map is complete across all diagram kinds rather than the five UML kinds only. At feature/module scope mockups stay opt-in (produced only when asked or warranted), matching how sequences/domain/components behave. Realized by SEQ-MAP-MOCKUPS; owned by CMP-MAP-SKILL.")
+title MDD map — auto-include mockups for whole-repo scope (objective)
+
+left to right direction
+
+actor "Developer / Agent" as Dev <<missing>>
+
+rectangle "/mdd-map skill" {
+  usecase "Map the whole repository\n(all diagram kinds)" as MapWhole
+  usecase "Auto-include mockups\nfor any UI app found" as MapMockups
+}
+
+Dev --> MapWhole
+MapWhole ..> MapMockups : <<include>>
+
+note bottom of MapMockups
+  Objective (USE-MAP-MOCKUPS): whole-repo scope emits current-side
+  MCK- Salt mockups for discovered UI apps (e.g. mockups/), with
+  UIC ids mirroring data-testids. Feature/module scope keeps
+  mockups opt-in.
+end note
+@enduml

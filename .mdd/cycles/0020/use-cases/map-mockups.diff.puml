@@ -1,0 +1,54 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-MAP-MOCKUPS)
+' @desc(USE-MAP-MOCKUPS, "The /mdd-map skill (.claude/skills/mdd-map/SKILL.md, step 3a) now authors mockups: when run at whole-repository scope it auto-includes a current-side Salt mockup under .mdd/models/current/mockups/<name>.puml for every UI app it finds (today the repo-root mockups/ React app), with an MCK- id, a @ref to the use case it serves, and one @ui-element UIC id per data-testid so the contract mirrors the rendered UI. At feature/module scope mockups stay opt-in like the other non-use-case kinds. This makes a whole-repo map complete across all diagram kinds. Realized by SEQ-MAP-MOCKUPS; owned by CMP-MAP-SKILL.")
+' Current use case (cycle 0020): the map skill's workflow now has a
+' mockup step (3a); whole-repo scope emits mockups automatically.
+title MDD map — auto-include mockups for whole-repo scope (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev <<added>>
+
+rectangle "/mdd-map skill" {
+  usecase "Map the whole repository\n(all diagram kinds)" as MapWhole
+  usecase "Auto-include mockups\nfor any UI app found" as MapMockups
+}
+
+Dev --> MapWhole
+MapWhole ..> MapMockups : <<include>>
+
+note bottom of MapMockups
+  Current (USE-MAP-MOCKUPS): whole-repo scope emits current-side
+  MCK- Salt mockups for discovered UI apps (e.g. mockups/), with
+  UIC ids mirroring data-testids. Feature/module scope keeps
+  mockups opt-in.
+end note
+@enduml

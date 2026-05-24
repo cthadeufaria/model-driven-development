@@ -1,0 +1,54 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-AGENT-PREP)
+' @desc(DOM-AGENT-PREP, "The mdd-agent crate's domain (crates/mdd-agent/src/lib.rs): AgentKind (Cursor | Codex | Claude | Generic) with parse() from a string and per-kind file_stem/label; prepare_agent(project, kind) producing an AgentPreparationReport { instruction_file: String, hooks_run: Vec<String> }. write_agent_instructions writes .mdd/docs/<stem>-mdd.md; run_pre_code_hooks discovers and runs .mdd/hooks/pre-code* in sorted order (fail-fast). As of cycle 0020 these types are mapped and reachable through the CMP-AGENT-PREPARE CLI caller.")
+title MDD agent preparation — domain (current)
+
+class AgentKind <<enum>> <<added>> {
+  Cursor
+  Codex
+  Claude
+  Generic
+  +parse(value): AgentKind
+}
+
+class AgentPreparationReport {
+  +instruction_file: String
+  +hooks_run: Vec<String>
+}
+
+AgentKind --> AgentPreparationReport : prepare_agent() produces
+
+note bottom of AgentPreparationReport
+  prepare_agent writes .mdd/docs/<agent>-mdd.md and runs
+  .mdd/hooks/pre-code* (sorted, fail-fast). Reported back to
+  the CLI for stdout.
+end note
+@enduml

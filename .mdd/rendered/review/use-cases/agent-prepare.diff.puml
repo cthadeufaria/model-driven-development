@@ -1,0 +1,54 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(USE-AGENT-PREPARE)
+' @desc(USE-AGENT-PREPARE, "`mdd agent --kind <cursor|codex|claude|generic>` prepares a coding agent's MDD working context from the CLI. Until now mdd-agent::prepare_agent had no caller; this use case wires it behind a real subcommand. The arm discovers the Project and calls mdd_agent::prepare_agent(&project, kind), which writes .mdd/docs/<agent>-mdd.md instruction file and runs any executable .mdd/hooks/pre-code* hooks in sorted order, failing fast on a non-zero hook. It prints the instruction file written and the hooks run. Realized by SEQ-AGENT-PREPARE; owned by CMP-AGENT-PREPARE over DOM-AGENT-PREP.")
+title MDD agent prepare CLI — wire mdd-agent behind a subcommand (objective)
+
+left to right direction
+
+actor "Developer / Agent" as Dev <<missing>>
+
+rectangle "mdd toolchain" {
+  usecase "Prepare an agent's MDD context\n(mdd agent --kind <agent>)" as AgentPrepare
+}
+
+Dev --> AgentPrepare
+
+note bottom of AgentPrepare
+  Objective (USE-AGENT-PREPARE): Commands::Agent { kind } ->
+  mdd_agent::prepare_agent(). Writes .mdd/docs/<agent>-mdd.md
+  and runs .mdd/hooks/pre-code* in order. Local dev tooling;
+  no auth/crypto surface (fixed command, kind is an enum).
+end note
+@enduml

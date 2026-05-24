@@ -1,0 +1,44 @@
+@startuml
+' @id(CMP-VIEWER-THEME)
+' @ref(USE-VIEWER-THEMED)
+' @desc(CMP-VIEWER-THEME, "Implemented as crates/mdd-viewer/src/theme.rs, a 2-fn module: register_fonts(ctx: &egui::Context) and apply_theme(ctx: &egui::Context). It owns the bundled font assets under crates/mdd-viewer/assets/fonts/ (Inter-Regular.ttf, Inter-Medium.ttf, JetBrainsMono-Regular.ttf, plus their OFL licences) embedded via include_bytes!, and depends on the egui30-feature build of catppuccin-egui 5.7 and dark-light 2.0. It calls into egui::Context only; ModelRegistry, CycleRegistry, DiagramPage, SvgRasterizer, and DOM-FONT-DATABASE are intentionally not reached.")
+' Current-side component view for the Tier-1 theming module. The SVG
+' rasterizer (CMP-VIEWER-RENDER-PIPELINE) does not appear here because
+' theme.rs never touches it.
+title mdd-viewer theming module — ownership (current)
+
+actor "Developer" as Dev
+
+component "MddViewer\n(eframe::App,\ncrates/mdd-viewer/src/lib.rs)" as Viewer
+component "theme.rs\nregister_fonts + apply_theme" as Theme
+component "assets/fonts/\n(Inter-Regular.ttf,\n Inter-Medium.ttf,\n JetBrainsMono-Regular.ttf,\n include_bytes!)" as Assets
+package "External crates" {
+  component "catppuccin_egui 5.7\n(feature: egui30)" as Catppuccin
+  component "dark_light 2.0" as DarkLight
+}
+component "egui::Context" as Ctx
+
+Viewer --> Theme : register_fonts(&cc.egui_ctx) once\n+ apply_theme(ctx) each frame
+Theme --> Assets : include_bytes!
+Theme --> Ctx : ctx.set_fonts(FontDefinitions)
+Theme --> DarkLight : detect() each frame
+DarkLight --> Theme : Mode::{Light, Dark, Unspecified}
+Theme --> Catppuccin : set_theme(ctx, MOCHA | LATTE)
+Catppuccin --> Ctx : style.visuals = palette
+Theme --> Ctx : style_mut(): spacing + rounding overrides
+Ctx --> Dev : themed TopBottomPanel + SidePanels + canvas
+
+note bottom of Theme
+  Pure chrome boundary: theme.rs has no
+  use mdd_core::… imports, no PathBuf,
+  no SVG, no model state. Removing it
+  must not change any rendered diagram.
+end note
+
+note bottom of Assets
+  TTFs and OFL licences ship inside
+  the binary. Licences are also recorded
+  in this folder's .txt files so that
+  redistribution stays compliant.
+end note
+@enduml

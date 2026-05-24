@@ -1,0 +1,99 @@
+@startuml
+' @id(USE-DEPLOY-GUIDANCE)
+' @id(USE-DEPLOY-INSPECT)
+' @id(USE-DEPLOY-DIALECT)
+' @id(USE-DEPLOY-PURPOSE)
+' @id(USE-DEPLOY-ACCESS-CHECK)
+'
+' Current-side use cases for /mdd-deploy, derived from the implemented
+' code: templates::MDD_DEPLOY_SKILL (steps 1-11) + .mdd/docs/deploy-
+' profile.md, materialized into .claude/.codex/skills/mdd-deploy/SKILL.md
+' by `mdd init`. Standalone utility, a sibling of /mdd-render, NOT routed
+' into any gate.
+'
+' CHANGE (cycle 0016): the implemented skill is now ADAPTIVE — two new
+' operator-facing gates (deployment purpose, access-completeness) join the
+' dialect gate, and the landmine pause is generalized to any ungrounded
+' fact. Both new gates SURFACE options; they never bake in an answer.
+'
+' @desc(USE-DEPLOY-GUIDANCE, "Implemented in templates::MDD_DEPLOY_SKILL: /mdd-deploy produces a deployment diagram + secure-by-default generated IaC in the operator-CONFIRMED dialect + a STOP-gated runbook for azure-container-apps, pausing with a blocking clarification on ambiguity and on any GENERALIZED landmine — any choice whose correctness depends on a fact not grounded in the inputs it read (app-config, purpose, and access-path axes; steps 3/5/6) — surfacing the gap instead of jumping to a solution. Executes no deploy command.")
+' @desc(USE-DEPLOY-INSPECT, "Implemented: templates::MDD_RENDER_SKILL rasterizes .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive, non-gating.")
+' @desc(USE-DEPLOY-DIALECT, "Implemented in templates::MDD_DEPLOY_SKILL step 4 (+ deploy-profile.md): the dialect is exactly one of bicep or terraform per run; the skill resolves it and BLOCKS for explicit operator confirmation before writing ANY deploy artifact. No silent default; Terraform enforces the same invariants + secure-by-default posture as Bicep, differing only in structure.")
+' @desc(USE-DEPLOY-PURPOSE, "Implemented in templates::MDD_DEPLOY_SKILL step 5 (+ deploy-profile.md 'Deployment purpose — operator-confirmed'): before any purpose-driven default, the skill establishes dev/staging/prod and BLOCKS for explicit operator confirmation — no silent default, never assumes prod- or dev-grade. The confirmed purpose drives DB tier/redundancy, backup retention and the RECOMMENDED network/doorway posture; the skill surfaces the options for the operator to confirm and preserves secure-by-default. Constrained by OCL-DEPLOY-IAC-PURPOSE / -SURFACE-NOT-DECIDE.")
+' @desc(USE-DEPLOY-ACCESS-CHECK, "Implemented in templates::MDD_DEPLOY_SKILL step 6 (+ deploy-profile.md 'Access-completeness'): before writing artifacts, the skill accounts for who READS and who WRITES every secured store (Key Vault, DB, ACR, remote state), each with an identity and a network path the posture admits. A store read-but-never-written, or a writer with no admitted path, is SURFACED as a blocking question with the connectivity options framed by purpose; the operator chooses. Constrained by OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.")
+title /mdd-deploy deployment guidance — use cases (current)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
+  usecase "Choose & CONFIRM the IaC dialect\n(Bicep XOR Terraform) before any\nartifact is written — no silent default" as Dialect
+  usecase "Confirm the deployment PURPOSE\n(dev/staging/prod) before any\npurpose-driven default — no silent default" as Purpose
+  usecase "Account for who READS and WRITES\nevery secured store (identity + admitted\npath) before emitting — surface holes" as AccessCheck
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+}
+
+Op --> Guide
+Op --> Dialect
+Op --> Purpose
+Op --> AccessCheck
+Op --> Inspect
+
+Guide ..> Dialect : <<include>>
+Guide ..> Purpose : <<include>>
+Guide ..> AccessCheck : <<include>>
+Guide ..> Inspect : <<extend>>
+
+note bottom of Guide
+  Implemented in templates::MDD_DEPLOY_SKILL:
+  v1 supports only azure-container-apps. Reads MDD
+  models + the target repo read-only. PAUSES with a
+  BLOCKING clarification (step 3) on ambiguity OR a
+  GENERALIZED go-live landmine — any choice whose
+  correctness depends on a fact NOT grounded in the
+  inputs (app-config / purpose / access-path axes) —
+  surfacing the gap, never a buried runbook STOP note.
+  Writes diagram + runbook + SECURE-BY-DEFAULT IaC in
+  the confirmed dialect, then STOPS. Never runs
+  az/docker/terraform/brew.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Dialect
+  Implemented in templates::MDD_DEPLOY_SKILL step 4.
+  Mandatory <<include>>: guidance cannot proceed until
+  the dialect is explicitly confirmed. One per run
+  (Bicep XOR Terraform). FULL PARITY; no silent default.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Purpose
+  Implemented in templates::MDD_DEPLOY_SKILL step 5.
+  Mandatory <<include>>: no purpose-driven default is
+  generated until dev/staging/prod is confirmed. No
+  silent default; never assume prod- or dev-grade.
+  RECOMMENDS sizing/posture; operator confirms;
+  secure-by-default preserved. Constrained by
+  OCL-DEPLOY-IAC-PURPOSE / -SURFACE-NOT-DECIDE.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of AccessCheck
+  Implemented in templates::MDD_DEPLOY_SKILL step 6.
+  Mandatory <<include>>: before emitting, every secured
+  store must have a named READER and WRITER, each with
+  an admitted network path. A read-but-never-written
+  store, or a writer with no admitted path, is SURFACED
+  as a blocking question — not shipped. Constrained by
+  OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Inspect
+  Not a gate. /mdd-validate, /mdd-review and the
+  /mdd-cycle parity loop never read .mdd/deploy/.
+  Realized by SEQ-DEPLOY-INSPECT.
+end note
+@enduml
