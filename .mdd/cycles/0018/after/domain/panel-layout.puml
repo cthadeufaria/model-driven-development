@@ -1,0 +1,22 @@
+@startuml
+' @id(DOM-PANEL-LAYOUT)
+' @desc(DOM-PANEL-LAYOUT, "Code struct PanelLayout: whether the left MODELS rail and right MODEL CONTEXT panel are collapsed, plus the sliver width kept so a collapsed panel can be re-expanded.")
+' Current-side domain derived from `struct PanelLayout` in
+' crates/mdd-viewer/src/lib.rs.
+title Side-panel layout state (current)
+
+class PanelLayout {
+  + left_collapsed : bool
+  + right_collapsed : bool
+  + sliver_width : f32
+  + toggle_left() : void
+  + toggle_right() : void
+}
+
+note bottom of PanelLayout
+  Initialised with sliver_width = 18.0 (> 0). A collapsed
+  panel is rebuilt as a SidePanel.exact_width(sliver_width)
+  whose whole area is an expand button, so it can always
+  be brought back (OCL-PANEL-SLIVER-MIN).
+end note
+@enduml

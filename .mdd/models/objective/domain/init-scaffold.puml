@@ -1,0 +1,48 @@
+@startuml
+' @id(DOM-INIT-FILE-CLASS)
+' @desc(DOM-INIT-FILE-CLASS, "The two classes of file `mdd init` manages, which decide overwrite policy. Regenerable = derived purely from the tool's templates and safe to rewrite: the .mdd/docs/*.md, the workflow SKILL.md files, the CLAUDE.md/AGENTS.md managed blocks, and the SessionStart hook. AccumulatingState = the three files that carry user- and cycle-authored content that the tool can never regenerate: config.yml, trace.yml, approvals.yml. --force may overwrite Regenerable files; AccumulatingState is exempt and only ever created or forward-migrated (see DOM-STATE-MIGRATION). This is the conceptual line behind why write_text_if_missing(handler) governs one set and write_yaml_create_or_migrate governs the other.")
+' @id(DOM-STATE-MIGRATION)
+' @desc(DOM-STATE-MIGRATION, "Forward-only, content-preserving upgrade of one AccumulatingState file. schemaVersion is the version the running tool writes (today 1 for all three, taken from each struct's Default); onDiskVersion is the `version:` read from the existing file. migrate() fires only when onDiskVersion < schemaVersion: the file is deserialized into the current struct (fields added since the file was written fill from #[serde(default)]), `version` is set to schemaVersion, and it is re-serialized — so every prior link/approval/config value survives and only newly-added fields and the version number change. onDiskVersion = schemaVersion leaves the file untouched (idempotent); onDiskVersion > schemaVersion is never downgraded. No per-version migration code: a plain round-trip through the newer struct is the upgrade.")
+' Objective-side domain for cycle 0018: the file-class policy split and
+' the round-trip, forward-only state migration that realizes
+' 'updated for newer versions without being overwritten'.
+title MDD init — file classes + state migration (objective)
+
+enum InitFileClass {
+  Regenerable
+  AccumulatingState
+}
+
+class StateMigration {
+  + path : String
+  + schemaVersion : u32
+  + onDiskVersion : u32
+  + migrate() : Outcome
+}
+
+enum Outcome {
+  Created
+  Migrated
+  Skipped
+}
+
+StateMigration ..> InitFileClass : applies to AccumulatingState >
+StateMigration ..> Outcome : yields >
+
+note bottom of StateMigration
+  migrate() trigger:
+    onDiskVersion < schemaVersion -> Migrated
+      (parse into current struct, defaults fill
+       new fields, bump version, write back)
+    onDiskVersion = schemaVersion -> Skipped (untouched)
+    onDiskVersion > schemaVersion -> Skipped (no downgrade)
+  Preserves all prior content; no per-version code.
+end note
+
+note bottom of InitFileClass
+  Regenerable: docs, skills, CLAUDE.md/AGENTS.md
+  blocks, SessionStart hook -> --force overwrites.
+  AccumulatingState: config / trace / approvals
+  -> never overwritten; created or forward-migrated.
+end note
+@enduml

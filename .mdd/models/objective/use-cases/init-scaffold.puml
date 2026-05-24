@@ -1,0 +1,40 @@
+@startuml
+' @id(USE-INIT-FORCE)
+' @desc(USE-INIT-FORCE, "Re-run `mdd init --force` to overwrite every REGENERABLE scaffolding file in place without the per-file prompt: the .mdd/docs/*.md (workflow, uml-and-ocl, security-profile, deploy-profile), the workflow SKILL.md files under .claude/skills and .codex/skills, the CLAUDE.md/AGENTS.md managed blocks, and the SessionStart hook. The point is to upgrade an existing workspace to the current tool's templates in one shot. Without --force, `mdd init` keeps today's interactive per-file [o/S] conflict prompt (create when missing, prompt when present). The three accumulating STATE files (config.yml, trace.yml, approvals.yml) are NEVER overwritten by --force — they fall under USE-INIT-MIGRATE instead. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-CLI + CMP-INIT-ENGINE.")
+' @id(USE-INIT-MIGRATE)
+' @desc(USE-INIT-MIGRATE, "On every `mdd init` (with or without --force) upgrade the three accumulating state files (config.yml, trace.yml, approvals.yml) to the current schema version WITHOUT overwriting their content. If an on-disk file's `version` is older than the tool's current schema version it is migrated in place: parsed through the current struct (so fields added since the file was written fill from their defaults), `version` bumped to current, and written back — accumulated links, approvals, and config choices preserved. If the file is already at the current version it is left byte-for-byte untouched (idempotent; keeps curated trace.yml comments). A file whose version is NEWER than the running tool is never downgraded. This is what 'updated for newer versions without being overwritten' means. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-ENGINE.")
+' Objective use cases for cycle 0018: a one-shot template refresh
+' (--force) that deliberately exempts the three accumulating state
+' files, which are version-migrated forward instead of overwritten.
+title MDD init — force-overwrite scaffolding + forward-migrate state (objective)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd init" {
+  usecase "Overwrite all regenerable\nscaffolding (--force)\nno per-file prompt" as Force
+  usecase "Keep per-file [o/S]\nprompt (no flag)" as Prompt
+  usecase "Forward-migrate state files\nconfig / trace / approvals\n(never overwrite)" as Migrate
+}
+
+Dev --> Force
+Dev --> Prompt
+Dev --> Migrate
+
+Force ..> Prompt : <<extend>> (replaces prompt)
+
+note bottom of Force
+  USE-INIT-FORCE: --force overwrites docs, skills,
+  CLAUDE.md/AGENTS.md blocks, and the SessionStart hook
+  from current templates. The three state files are
+  EXEMPT — they are migrated, not overwritten.
+end note
+
+note bottom of Migrate
+  USE-INIT-MIGRATE: state files are upgraded only when
+  on-disk version < current schema version (round-trip,
+  content preserved); equal = untouched; newer = never
+  downgraded. Independent of --force.
+end note
+@enduml

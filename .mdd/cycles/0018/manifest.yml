@@ -1,0 +1,28 @@
+number: 0018
+slug: init-force-overwrite-state-migration
+entry: generate
+description: "mdd init must have the flag to overwrite all except trace, config and approvals. Those last three must be updated for newer versions without being overwritten."
+status: closed
+opened_at: "2026-05-24T15:03:50Z"
+closed_at: "2026-05-24T15:22:07Z"
+base_revision: "e0820b594de5c38ec748432a58f10dcf47b456f3"
+decisions:
+  flag: "--force overwrites all regenerable files (docs, skills, entrypoint blocks, hook) without prompting; no-flag init keeps today's per-file [o/S] prompt; the three state files are exempt from --force"
+  migration: "round-trip re-serialize, forward-only: a state file is migrated only when its on-disk version < current schema version (parse into current struct so fields added since fill from defaults, bump version, write back); equal version is left untouched (idempotent, preserves curated trace.yml comments); never downgrades a newer file"
+notes: "New current-side concept family (init-scaffold: 7 @ids across use-cases/sequences/domain/components) folded into the whole-map. Parity verified: mdd validate PASSED, mdd review PASSED (ID + security + traceability, base e0820b5). Reverse traceability shows only bucket-A glue warnings (the impl_state_file! macro + comments). Full workspace test suite green (87 core incl. 5 new migration tests, 22 CLI incl. 2 new --force tests). The conflict handler is never passed to the state-file path, so --force cannot reach config/trace/approvals."
+touched_files:
+  - .mdd/models/objective/use-cases/init-scaffold.puml
+  - .mdd/models/objective/sequences/init-scaffold.puml
+  - .mdd/models/objective/domain/init-scaffold.puml
+  - .mdd/models/objective/components/init-scaffold.puml
+  - .mdd/models/current/use-cases/init-scaffold.puml
+  - .mdd/models/current/sequences/init-scaffold.puml
+  - .mdd/models/current/domain/init-scaffold.puml
+  - .mdd/models/current/components/init-scaffold.puml
+  - .mdd/constraints/init-scaffold.ocl
+  - .mdd/trace.yml
+  - .mdd/tests/acceptance/use-init-force.feature
+  - .mdd/tests/acceptance/use-init-migrate.feature
+  - crates/mdd-core/src/lib.rs
+  - crates/mdd-cli/src/main.rs
+  - crates/mdd-cli/tests/cli.rs

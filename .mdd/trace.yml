@@ -391,6 +391,52 @@ links:
   - from: SEQ-VALIDATE-CLI
     to: CMP-VALIDATE-CLI
     relation: depends_on
+  # Cycle 0018 — init --force overwrite + forward state migration
+  - from: USE-INIT-FORCE
+    to: SEQ-INIT-SCAFFOLD
+    relation: realizes
+  - from: USE-INIT-MIGRATE
+    to: SEQ-INIT-SCAFFOLD
+    relation: realizes
+  - from: USE-INIT-FORCE
+    to: CMP-INIT-CLI
+    relation: realized_by
+  - from: USE-INIT-FORCE
+    to: CMP-INIT-ENGINE
+    relation: realized_by
+  - from: USE-INIT-MIGRATE
+    to: CMP-INIT-ENGINE
+    relation: realized_by
+  - from: SEQ-INIT-SCAFFOLD
+    to: DOM-INIT-FILE-CLASS
+    relation: depends_on
+  - from: SEQ-INIT-SCAFFOLD
+    to: DOM-STATE-MIGRATION
+    relation: depends_on
+  - from: CMP-INIT-CLI
+    to: CMP-INIT-ENGINE
+    relation: depends_on
+  - from: CMP-INIT-ENGINE
+    to: CMP-INIT-HOOK
+    relation: depends_on
+  - from: OCL-INIT-FORCE-SCOPE
+    to: DOM-INIT-FILE-CLASS
+    relation: constrains
+  - from: OCL-INIT-STATE-FORWARD-ONLY
+    to: DOM-STATE-MIGRATION
+    relation: constrains
+  - from: OCL-INIT-MIGRATE-PRESERVES
+    to: DOM-STATE-MIGRATION
+    relation: constrains
+  - from: USE-OPEN-RENDER
+    to: SEQ-OPEN-RENDER
+    relation: realizes
+  - from: USE-OPEN-RENDER
+    to: CMP-MOCKUP-LAUNCH
+    relation: realized_by
+  - from: SEQ-OPEN-RENDER
+    to: CMP-MOCKUP-LAUNCH
+    relation: depends_on
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -449,7 +495,20 @@ generated_tests:
   - id: AT-USE-VALIDATE-CLI
     path: .mdd/tests/acceptance/use-validate-cli.feature
     model_id: USE-VALIDATE-CLI
-generated_ui_tests: []
+  - id: AT-USE-INIT-FORCE
+    path: .mdd/tests/acceptance/use-init-force.feature
+    model_id: USE-INIT-FORCE
+  - id: AT-USE-INIT-MIGRATE
+    path: .mdd/tests/acceptance/use-init-migrate.feature
+    model_id: USE-INIT-MIGRATE
+  - id: AT-USE-OPEN-RENDER
+    path: .mdd/tests/acceptance/use-open-render.feature
+    model_id: USE-OPEN-RENDER
+generated_ui_tests:
+  - id: UIT-MCK-VIEWER-FULL
+    path: .mdd/tests/ui/viewer-full.spec.ts
+    model_id: MCK-VIEWER-FULL
+    framework: playwright
 source_links:
   - model_id: CMP-VIEWER-SCAN-SCOPE
     path: crates/mdd-viewer/src/lib.rs
@@ -672,6 +731,25 @@ source_links:
   - model_id: DOM-PUML-SOURCE-VIEW
     path: crates/mdd-viewer/src/lib.rs
     symbol: SourceView
+  # Cycle 0019 — viewer "Open render" button (USE-OPEN-RENDER)
+  - model_id: USE-OPEN-RENDER
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::update
+  - model_id: USE-OPEN-RENDER
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: MddViewer::selected_render_slug
+  - model_id: SEQ-OPEN-RENDER
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: open_mockup_render
+  - model_id: CMP-MOCKUP-LAUNCH
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: open_mockup_render
+  - model_id: CMP-MOCKUP-LAUNCH
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: mockup_server_up
+  - model_id: CMP-MOCKUP-LAUNCH
+    path: crates/mdd-viewer/src/lib.rs
+    symbol: open_in_browser
   # Cycle 0013 — traceability + freshness engine
   - model_id: CMP-TRACE-ENGINE
     path: crates/mdd-core/src/traceability.rs
@@ -792,3 +870,37 @@ source_links:
   - model_id: SEQ-VALIDATE-CLI
     path: crates/mdd-core/src/lib.rs
     symbol: Project::validate
+  # Cycle 0018 — init --force + forward state migration (source links added by /mdd-map)
+  - model_id: USE-INIT-FORCE
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Init
+  - model_id: USE-INIT-MIGRATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_yaml_create_or_migrate
+  - model_id: SEQ-INIT-SCAFFOLD
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::init_with_conflict_handler
+  - model_id: DOM-INIT-FILE-CLASS
+    path: crates/mdd-core/src/lib.rs
+    symbol: StateFile
+  - model_id: DOM-STATE-MIGRATION
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_yaml_create_or_migrate
+  - model_id: DOM-STATE-MIGRATION
+    path: crates/mdd-core/src/lib.rs
+    symbol: read_yaml_version
+  - model_id: CMP-INIT-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Init
+  - model_id: CMP-INIT-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: main
+  - model_id: CMP-INIT-ENGINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::init_with_conflict_handler
+  - model_id: CMP-INIT-ENGINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_yaml_create_or_migrate
+  - model_id: CMP-INIT-ENGINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: InitReport

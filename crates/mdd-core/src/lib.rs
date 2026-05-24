@@ -92,6 +92,11 @@ pub struct InitReport {
     pub root: PathBuf,
     pub created: Vec<String>,
     pub overwritten: Vec<String>,
+    /// Accumulating state files (config/trace/approvals) upgraded in place
+    /// from an older schema version, preserving their content. Distinct
+    /// from `overwritten`: a migration round-trips the existing file rather
+    /// than replacing it with a template (USE-INIT-MIGRATE).
+    pub migrated: Vec<String>,
     pub skipped: Vec<String>,
 }
 
@@ -209,6 +214,45 @@ pub struct Approvals {
 pub struct ApprovedFile {
     pub path: String,
     pub sha256: String,
+}
+
+/// A YAML state file that `mdd init` accumulates rather than regenerates
+/// (config, trace, approvals — the `AccumulatingState` of DOM-INIT-FILE-CLASS).
+/// Each carries a `version` it can report and stamp, so init can
+/// forward-migrate an older on-disk file in place rather than overwrite it
+/// (DOM-STATE-MIGRATION). `schema_version` is read from the type's `Default`
+/// — the single source of truth for the version the running tool writes.
+trait StateFile: Serialize + serde::de::DeserializeOwned + Default {
+    fn schema_version() -> u32;
+    fn set_schema_version(&mut self, version: u32);
+}
+
+macro_rules! impl_state_file {
+    ($t:ty) => {
+        impl StateFile for $t {
+            fn schema_version() -> u32 {
+                Self::default().version
+            }
+            fn set_schema_version(&mut self, version: u32) {
+                self.version = version;
+            }
+        }
+    };
+}
+
+impl_state_file!(MddConfig);
+impl_state_file!(Trace);
+impl_state_file!(Approvals);
+
+/// The `version:` field of a YAML state file, or 0 when absent or
+/// unparseable — so a version-less file sorts older than any real schema
+/// version and is offered to the (parse-guarded) migration path.
+fn read_yaml_version(raw: &str) -> u32 {
+    serde_yaml::from_str::<serde_yaml::Value>(raw)
+        .ok()
+        .and_then(|v| v.get("version").and_then(serde_yaml::Value::as_u64))
+        .map(|n| n as u32)
+        .unwrap_or(0)
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
@@ -483,6 +527,7 @@ impl Project {
     {
         let mut created = Vec::new();
         let mut overwritten = Vec::new();
+        let mut migrated = Vec::new();
         let mut skipped = Vec::new();
         let dirs = [
             ".mdd/models/current/use-cases",
@@ -515,16 +560,28 @@ impl Project {
         }
 
         // Authoritative, accumulating state (trace links, parity config,
-        // approval hashes) is created only when missing — init must never
-        // offer to overwrite it with empty defaults. (Regenerable docs and
-        // skills below keep the prompt-on-conflict path so upgrades can
-        // refresh them.)
-        self.write_yaml_create_only(CONFIG_FILE, &MddConfig::default(), &mut created, &mut skipped)?;
-        self.write_yaml_create_only(TRACE_FILE, &Trace::default(), &mut created, &mut skipped)?;
-        self.write_yaml_create_only(
-            APPROVALS_FILE,
-            &Approvals::default(),
+        // approval hashes) is never overwritten with empty defaults. It is
+        // created when missing, else forward-migrated to the current schema
+        // version in place — preserving its content (USE-INIT-MIGRATE). The
+        // conflict handler is deliberately not consulted here, so `--force`
+        // cannot reach these three files. (Regenerable docs and skills below
+        // keep the prompt-on-conflict path so upgrades can refresh them.)
+        self.write_yaml_create_or_migrate::<MddConfig>(
+            CONFIG_FILE,
             &mut created,
+            &mut migrated,
+            &mut skipped,
+        )?;
+        self.write_yaml_create_or_migrate::<Trace>(
+            TRACE_FILE,
+            &mut created,
+            &mut migrated,
+            &mut skipped,
+        )?;
+        self.write_yaml_create_or_migrate::<Approvals>(
+            APPROVALS_FILE,
+            &mut created,
+            &mut migrated,
             &mut skipped,
         )?;
         self.write_text_if_missing(
@@ -599,6 +656,7 @@ impl Project {
             root: self.root.clone(),
             created,
             overwritten,
+            migrated,
             skipped,
         })
     }
@@ -2399,27 +2457,58 @@ impl Project {
     /// file is left untouched and recorded as skipped — never overwritten.
     /// Used for authoritative, accumulating state (`trace.yml`, `config.yml`,
     /// `approvals.yml`) so a re-`init` can never destroy it.
-    fn write_yaml_create_only<T: Serialize>(
+    /// Write an accumulating state file (config/trace/approvals): create it
+    /// from `T::default()` when missing, else forward-migrate it in place to
+    /// the current schema version. Migration fires only when the on-disk
+    /// `version` is strictly older than `T::schema_version()` — the file is
+    /// parsed through the current struct (so fields added since it was
+    /// written fill from their defaults), the version is bumped, and it is
+    /// re-serialized, preserving all prior content. An equal-or-newer version
+    /// is left byte-for-byte untouched (idempotent; never downgrades; keeps
+    /// curated comments). A file that fails to parse is left untouched rather
+    /// than clobbered. This path never consults the init conflict handler, so
+    /// `--force` can never overwrite these three files (OCL-INIT-FORCE-SCOPE,
+    /// OCL-INIT-STATE-FORWARD-ONLY).
+    fn write_yaml_create_or_migrate<T: StateFile>(
         &self,
         relative: &str,
-        value: &T,
         created: &mut Vec<String>,
+        migrated: &mut Vec<String>,
         skipped: &mut Vec<String>,
     ) -> Result<()> {
         let path = self.root.join(relative);
-        if path.exists() {
+        if !path.exists() {
+            let content = serde_yaml::to_string(&T::default())
+                .with_context(|| format!("failed to serialize {relative}"))?;
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
+            fs::write(&path, content)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+            created.push(relative.to_string());
+            return Ok(());
+        }
+
+        let raw = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let current = T::schema_version();
+        // Equal or newer on disk -> never rewrite (idempotent; no downgrade).
+        if read_yaml_version(&raw) >= current {
             skipped.push(relative.to_string());
             return Ok(());
         }
-        let content = serde_yaml::to_string(value)
+        let Ok(mut value) = serde_yaml::from_str::<T>(&raw) else {
+            // Malformed older file: preserve it untouched rather than lose state.
+            skipped.push(relative.to_string());
+            return Ok(());
+        };
+        value.set_schema_version(current);
+        let content = serde_yaml::to_string(&value)
             .with_context(|| format!("failed to serialize {relative}"))?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
         fs::write(&path, content)
             .with_context(|| format!("failed to write {}", path.display()))?;
-        created.push(relative.to_string());
+        migrated.push(relative.to_string());
         Ok(())
     }
 
@@ -3981,6 +4070,103 @@ mod tests {
         assert!(report.skipped.contains(&".mdd/trace.yml".to_string()));
         assert!(!report.overwritten.contains(&".mdd/trace.yml".to_string()));
         assert_eq!(fs::read_to_string(&trace).unwrap(), populated);
+    }
+
+    #[test]
+    fn init_migrates_older_state_file_forward() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".mdd")).unwrap();
+        // An older config: version 0, with no security/traceability blocks.
+        let old = "version: 0\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\n";
+        let cfg_path = dir.path().join(".mdd/config.yml");
+        fs::write(&cfg_path, old).unwrap();
+
+        let project = Project::at(dir.path());
+        let report = project.init().unwrap();
+
+        assert!(report.migrated.contains(&".mdd/config.yml".to_string()));
+        assert!(!report.overwritten.contains(&".mdd/config.yml".to_string()));
+        let cfg = project.read_config().unwrap();
+        assert_eq!(cfg.version, 1, "version bumped to current schema");
+        let raw = fs::read_to_string(&cfg_path).unwrap();
+        assert!(raw.contains("model_source: plantuml"), "prior content preserved");
+        assert!(
+            raw.contains("parity_check"),
+            "fields added since the file was written are materialized from defaults"
+        );
+    }
+
+    #[test]
+    fn init_migration_preserves_accumulated_trace_content() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".mdd")).unwrap();
+        let old = "version: 0\nlinks:\n  - from: USE-X\n    to: SEQ-X\n    relation: realizes\nsource_links:\n  - model_id: DOM-X\n    path: src/x.rs\n";
+        fs::write(dir.path().join(".mdd/trace.yml"), old).unwrap();
+
+        let project = Project::at(dir.path());
+        let report = project.init().unwrap();
+
+        assert!(report.migrated.contains(&".mdd/trace.yml".to_string()));
+        let trace = project.read_trace().unwrap();
+        assert_eq!(trace.version, 1);
+        assert_eq!(trace.links.len(), 1);
+        assert_eq!(trace.links[0].from, "USE-X");
+        assert_eq!(trace.source_links.len(), 1);
+        assert_eq!(trace.source_links[0].model_id, "DOM-X");
+    }
+
+    #[test]
+    fn init_leaves_current_version_state_untouched_and_idempotent() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap(); // creates state files at the current version
+        let cfg_path = dir.path().join(".mdd/config.yml");
+        let before = fs::read_to_string(&cfg_path).unwrap();
+
+        let report = project.init().unwrap(); // second run
+        let after = fs::read_to_string(&cfg_path).unwrap();
+
+        assert_eq!(before, after, "current-version file is not rewritten");
+        assert!(report.migrated.is_empty());
+        assert!(report.skipped.contains(&".mdd/config.yml".to_string()));
+    }
+
+    #[test]
+    fn init_never_downgrades_newer_state_file() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".mdd")).unwrap();
+        // A file written by a tool newer than us (version far ahead).
+        let newer = "version: 999\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\n";
+        let cfg_path = dir.path().join(".mdd/config.yml");
+        fs::write(&cfg_path, newer).unwrap();
+
+        let project = Project::at(dir.path());
+        let report = project.init().unwrap();
+
+        assert_eq!(fs::read_to_string(&cfg_path).unwrap(), newer, "left untouched");
+        assert!(!report.migrated.contains(&".mdd/config.yml".to_string()));
+        assert!(report.skipped.contains(&".mdd/config.yml".to_string()));
+    }
+
+    #[test]
+    fn force_overwrite_handler_never_reaches_state_files() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+        // Distinctive accumulated content at the current version.
+        let trace_path = dir.path().join(".mdd/trace.yml");
+        let kept = "version: 1\nlinks:\n  - from: USE-KEEP\n    to: SEQ-KEEP\n    relation: realizes\ngenerated_tests: []\ngenerated_ui_tests: []\nsource_links: []\n";
+        fs::write(&trace_path, kept).unwrap();
+
+        // The --force path supplies an always-Overwrite handler.
+        let report = project
+            .init_with_conflict_handler(|_| Ok(InitFileConflict::Overwrite))
+            .unwrap();
+
+        let trace = project.read_trace().unwrap();
+        assert_eq!(trace.links.len(), 1, "state file not clobbered to default");
+        assert_eq!(trace.links[0].from, "USE-KEEP");
+        assert!(!report.overwritten.contains(&".mdd/trace.yml".to_string()));
     }
 
     #[test]

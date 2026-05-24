@@ -1,0 +1,30 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-INIT-CLI)    <<added>> this cycle (0018)
+' @id(CMP-INIT-ENGINE) <<added>> this cycle (0018)
+' Cycle 0018 diff (current side): new components — the --force CLI flag and
+' the create-or-migrate engine path over the existing init machinery.
+title MDD init — ownership · cycle 0018 diff (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd init [--force]\n(CMP-INIT-CLI)\nmdd-cli/src/main.rs" as Cli <<added>>
+component "Project::init_with_conflict_handler\n(CMP-INIT-ENGINE)\nmdd-core/src/lib.rs" as Engine <<added>>
+component "write_text_if_missing\n(regenerable: docs, skills, blocks)" as Text <<added>>
+component "write_yaml_create_or_migrate\n(state: config/trace/approvals)" as Yaml <<added>>
+component "SessionStart hook merge\n(CMP-INIT-HOOK)" as Hook
+
+Dev --> Cli : mdd init [--force]
+Cli --> Engine : init_with_conflict_handler(handler)
+Cli --> Cli : handler = force ? always Overwrite : prompt
+Engine --> Text : regenerable files (handler decides overwrite/skip)
+Engine --> Yaml : state files (create or forward-migrate)
+Engine --> Hook : upsert SessionStart hook (idempotent)
+@enduml

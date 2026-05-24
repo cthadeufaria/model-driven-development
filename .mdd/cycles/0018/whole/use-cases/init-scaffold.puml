@@ -1,0 +1,40 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(USE-INIT-FORCE, 0018)
+' @cycle(USE-INIT-MIGRATE, 0018)
+' @id(USE-INIT-FORCE)
+' @desc(USE-INIT-FORCE, "Implemented: `mdd init --force` (Commands::Init { force } in crates/mdd-cli/src/main.rs) supplies an always-Overwrite conflict handler to Project::init_with_conflict_handler, so every REGENERABLE scaffolding file — the .mdd/docs/*.md, the workflow SKILL.md files under .claude/skills and .codex/skills, the CLAUDE.md/AGENTS.md managed blocks, and the SessionStart hook — is overwritten from the current templates with no per-file prompt. Without --force the command passes prompt_init_conflict, keeping today's per-file [o/S] prompt. The three accumulating STATE files are routed through write_yaml_create_or_migrate, which never consults the handler, so --force cannot overwrite config/trace/approvals. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-CLI + CMP-INIT-ENGINE.")
+' @id(USE-INIT-MIGRATE)
+' @desc(USE-INIT-MIGRATE, "Implemented: on every `mdd init` the three state files are written through Project::write_yaml_create_or_migrate (crates/mdd-core/src/lib.rs). When the on-disk `version` is older than the tool's current schema version (StateFile::schema_version, read from each struct's Default) the file is parsed through the current struct so fields added since fill from #[serde(default)], its version is bumped, and it is re-serialized — accumulated links, approvals, and config preserved. Equal version leaves the file byte-for-byte untouched (idempotent); a newer version is never downgraded. A migrated file is reported on a `migrated` line, distinct from `overwrote`. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-ENGINE.")
+' Current-side use cases for cycle 0018, mapped from the implemented
+' `mdd init --force` flag and the forward-only state migration.
+title MDD init — force-overwrite scaffolding + forward-migrate state (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd init" {
+  usecase "Overwrite all regenerable\nscaffolding (--force)\nno per-file prompt" as Force
+  usecase "Keep per-file [o/S]\nprompt (no flag)" as Prompt
+  usecase "Forward-migrate state files\nconfig / trace / approvals\n(never overwrite)" as Migrate
+}
+
+Dev --> Force
+Dev --> Prompt
+Dev --> Migrate
+
+Force ..> Prompt : <<extend>> (replaces prompt)
+
+note bottom of Force
+  USE-INIT-FORCE: --force = always-Overwrite handler
+  over the regenerable files. The three state files
+  bypass the handler and are migrated, not overwritten.
+end note
+
+note bottom of Migrate
+  USE-INIT-MIGRATE: write_yaml_create_or_migrate upgrades
+  a state file only when on-disk version < current;
+  equal = untouched; newer = never downgraded.
+end note
+@enduml

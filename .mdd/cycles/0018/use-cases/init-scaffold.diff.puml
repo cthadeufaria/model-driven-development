@@ -1,0 +1,30 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-INIT-FORCE)   <<added>> this cycle (0018)
+' @id(USE-INIT-MIGRATE) <<added>> this cycle (0018)
+' Cycle 0018 diff (current side): new concept file — `mdd init` gains a
+' --force overwrite use case and a forward-migrate-state use case.
+title MDD init — force-overwrite + forward-migrate state · cycle 0018 diff (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd init" {
+  usecase "Overwrite all regenerable\nscaffolding (--force)\nno per-file prompt" as Force <<added>>
+  usecase "Keep per-file [o/S]\nprompt (no flag)" as Prompt <<added>>
+  usecase "Forward-migrate state files\nconfig / trace / approvals\n(never overwrite)" as Migrate <<added>>
+}
+
+Dev --> Force
+Dev --> Prompt
+Dev --> Migrate
+Force ..> Prompt : <<extend>> (replaces prompt)
+@enduml

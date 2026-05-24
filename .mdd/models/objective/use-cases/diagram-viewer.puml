@@ -13,6 +13,8 @@
 ' @desc(USE-VIEWER-THEMED, "Developer sees the mdd-viewer chrome dressed by a Catppuccin palette (Mocha when the OS is dark, Latte when light, picked once per frame from the OS appearance), bundled Inter for UI text and JetBrains Mono for code/diff lists, and softened item spacing + corner rounding — instead of the bare egui defaults. Cross-platform single binary; chrome only — the SVG canvas rasterizer is untouched.")
 ' @id(USE-VIEW-PUML-SOURCE)
 ' @desc(USE-VIEW-PUML-SOURCE, "Developer reads the raw PlantUML text of the selected model file via a Source toggle placed next to the Diagram (and Diff) toggle in the central panel. Source replaces the rendered diagram with read-only, scrollable .puml text (@id/@ref/@desc/@sec markers and @startuml/@enduml directives highlighted); toggling back to Diagram repaints the SVG. Mirrors the OCL Source/Diagram functionality but for ordinary model diagrams — no new rendering, the source is read straight from disk.")
+' @id(USE-OPEN-RENDER)
+' @desc(USE-OPEN-RENDER, "Developer, with a mockup .puml selected whose slug has a React render, clicks an 'Open render' button on the central-panel view-tab row; the viewer starts the mockups Vite dev server (port 4317) if it is not already running and opens the OS browser at /mockup/<slug>. The button is disabled when the selection has no render.")
 ' Objective-side use-case view. Same text-legibility acceptance as before,
 ' plus the focus+context fisheye, the collapsible side panels, an
 ' OCL constraint viewer, a dedicated non-gated DEPLOY section, an
@@ -36,6 +38,7 @@ rectangle "mdd-viewer" {
   usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
   usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed
   usecase "View PlantUML source\n(Source toggle next to Diagram)" as ViewSource
+  usecase "Open React mockup render\n(button opens browser)" as OpenRender
 }
 
 Dev --> View
@@ -48,6 +51,7 @@ Dev --> ViewOcl
 Dev --> ViewDeploy
 Dev --> Themed
 Dev --> ViewSource
+Dev --> OpenRender
 
 View ..> Browse : <<include>>
 View ..> PanZoom : <<extend>>
@@ -57,6 +61,18 @@ View ..> Themed : <<include>>
 View ..> ViewSource : <<extend>>
 ViewOcl ..> PanZoom : <<extend>>
 ViewDeploy ..> PanZoom : <<extend>>
+OpenRender ..> Browse : <<include>>
+
+note bottom of OpenRender
+  Objective (USE-OPEN-RENDER): the central-panel view-tab row
+  shows an "Open render" button (UIC-OPEN-RENDER in
+  MCK-VIEWER-FULL). It is enabled only when the selected file
+  is a mockup whose slug has a React render
+  (mockups/src/mockups/<slug>.tsx). Click starts the Vite dev
+  server in mockups/ if :4317 is not already serving, then opens
+  the OS browser at /mockup/<slug>. Realized by SEQ-OPEN-RENDER;
+  launcher owned by CMP-MOCKUP-LAUNCH.
+end note
 
 note bottom of ViewOcl
   Objective (USE-VIEW-OCL): selecting a

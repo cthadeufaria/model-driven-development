@@ -1,0 +1,27 @@
+number: 0017
+slug: two-part-mockups-react
+entry: generate
+description: "adapt the mockup functionality of mdd to build both UI mockups: pair each implementation-ready Salt mockup with a high-fidelity React render under mockups/, bound by shared UIC- contract ids (rendered as data-testids) and a Playwright parity spec that validate rule 7 gates. First paired example = objective MCK-VIEWER-FULL (route + React render + parity spec), reconciling objective-side UIC ownership to mirror the current side."
+status: closed
+opened_at: "2026-05-24T10:17:37Z"
+closed_at: "2026-05-24T10:36:47Z"
+base_revision: "e0820b594de5c38ec748432a58f10dcf47b456f3"
+notes: "No current-side model changes (before/ == after/), so no <diagram>.diff.puml and no whole-map fold. The change is the objective side, the convention/skill, and the new repo-root mockups/ React app + Playwright parity spec. Parity verified: mdd validate PASSED, mdd review PASSED (ID + security + traceability), and the viewer-full Salt/React parity spec passes (17/17 UIC- data-testids)."
+touched_files:
+  - .mdd/models/objective/mockups/viewer-full.puml
+  - .mdd/models/objective/mockups/viewer-cycle-ui.puml
+  - .mdd/docs/uml-and-ocl-guide.md
+  - .claude/skills/mdd-generate/SKILL.md
+  - .codex/skills/mdd-generate/SKILL.md
+  - .mdd/trace.yml
+  - .mdd/tests/ui/viewer-full.spec.ts
+  - mockups/package.json
+  - mockups/index.html
+  - mockups/vite.config.ts
+  - mockups/tsconfig.json
+  - mockups/playwright.config.ts
+  - mockups/README.md
+  - mockups/.gitignore
+  - mockups/src/main.tsx
+  - mockups/src/styles.css
+  - mockups/src/mockups/viewer-full.tsx

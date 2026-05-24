@@ -1,0 +1,111 @@
+@startsalt
+' @id(MCK-VIEWER-FULL)
+' @ref(USE-VIEW-DIAGRAMS)
+' @ref(USE-FISHEYE-FOCUS)
+' @ref(USE-TOGGLE-PANELS)
+' @ref(USE-BROWSE-TREE)
+' @ref(USE-GROUP-BY-CYCLE)
+' @ref(USE-CYCLE-DIFF-VIEW)
+' @ref(USE-DIFF-DIAGRAM)
+' @ref(USE-ELEMENT-DESC)
+' @ref(USE-VIEW-OCL)
+' @ref(USE-VIEW-DEPLOY)
+' @ref(USE-VIEW-PUML-SOURCE)
+' @ref(USE-VIEWER-THEMED)
+' @ref(USE-OPEN-RENDER)
+' @ui-route(/mockup/viewer-full)
+' @ui-viewport(desktop,1280,800)
+'
+' Two-part mockup (objective). This is the abstract Salt contract; its
+' high-fidelity counterpart is the React render at
+' mockups/src/mockups/viewer-full.tsx, served at /mockup/viewer-full. Every
+' UIC- element below appears there as data-testid="UIC-..." and is asserted
+' by the Playwright parity spec .mdd/tests/ui/viewer-full.spec.ts
+' (UIT-MCK-VIEWER-FULL, linked under generated_ui_tests). The route addresses
+' the React render, not the native egui app, so this whole-window mockup is
+' implementation-ready even though the shipped viewer is route-less egui.
+' This file owns the whole-window UIC- contract; the slice mockups
+' (viewer-canvas, viewer-cycle-ui) stay layout-only references.
+'
+' @ui-element(UIC-MODELS-COLLAPSE, role=button, name="Collapse or expand the MODELS panel", required=true)
+' @ui-element(UIC-RAIL-MODE-DIRECTORY, role=button, name="Directory rail mode", required=true)
+' @ui-element(UIC-RAIL-MODE-BYCYCLE, role=button, name="By cycle rail mode", required=true)
+' @ui-element(UIC-MODEL-TREE, role=tree, name="Model file tree", required=true)
+' @ui-element(UIC-DEPLOY-SECTION, role=button, name="DEPLOY section, utility not parity-gated", required=false)
+' @ui-element(UIC-VIEW-TAB-DIAGRAM, role=button, name="Diagram view tab", required=true)
+' @ui-element(UIC-VIEW-TAB-SOURCE, role=button, name="Source view tab", required=true)
+' @ui-element(UIC-VIEW-TAB-DIFF, role=button, name="Diff view tab", required=true)
+' @ui-element(UIC-PAGE-SELECTOR, role=button, name="Diagram page selector", required=false)
+' @ui-element(UIC-OPEN-RENDER, role=button, name="Open the React render of the selected mockup in the browser", required=false)
+' @ui-element(UIC-DIAGRAM-CANVAS, role=img, name="Diagram canvas with center fisheye, scroll zoom and drag pan", required=true)
+' @ui-element(UIC-DIFF-CYCLE-PICKER, role=button, name="Diff cycle picker, only cycles that changed this file", required=false)
+' @ui-element(UIC-DIFF-VIEW-DIAGRAM, role=button, name="Diff Diagram sub-mode", required=false)
+' @ui-element(UIC-DIFF-VIEW-LIST, role=button, name="Diff List sub-mode", required=false)
+' @ui-element(UIC-OCL-VIEW-SOURCE, role=button, name="OCL Source sub-mode", required=false)
+' @ui-element(UIC-OCL-VIEW-DIAGRAM, role=button, name="OCL Diagram sub-mode", required=false)
+' @ui-element(UIC-CONTEXT-COLLAPSE, role=button, name="Collapse or expand the MODEL CONTEXT panel", required=true)
+' @ui-element(UIC-CONTEXT-ID-LIST, role=listbox, name="Model ID list", required=true)
+'
+' @desc(MCK-VIEWER-FULL, "Full-window UI contract for the mdd viewer (objective), paired with a React render at /mockup/viewer-full: top bar; left MODELS rail with Directory/By-cycle toggle, the model tree, and a non-parity-gated DEPLOY section; centre Diagram/Source/Diff tabs (Diagram = fisheye canvas + PAGE selector, Diff = cycle picker + Diagram/List, OCL = Source/Diagram); right MODEL CONTEXT with file, kind, the IDS list, DESCRIPTION, and TRACE. Both side panels collapse to a sliver. Every UIC- is a data-testid in the React render, asserted by the Playwright parity spec.")
+title mdd viewer — full window UI contract (objective)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "MODELS                           [<]"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        +++ domain
+        ++++ canvas-view.puml
+        +++ mockups
+        ++++ viewer-full.puml
+        +++ use-cases
+        ++ objective
+        + Cycle 0017 — slug (closed)
+        + Unassigned
+      }
+      --
+      {+ DEPLOY  ·  /mdd-deploy utility, not parity-gated
+        {T
+          + .mdd/deploy
+          ++ container-app.puml
+        }
+      }
+    } |
+    {
+      [*Diagram] | [Source] | [Diff] | [Open render]
+      --
+      "DIAGRAM  ·  PAGE [*1] 2 3  ·  scroll = zoom · drag = pan · centre = fisheye"
+      "[ diagram canvas — centre bulges (fisheye), corners stay fixed ]"
+      --
+      "DIFF  ·  CYCLE [*0017] | [0016]  ·  VIEW [*Diagram] | [List]"
+      "[ superposed diff canvas — shared · +added green · -removed red ]"
+      --
+      "SOURCE  ·  read-only PlantUML, @id / @ref / @sec highlighted, no render"
+      --
+      "OCL FILE  ·  VIEW [*Source] | [Diagram]   (shown only for an .ocl selection)"
+    } |
+    {
+      "[>]   MODEL CONTEXT"
+      --
+      "file" | { current/domain/canvas-view.puml }
+      "kind" | { domain }
+      "IDS"
+      {
+        [*DOM-CANVAS-VIEW]
+        [ DOM-PANEL-LAYOUT ]
+      }
+      {^"DESCRIPTION"
+        "DOM-CANVAS-VIEW"
+        "Base zoom/pan plus the center-fixed fisheye params."
+      }
+      "TRACE" | { SEQ-CANVAS-FISHEYE -> depends_on -> DOM-CANVAS-VIEW }
+    }
+  }
+  --
+  "[<] / [>] chevrons collapse a panel to an 18px sliver; click the sliver to expand"
+}
+@endsalt

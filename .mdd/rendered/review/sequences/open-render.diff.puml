@@ -1,0 +1,71 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(SEQ-OPEN-RENDER)
+' @ref(USE-OPEN-RENDER)
+'
+' Objective-side flow for the contextual "Open render" button on the
+' central-panel view-tab row. Enabled only when the selected model file is a
+' mockup whose slug has a React render (mockups/src/mockups/<slug>.tsx).
+' Start-if-needed: probe :4317 and spawn `npm run dev` in mockups/ only when
+' the port is not already serving, then open the OS browser at the route.
+'
+' @desc(SEQ-OPEN-RENDER, "Clicking the contextual 'Open render' button launches the selected mockup's React render: the launcher derives the route /mockup/<slug>, probes localhost:4317, spawns `npm run dev` in the repo-root mockups/ dir only if the port is not already serving, then opens the OS default browser at the route. The button is enabled only when mockups/src/mockups/<slug>.tsx exists.")
+title Open the React render of the selected mockup (objective)
+
+actor "Developer" as Dev <<missing>>
+participant "MddViewer\n(view-tab row)" as Viewer
+participant "MockupLauncher\n(CMP-MOCKUP-LAUNCH)" as Launch
+boundary "TCP localhost:4317" as Port
+participant "npm run dev\n(Vite, cwd mockups/)" as Vite
+control "OS default browser" as Browser
+
+Dev -> Viewer : select a mockup .puml in the rail
+alt slug has a render (mockups/src/mockups/<slug>.tsx exists)
+  Viewer --> Dev : enabled "Open render" button (UIC-OPEN-RENDER)
+else no render for this slug
+  Viewer --> Dev : button disabled
+end
+
+Dev -> Viewer : click "Open render"
+Viewer -> Launch : open_render(slug)
+Launch -> Port : connect probe :4317
+alt already serving
+  Port --> Launch : reachable — reuse
+else not reachable
+  Launch -> Vite : spawn `npm run dev` (cwd = mockups/)
+  Vite --> Launch : serving on :4317
+end
+Launch -> Browser : open http://localhost:4317/mockup/<slug>
+Browser --> Dev : React render of the mockup
+@enduml

@@ -1,0 +1,26 @@
+number: 0019
+slug: viewer-open-react-mockup-button
+entry: generate
+description: "the mdd viewer must have a button to run the react mockup and open it in the browser"
+status: closed
+opened_at: "2026-05-24T16:10:00Z"
+closed_at: "2026-05-24T16:33:00Z"
+base_revision: "e0820b594de5c38ec748432a58f10dcf47b456f3"
+decisions:
+  scope: "Contextual button on the CentralPanel view-tab row (next to Diagram/Source/Diff). Active only when the selected model file is a mockup .puml AND that slug has a React render/route (today only viewer-full); disabled/hidden otherwise. Opens /mockup/<slug>."
+  launch: "Start-if-needed. Probe localhost:4317; if it is not already serving, spawn `npm run dev` in the repo-root mockups/ dir (cwd), then open the OS browser at http://localhost:4317/mockup/<slug>. No `npm install`, no child-process shutdown tracking."
+  security: "No @sec markers. Local dev action only (subprocess spawn + browser open) — no auth/crypto/SQL/rate-limit/expiration surface. The spawn command is fixed; the mockup slug flows only into the opened URL, not into the command."
+touched_files:
+  - .mdd/models/objective/use-cases/diagram-viewer.puml
+  - .mdd/models/objective/sequences/open-render.puml
+  - .mdd/models/objective/components/viewer-shell.puml
+  - .mdd/models/objective/mockups/viewer-full.puml
+  - .mdd/models/current/use-cases/diagram-viewer.puml
+  - .mdd/models/current/sequences/open-render.puml
+  - .mdd/models/current/components/viewer-shell.puml
+  - .mdd/models/current/mockups/viewer-full.puml
+  - .mdd/tests/acceptance/use-open-render.feature
+  - .mdd/trace.yml
+  - crates/mdd-viewer/src/lib.rs
+  - mockups/src/mockups/viewer-full.tsx
+notes: "Feature complete and at parity: mdd validate PASSED, mdd review PASSED (ID + security + traceability), viewer-full Salt/React parity spec passes (new UIC-OPEN-RENDER renders). Adds a contextual 'Open render' button on the viewer view-tab row (enabled only when the selected file is a ModelKind::Mockup whose mockups/src/mockups/<slug>.tsx exists) that probes localhost:4317, spawns `npm run dev` in mockups/ if it is not serving, then opens the OS browser at /mockup/<slug>. CLOSE SCOPED TO THIS CYCLE'S DIAGRAMS: a concurrent process wrote cycle 0018's init-scaffold files into .mdd/models/current/ during this cycle, so after/ was rebuilt as before/ + only the four 0019 diagrams to keep the before->after diff honest. Whole-map fold + whole/ snapshot DEFERRED to avoid racing that writer (the whole-map is an inspection artifact outside the parity gate)."

@@ -109,6 +109,67 @@ fn init_prompts_and_skips_existing_skill_file() {
 }
 
 #[test]
+fn init_force_overwrites_regenerable_without_prompt() {
+    let dir = tempdir().unwrap();
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("init")
+        .assert()
+        .success();
+
+    // A user-modified regenerable file.
+    let skill = dir.path().join(".claude/skills/mdd-map/SKILL.md");
+    fs::write(&skill, "custom skill\n").unwrap();
+
+    // --force overwrites it from the template with no stdin / prompt.
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("init")
+        .arg("--force")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "overwrote .claude/skills/mdd-map/SKILL.md",
+        ));
+
+    let restored = fs::read_to_string(&skill).unwrap();
+    assert_ne!(restored, "custom skill\n");
+    assert!(restored.contains("MDD Map"));
+}
+
+#[test]
+fn init_force_does_not_overwrite_state_files() {
+    let dir = tempdir().unwrap();
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("init")
+        .assert()
+        .success();
+
+    // Accumulated state at the current version.
+    let trace = dir.path().join(".mdd/trace.yml");
+    let kept = "version: 1\nlinks:\n  - from: USE-KEEP\n    to: SEQ-KEEP\n    relation: realizes\ngenerated_tests: []\ngenerated_ui_tests: []\nsource_links: []\n";
+    fs::write(&trace, kept).unwrap();
+
+    Command::cargo_bin("mdd")
+        .unwrap()
+        .current_dir(dir.path())
+        .arg("init")
+        .arg("--force")
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(&trace).unwrap(),
+        kept,
+        "the three state files are exempt from --force"
+    );
+}
+
+#[test]
 fn clean_strips_block_but_keeps_user_content() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("CLAUDE.md"), "my own notes\n").unwrap();

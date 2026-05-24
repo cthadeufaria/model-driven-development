@@ -2,6 +2,9 @@
 ' @id(CMP-VIEWER-SHELL)
 ' @ref(USE-VIEW-DIAGRAMS)
 ' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer: collapsible left/right SidePanels, a toolbar with no zoom buttons, a center-fixed fisheye canvas stage that warps the rendered texture before painting, and a per-frame theming step that delegates to CMP-VIEWER-THEME.")
+' @id(CMP-MOCKUP-LAUNCH)
+' @ref(USE-OPEN-RENDER)
+' @desc(CMP-MOCKUP-LAUNCH, "Viewer helper that opens a selected mockup's React render. From the mockup slug it derives the route /mockup/<slug>, probes localhost:4317, spawns `npm run dev` in the repo-root mockups/ dir only if the port is not already serving, then opens the OS default browser. Invoked by the view-tab row 'Open render' button (UIC-OPEN-RENDER); enabled only when mockups/src/mockups/<slug>.tsx exists.")
 ' Objective-side component view of the viewer UI shell — the part this
 ' cycle changes. The render/font pipeline remains CMP-VIEWER-RENDER-PIPELINE;
 ' chrome theming is owned by CMP-VIEWER-THEME.
@@ -37,5 +40,23 @@ note bottom of Fisheye
   on the base zoom/pan placement. It does not change the
   render/font pipeline (CMP-VIEWER-RENDER-PIPELINE); it
   remaps where the already-rasterized texture is painted.
+end note
+
+component "MockupLauncher\n(CMP-MOCKUP-LAUNCH)\nprobe :4317 · spawn npm run dev · open browser" as Launch
+component "npm run dev\n(Vite dev server, :4317, cwd mockups/)" as Vite
+component "OS default browser" as Browser
+
+Viewer --> Launch : open_render(slug) on "Open render" click\n(UIC-OPEN-RENDER, view-tab row)
+Launch --> Vite : spawn in mockups/ only if :4317 not serving
+Launch --> Browser : open /mockup/<slug>
+
+note bottom of Launch
+  Objective (CMP-MOCKUP-LAUNCH / USE-OPEN-RENDER): start-if-needed.
+  The launcher probes :4317; if it is already serving it reuses it,
+  otherwise it spawns `npm run dev` in the repo-root mockups/ dir.
+  Then it opens the OS browser at /mockup/<slug>. No `npm install`
+  and no child-process shutdown tracking. The "Open render" button
+  is enabled only when mockups/src/mockups/<slug>.tsx exists.
+  Realized by SEQ-OPEN-RENDER.
 end note
 @enduml

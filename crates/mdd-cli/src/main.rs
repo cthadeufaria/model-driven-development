@@ -18,7 +18,21 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Initialize .mdd project structure and project-local agent skills.
-    Init,
+    ///
+    /// Re-running is safe. Regenerable files (docs, workflow skills,
+    /// CLAUDE.md/AGENTS.md blocks, SessionStart hook) prompt per file on
+    /// conflict, or with --force are overwritten from the current templates
+    /// without prompting. The three accumulating state files (config.yml,
+    /// trace.yml, approvals.yml) are never overwritten — they are created
+    /// when missing and forward-migrated to the current schema version
+    /// otherwise, preserving their content.
+    Init {
+        /// Overwrite all regenerable scaffolding from the current templates
+        /// without the per-file prompt. Does not touch the config/trace/
+        /// approvals state files (those are migrated, never overwritten).
+        #[arg(long)]
+        force: bool,
+    },
     /// Remove .mdd project structure and generated project-local MDD skill files.
     #[command(alias = "deinit", alias = "uninit")]
     Clean {
@@ -72,13 +86,22 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init => {
+        Commands::Init { force } => {
             let root = env::current_dir()?;
             let project = Project::at(root);
-            let report = project.init_with_conflict_handler(prompt_init_conflict)?;
+            // --force supplies an always-overwrite conflict handler for the
+            // regenerable files; without it, init prompts per file. The state
+            // files ignore the handler either way (they are migrated, never
+            // overwritten), so --force can never reach config/trace/approvals.
+            let report = if force {
+                project.init_with_conflict_handler(|_| Ok(InitFileConflict::Overwrite))?
+            } else {
+                project.init_with_conflict_handler(prompt_init_conflict)?
+            };
             println!("Initialized mdd project at {}", report.root.display());
             if report.created.is_empty()
                 && report.overwritten.is_empty()
+                && report.migrated.is_empty()
                 && report.skipped.is_empty()
             {
                 println!("No files changed; .mdd structure already exists.");
@@ -88,6 +111,9 @@ fn main() -> Result<()> {
                 }
                 for overwritten in report.overwritten {
                     println!("overwrote {overwritten}");
+                }
+                for migrated in report.migrated {
+                    println!("migrated {migrated}");
                 }
                 for skipped in report.skipped {
                     println!("skipped {skipped}");

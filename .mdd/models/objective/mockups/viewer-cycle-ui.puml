@@ -3,18 +3,11 @@
 ' @ref(USE-BROWSE-TREE)
 ' @ref(USE-DIFF-DIAGRAM)
 ' @ui-viewport(desktop,1280,800)
-' @ui-element(UIC-RAIL-TREE, role=tree, name="Model directory tree", required=true)
-' @ui-element(UIC-RAIL-ORGANIZE-TOGGLE, role=button, name="Toggle organize by directory or cycle", required=true)
-' @ui-element(UIC-VIEW-TAB-DIFF, role=tab, name="Diff", required=true)
-' @ui-element(UIC-DIFF-TOGGLE-DIAGRAM, role=button, name="Diff sub-mode Diagram", required=true)
-' @ui-element(UIC-DIFF-TOGGLE-LIST, role=button, name="Diff sub-mode List", required=true)
-' @ui-element(UIC-DIFF-LEGEND, role=note, name="Diff legend added green removed red", required=true)
-' @ui-element(UIC-DIFF-CANVAS, role=img, name="Superposed diff diagram canvas", required=true)
-' @ui-element(UIC-CONTEXT-DESCRIPTION, role=note, name="Selected element description", required=true)
-'
-' Native egui desktop app: deliberately NO @ui-route — this mockup is a
-' layout/contract reference for visual review, not a Playwright target
-' (Playwright cannot drive an eframe native window).
+' Layout-only slice reference (objective): deliberately NO @ui-route and no
+' @ui-element. Under the two-part mockup convention the whole-window UIC-
+' contract is owned by MCK-VIEWER-FULL (objective/mockups/viewer-full.puml),
+' which carries the route + React render; this slice stays a layout
+' reference so UIC- ids remain unique per side.
 '
 ' @desc(MCK-VIEWER-CYCLE-UI, "Reference layout for the cycle-aware viewer: tree rail with directory/cycle toggle; Diff mode bound to the selected cycle and the rail-selected file, with an inner Diagram/List toggle, a green/red legend, the superposed diagram canvas, and the MODEL CONTEXT card.")
 title mdd viewer — cycle-aware layout (objective)

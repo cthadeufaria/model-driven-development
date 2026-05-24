@@ -1,0 +1,32 @@
+-- @id(OCL-INIT-FORCE-SCOPE)
+-- @ref(DOM-INIT-FILE-CLASS)
+-- --force may overwrite only Regenerable files. The three accumulating
+-- state files are exempt: they are created or forward-migrated, never
+-- overwritten, regardless of the flag.
+context InitFileClass
+inv ForceOverwritesRegenerableOnly:
+  self = InitFileClass::AccumulatingState implies
+    (self.overwrittenByForce = false)
+
+-- @id(OCL-INIT-STATE-FORWARD-ONLY)
+-- @ref(DOM-STATE-MIGRATION)
+-- A state file is rewritten by migration exactly when its on-disk version
+-- is strictly older than the tool's current schema version. Equal or
+-- newer versions leave the file untouched, so init is idempotent and
+-- never downgrades a file written by a newer tool.
+context StateMigration
+inv ForwardOnly:
+  (self.onDiskVersion < self.schemaVersion implies self.migrate() = Outcome::Migrated)
+  and (self.onDiskVersion >= self.schemaVersion implies self.migrate() = Outcome::Skipped)
+
+-- @id(OCL-INIT-MIGRATE-PRESERVES)
+-- @ref(DOM-STATE-MIGRATION)
+-- A migration preserves accumulated content: the upgraded file still
+-- deserializes to every prior link/approval/config value, differing only
+-- by an increased version and any fields added since (filled from
+-- defaults). Migration never loses state.
+context StateMigration
+inv ContentPreservingBump:
+  self.migrate() = Outcome::Migrated implies
+    (self.onDiskVersion < self.schemaVersion
+     and self.priorContent->forAll(v | self.upgradedContent->includes(v)))

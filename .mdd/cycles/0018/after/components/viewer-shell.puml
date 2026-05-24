@@ -1,0 +1,41 @@
+@startuml
+' @id(CMP-VIEWER-SHELL)
+' @ref(USE-VIEW-DIAGRAMS)
+' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer as built by MddViewer::update: collapsible left/right SidePanels, a toolbar with no zoom buttons, the center-fixed fisheye canvas stage that warps the rendered texture before painting, and a per-frame theming step that delegates to CMP-VIEWER-THEME (theme.rs).")
+' Current-side component view derived from MddViewer::update in
+' crates/mdd-viewer/src/lib.rs. Chrome theming is owned by
+' CMP-VIEWER-THEME (theme.rs).
+title mdd-viewer UI shell — ownership (current)
+
+actor "Developer" as Dev
+
+component "MddViewer\n(eframe::App)\nupdate()" as Viewer
+component "SidePanel left\n\"rail\" / sliver" as Left
+component "SidePanel right\n\"context\" / sliver" as Right
+component "svg_toolbar\n(PAGE selector + hint;\nno Reset/Zoom+/Zoom-)" as Toolbar
+component "Fisheye canvas stage\nCanvasView::fisheye_mesh" as Fisheye
+component "PanelLayout" as PL
+component "CanvasView" as CV
+component "eframe / egui 0.30\npainter.add(Shape::mesh)" as Egui
+component "Theme module\n(theme.rs,\nCMP-VIEWER-THEME)" as Theme
+
+Dev --> Viewer : mdd view
+Viewer --> Theme : theme::register_fonts(&cc.egui_ctx) once\n+ theme::apply_theme(ctx) first per frame
+Theme --> Egui : FontDefinitions + Visuals + Style overrides
+Viewer --> Left : draw + collapse chevron / sliver
+Viewer --> Right : draw + collapse chevron / sliver
+Left --> PL : toggle_left()
+Right --> PL : toggle_right()
+Viewer --> Toolbar : draw (no zoom controls)
+Viewer --> Fisheye : warp rendered texture per frame
+Fisheye --> CV : focal=centre, strength, radius, warp()
+Viewer --> Egui : textured Mesh, clipped to canvas rect
+Egui --> Dev : centre-magnified diagram, collapsible panels
+
+note bottom of Fisheye
+  The fisheye is a display-time stage on top of the base
+  zoom/pan placement; it does not change the render/font
+  pipeline (CMP-VIEWER-RENDER-PIPELINE) — it only remaps
+  where the already-rasterized texture is painted.
+end note
+@enduml

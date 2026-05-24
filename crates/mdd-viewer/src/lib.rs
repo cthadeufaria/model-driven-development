@@ -339,6 +339,28 @@ impl MddViewer {
             .cloned()
     }
 
+    /// USE-OPEN-RENDER (CMP-MOCKUP-LAUNCH): the React-render slug for the
+    /// selected file, or None. `Some(slug)` only when the selection is a
+    /// mockup whose render `mockups/src/mockups/<slug>.tsx` exists under the
+    /// project root — which is exactly when the "Open render" button is live.
+    fn selected_render_slug(&self) -> Option<String> {
+        let path = self.selected_file.as_ref()?;
+        let file = self.registry.files.iter().find(|f| &f.path == path)?;
+        if file.kind != ModelKind::Mockup {
+            return None;
+        }
+        let slug = std::path::Path::new(&file.path)
+            .file_stem()?
+            .to_string_lossy()
+            .into_owned();
+        let render = self
+            .project
+            .root()
+            .join("mockups/src/mockups")
+            .join(format!("{slug}.tsx"));
+        render.exists().then_some(slug)
+    }
+
     fn load_file(&mut self, file: &ModelFile) {
         self.selected_file = Some(file.path.clone());
         self.selected_id = None;
@@ -822,6 +844,23 @@ impl eframe::App for MddViewer {
                     .clicked()
                 {
                     self.view = View::Diff;
+                }
+                // USE-OPEN-RENDER (SEQ-OPEN-RENDER, CMP-MOCKUP-LAUNCH):
+                // contextual "Open render" button on the view-tab row. Enabled
+                // only when the selected file is a mockup whose slug has a
+                // React render (mockups/src/mockups/<slug>.tsx). Click probes
+                // :4317, spawns `npm run dev` in mockups/ if it is not already
+                // serving, then opens the OS browser at /mockup/<slug>.
+                let render_slug = self.selected_render_slug();
+                let open_resp = ui
+                    .add_enabled(render_slug.is_some(), egui::Button::new("Open render"))
+                    .on_hover_text(
+                        "Open the selected mockup's React render in the browser (starts the mockups dev server on :4317 if needed)",
+                    );
+                if open_resp.clicked()
+                    && let Some(slug) = render_slug
+                {
+                    open_mockup_render(self.project.root().to_path_buf(), slug);
                 }
                 ui.separator();
                 match self.view {
@@ -1359,6 +1398,55 @@ fn parse_intrinsic_size(svg_bytes: &[u8]) -> Result<egui::Vec2> {
     let tree = usvg::Tree::from_data(svg_bytes, &opt).context("invalid SVG")?;
     let size = tree.size();
     Ok(egui::vec2(size.width(), size.height()))
+}
+
+/// USE-OPEN-RENDER / SEQ-OPEN-RENDER (CMP-MOCKUP-LAUNCH): probe whether the
+/// mockups Vite dev server is already serving on localhost:4317.
+fn mockup_server_up() -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], 4317));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(300)).is_ok()
+}
+
+/// CMP-MOCKUP-LAUNCH: open a mockup's React render in the browser, starting
+/// the dev server if needed. Runs off the UI thread: probe :4317, spawn
+/// `npm run dev` in `<root>/mockups` only when it is not already serving
+/// (then wait, bounded, for the port to come up), and finally open the OS
+/// browser at /mockup/<slug>. Start-if-needed: no `npm install`, no
+/// child-process shutdown tracking.
+fn open_mockup_render(root: std::path::PathBuf, slug: String) {
+    std::thread::spawn(move || {
+        if !mockup_server_up() {
+            let _ = std::process::Command::new("npm")
+                .args(["run", "dev"])
+                .current_dir(root.join("mockups"))
+                .spawn();
+            // Wait (bounded ~15s) for Vite to bind :4317 before opening, so
+            // the browser does not land on a connection error.
+            for _ in 0..60 {
+                if mockup_server_up() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+        }
+        open_in_browser(&format!("http://localhost:4317/mockup/{slug}"));
+    });
+}
+
+/// Open a URL in the OS default browser (best-effort, cross-platform).
+fn open_in_browser(url: &str) {
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(url).spawn();
+
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd")
+        .args(["/C", "start", "", url])
+        .spawn();
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
 }
 
 fn kind_label(kind: ModelKind) -> &'static str {

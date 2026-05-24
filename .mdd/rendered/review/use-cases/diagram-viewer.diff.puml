@@ -1,0 +1,198 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+skinparam node {
+  BackgroundColor<<missing>> #90EE90
+  BackgroundColor<<extra>> #FFB6C1
+}
+' @id(USE-VIEW-DIAGRAMS)
+' @desc(USE-VIEW-DIAGRAMS, "Developer views a rendered model diagram on the in-app canvas with shapes and text legible.")
+' @id(USE-FISHEYE-FOCUS)
+' @desc(USE-FISHEYE-FOCUS, "Developer focuses on part of a diagram via a center-fixed fisheye that magnifies the canvas centre and compresses content toward the edges, layered on the scroll global zoom.")
+' @id(USE-TOGGLE-PANELS)
+' @desc(USE-TOGGLE-PANELS, "Developer collapses or expands the left MODELS panel and the right MODEL CONTEXT panel via an inner-edge handle, reclaiming canvas width on demand.")
+' @id(USE-VIEW-OCL)
+' @desc(USE-VIEW-OCL, "Developer selects an .ocl constraint file and views it on the canvas with a Source/Diagram toggle: Source shows the raw OCL text, Diagram shows a synthesized PlantUML constraints diagram.")
+' @id(USE-VIEW-DEPLOY)
+' @desc(USE-VIEW-DEPLOY, "Developer sees /mdd-deploy deployment diagrams (.mdd/deploy/**/*.puml) in `mdd view`, listed in a DEDICATED 'DEPLOY' rail section that is visibly labelled as a utility artifact OUTSIDE the current<->objective parity gate. Selecting one paints its already-rendered .mdd/rendered/deploy/**/*.svg on the same canvas. The section is a THIRD viewer ingestion source alongside the model registry and the cycle registry; deployment files never enter ModelRegistry, so /mdd-validate and /mdd-review still never read .mdd/deploy/.")
+' @id(USE-VIEWER-THEMED)
+' @desc(USE-VIEWER-THEMED, "Developer sees the mdd-viewer chrome dressed by a Catppuccin palette (Mocha when the OS is dark, Latte when light, picked once per frame from the OS appearance), bundled Inter for UI text and JetBrains Mono for code/diff lists, and softened item spacing + corner rounding — instead of the bare egui defaults. Cross-platform single binary; chrome only — the SVG canvas rasterizer is untouched.")
+' @id(USE-VIEW-PUML-SOURCE)
+' @desc(USE-VIEW-PUML-SOURCE, "Developer reads the raw PlantUML text of the selected model file via a Source toggle placed next to the Diagram (and Diff) toggle in the central panel. Source replaces the rendered diagram with read-only, scrollable .puml text (@id/@ref/@desc/@sec markers and @startuml/@enduml directives highlighted); toggling back to Diagram repaints the SVG. Mirrors the OCL Source/Diagram functionality but for ordinary model diagrams — no new rendering, the source is read straight from disk.")
+' @id(USE-OPEN-RENDER)
+' @desc(USE-OPEN-RENDER, "Developer, with a mockup .puml selected whose slug has a React render, clicks an 'Open render' button on the central-panel view-tab row; the viewer starts the mockups Vite dev server (port 4317) if it is not already running and opens the OS browser at /mockup/<slug>. The button is disabled when the selection has no render.")
+' Objective-side use-case view. Same text-legibility acceptance as before,
+' plus the focus+context fisheye, the collapsible side panels, an
+' OCL constraint viewer, a dedicated non-gated DEPLOY section, an
+' OS-appearance-following Catppuccin theme with bundled fonts, and a
+' Source toggle that shows a model file's raw PlantUML beside its diagram.
+' The toolbar no longer carries zoom controls.
+title mdd view — diagram viewer (objective)
+
+left to right direction
+
+actor "Developer" as Dev <<missing>>
+
+rectangle "mdd-viewer" {
+  usecase "View rendered diagram\n(shapes AND text legible)" as View
+  usecase "Browse model files" as Browse
+  usecase "Pan and zoom canvas\n(scroll zoom, drag pan)" as PanZoom
+  usecase "Focus via center fisheye" as Fisheye
+  usecase "Collapse / expand side panels" as Panels
+  usecase "Inspect model IDs and trace links" as Trace
+  usecase "View OCL constraints\n(source or diagram)" as ViewOcl
+  usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
+  usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed
+  usecase "View PlantUML source\n(Source toggle next to Diagram)" as ViewSource
+  usecase "Open React mockup render\n(button opens browser)" as OpenRender
+}
+
+Dev --> View
+Dev --> Browse
+Dev --> PanZoom
+Dev --> Fisheye
+Dev --> Panels
+Dev --> Trace
+Dev --> ViewOcl
+Dev --> ViewDeploy
+Dev --> Themed
+Dev --> ViewSource
+Dev --> OpenRender
+
+View ..> Browse : <<include>>
+View ..> PanZoom : <<extend>>
+View ..> Fisheye : <<extend>>
+View ..> Panels : <<extend>>
+View ..> Themed : <<include>>
+View ..> ViewSource : <<extend>>
+ViewOcl ..> PanZoom : <<extend>>
+ViewDeploy ..> PanZoom : <<extend>>
+OpenRender ..> Browse : <<include>>
+
+note bottom of OpenRender
+  Objective (USE-OPEN-RENDER): the central-panel view-tab row
+  shows an "Open render" button (UIC-OPEN-RENDER in
+  MCK-VIEWER-FULL). It is enabled only when the selected file
+  is a mockup whose slug has a React render
+  (mockups/src/mockups/<slug>.tsx). Click starts the Vite dev
+  server in mockups/ if :4317 is not already serving, then opens
+  the OS browser at /mockup/<slug>. Realized by SEQ-OPEN-RENDER;
+  launcher owned by CMP-MOCKUP-LAUNCH.
+end note
+
+note bottom of ViewOcl
+  Objective (USE-VIEW-OCL): selecting a
+  .mdd/constraints/*.ocl file shows a
+  Source | Diagram toggle on the canvas.
+  Source = raw OCL text (read-only,
+  @id/context/inv highlighted); Diagram =
+  a synthesized PlantUML constraints diagram
+  (context box + inv notes + @ref to the
+  DOM- it constrains) rasterized through the
+  existing SVG pipeline. Realized by
+  SEQ-VIEW-OCL.
+end note
+
+note bottom of View
+  Objective: every label, actor, message and
+  note in a rendered diagram is visible in the
+  in-app canvas. Realized by SEQ-RENDER-DIAGRAM-PAGE
+  which must consult a populated font database
+  (DOM-FONT-DATABASE) before rasterizing.
+end note
+
+note bottom of Fisheye
+  Objective (USE-FISHEYE-FOCUS): the canvas applies a
+  center-fixed fisheye over the rendered diagram — the
+  centre bulges/magnifies and content compresses smoothly
+  toward the edges. Layered ON TOP of the existing
+  scroll-to-zoom global zoom; drag still pans to bring a
+  region into the magnified centre. Realized by
+  SEQ-CANVAS-FISHEYE.
+end note
+
+note bottom of PanZoom
+  The toolbar no longer has Reset / Zoom + / Zoom -
+  buttons. Zoom is scroll-only (global, at cursor);
+  the fisheye is the focus mechanism on top of it.
+end note
+
+note bottom of Panels
+  Objective (USE-TOGGLE-PANELS): each side panel shows
+  an inner-edge chevron handle; clicking it collapses
+  the panel to a thin sliver, clicking the sliver
+  re-expands it. Realized by SEQ-PANEL-COLLAPSE.
+end note
+
+note bottom of Themed
+  Objective (USE-VIEWER-THEMED): on startup
+  MddViewer registers a bundled Inter (UI) and
+  JetBrains Mono (monospace) FontDefinitions
+  set, then on every frame asks dark-light for
+  the OS appearance and applies catppuccin_egui
+  Mocha (dark) or Latte (light) plus tightened
+  spacing.item_spacing and softened widget
+  rounding. No new SVG rendering, no new model
+  state — chrome only. Realized by SEQ-APPLY-THEME
+  and owned by CMP-VIEWER-THEME.
+end note
+
+note bottom of ViewDeploy
+  Objective (USE-VIEW-DEPLOY): the left rail gains a
+  THIRD source. Today MddViewer::new() loads exactly
+  two — model_registry() (.mdd/models + .mdd/constraints)
+  and cycle_registry() (.mdd/cycles); .mdd/deploy is
+  reachable only as RenderTree::Deploy (an `mdd render`
+  rasterization target), so it never appears in the
+  interactive viewer. Objective: a dedicated DEPLOY
+  section, fed by Project::deploy_files(), lists
+  .mdd/deploy/**/*.puml and paints the existing
+  .mdd/rendered/deploy/**/*.svg on the shared canvas.
+  It stays OUT of ModelRegistry: /mdd-deploy is a
+  utility outside the parity gate, so /mdd-validate
+  and /mdd-review must continue to ignore .mdd/deploy/.
+  Realized by SEQ-VIEW-DEPLOY.
+end note
+
+note bottom of ViewSource
+  Objective (USE-VIEW-PUML-SOURCE): the central panel
+  toggle row gains a "Source" button between "Diagram"
+  and "Diff". Selecting it puts the viewer in
+  View::Source, which paints the selected model file's
+  raw .puml text — read-only, scrollable, with @id /
+  @ref / @desc / @sec markers and @startuml/@enduml
+  directives highlighted — instead of the rendered SVG.
+  No new rendering: the text is read straight from disk
+  (analogous to the OCL Source sub-mode, which never
+  depends on a rendered artifact — OCL-PUML-SOURCE-NO-RENDER).
+  Toggling back to "Diagram" repaints the SVG canvas.
+  Realized by SEQ-VIEW-PUML-SOURCE; state held in
+  DOM-PUML-SOURCE-VIEW.
+end note
+@enduml

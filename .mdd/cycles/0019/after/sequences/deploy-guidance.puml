@@ -1,0 +1,117 @@
+@startuml
+' @id(SEQ-DEPLOY-GUIDANCE)
+' @id(SEQ-DEPLOY-INSPECT)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-INSPECT)
+' @ref(USE-DEPLOY-DIALECT)
+' @ref(USE-DEPLOY-PURPOSE)
+' @ref(USE-DEPLOY-ACCESS-CHECK)
+'
+' Current-side runtime flow as implemented in templates::MDD_DEPLOY_SKILL
+' (steps 1-11) and the extended templates::MDD_RENDER_SKILL. The skill
+' body is the executable contract the agent follows; it writes artifacts
+' and a runbook then STOPS — it executes no deployment command.
+'
+' CHANGE (cycle 0016): the implemented flow inserts a deployment-purpose
+' confirmation (step 5) and an access-completeness pass (step 6) before any
+' artifact, and the landmine pause (step 3) is generalized to any choice
+' whose correctness depends on a fact not grounded in the inputs. Both new
+' gates SURFACE options; they never bake in an answer.
+'
+' @desc(SEQ-DEPLOY-GUIDANCE, "As implemented in templates::MDD_DEPLOY_SKILL: reject non-azure-container-apps targets, read .mdd/models + ../atlas-ate-server read-only, STOP for a blocking clarification on ambiguity OR a GENERALIZED go-live landmine (any choice whose correctness depends on a fact not grounded in the inputs — app-config/purpose/access-path; step 3), CONFIRM the IaC dialect (step 4) AND the deployment purpose (step 5; dev/staging/prod, no silent default), run an ACCESS-COMPLETENESS pass over every secured store (step 6 — named reader + writer, each with an admitted network path; surface holes as blocking questions), write diagram.puml showing BOTH read and write paths (step 7), generate secure-by-default IaC in the confirmed dialect sized for the confirmed purpose (step 8), write the STOP-gated runbook (step 9), then report and execute nothing.")
+' @desc(SEQ-DEPLOY-INSPECT, "As implemented in templates::MDD_RENDER_SKILL: /mdd-render rasterizes every .mdd/deploy/**/*.puml to its deterministic .mdd/rendered/deploy/**/*.svg mirror. Additive, non-gating.")
+title /mdd-deploy guidance and inspection (current)
+
+actor "Operator" as Op
+participant "/mdd-deploy\n(utility skill)" as Dep
+participant ".mdd/models/\ncomponents + use-cases" as Models
+participant "../atlas-ate-server\n(target repo, read-only)" as Target
+database ".mdd/deploy/\nazure-container-apps/" as Store
+participant "../atlas-ate-server/\ninfra/ (generated IaC)" as Infra
+participant "/mdd-render" as Render
+database ".mdd/rendered/deploy/" as Rendered
+
+== SEQ-DEPLOY-GUIDANCE ==
+Op -> Dep : /mdd-deploy <deployment description>
+alt target != azure-container-apps
+  Dep --> Op : not yet supported (v1 = azure-container-apps only); stop
+else target == azure-container-apps
+  Dep -> Models : read components + use-cases (the "what")
+  Dep -> Target : read README, Dockerfile, docker-compose.yml,\n.env.example, src (READ-ONLY)
+  opt step 3 — ambiguity OR a GENERALIZED landmine (any choice whose correctness\ndepends on a fact NOT grounded in the inputs: app-config / purpose / access-path)
+    Dep -> Op : BLOCKING clarification (same discipline as /mdd-cycle);\nSURFACE the gap, never bury it as a runbook STOP note
+    Op --> Dep : decision
+  end
+
+  group step 4 — MANDATORY dialect confirmation, BEFORE any artifact (USE-DEPLOY-DIALECT)
+    Dep -> Dep : resolve requested IaC dialect (bicep | terraform) — exactly one
+    Dep -> Op : BLOCKING confirm: "generate <dialect> IaC?"\n(unspecified/unconfirmed -> STOP, write nothing)
+    Op --> Dep : confirmed dialect
+  end
+
+  group step 5 — MANDATORY deployment-purpose confirmation (USE-DEPLOY-PURPOSE)
+    Dep -> Dep : resolve deployment purpose (dev | staging | prod)\n— NO silent default; never assume prod- or dev-grade
+    Dep -> Op : BLOCKING confirm purpose + SURFACE purpose-appropriate\noptions (DB tier/redundancy, recommended doorway)
+    Op --> Dep : confirmed purpose + choices
+    note right of Dep
+      Purpose RECOMMENDS the sizing/posture; the operator
+      confirms. Secure-by-default is preserved — the vault
+      stays most-restrictive; any relaxation is explicit.
+      OCL-DEPLOY-IAC-PURPOSE / -SURFACE-NOT-DECIDE.
+    end note
+  end
+
+  group step 6 — ACCESS-COMPLETENESS pass, BEFORE any artifact (USE-DEPLOY-ACCESS-CHECK)
+    loop each secured store (Key Vault, DB, ACR, remote state)
+      Dep -> Dep : name READER + WRITER; each needs an identity\nand a network path the chosen posture ADMITS
+      opt read-but-never-written, OR a writer with no admitted path
+        Dep -> Op : BLOCKING: SURFACE the hole + connectivity options\n(allowlist / in-VNet / tunnel), framed by purpose
+        Op --> Dep : choice (never auto-decided by the skill)
+      end
+    end
+    note right of Dep
+      The diagram is not "done" until every secured store has
+      BOTH a reader and a writer with an admitted path. A
+      complete-looking diagram with a missing write path is
+      exactly the failure this gate prevents.
+      OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.
+    end note
+  end
+
+  Dep -> Store : step 7 — write diagram.puml; show BOTH the runtime read path\nAND the provisioning write path; doc-only stereotypes
+  alt confirmed dialect == bicep
+    Dep -> Infra : step 8 — generate SECURE-BY-DEFAULT infra/main.bicep (+ modules)
+  else confirmed dialect == terraform
+    Dep -> Infra : step 8 — generate SECURE-BY-DEFAULT infra/main.tf (+ modules):\nazurerm provider + remote state backend
+  end
+  note right of Infra
+    Step 8 — FULL PARITY regardless of dialect: Container
+    Apps, ACR, Azure DB for PostgreSQL (TLS; tier set by
+    the confirmed purpose), Key Vault (Deny +
+    bypass=AzureServices when peers private) + BOTH role
+    grants (reader Secrets User, writer Secrets Officer),
+    secret refs, ingress 8080, pre-traffic migration job.
+    Hardening that creates a new requirement surfaces the
+    doorway, never bakes one in.
+  end note
+  Dep -> Store : step 9 — write runbook.md (numbered steps; STOP before every\nstate-changing or go-live step; secret step states both preconditions)
+  note right of Dep
+    Step 10 — enforces every atlas-ate-server invariant
+    identically for either dialect. Caveat: migrations-
+    before-traffic stays procedural (documented v1 tradeoff).
+  end note
+  Dep --> Op : step 11 — report written files; review the diagram\nand run the runbook yourself. Executes NOTHING.
+end
+
+== SEQ-DEPLOY-INSPECT ==
+Op -> Render : /mdd-render
+Render -> Store : read .mdd/deploy/**/*.puml
+Render -> Rendered : write .mdd/rendered/deploy/**/*.svg\n(deterministic mirror; additive, non-gating)
+Render --> Op : rendered SVG list
+
+note over Store
+  .mdd/deploy/ is an inspection artifact only.
+  /mdd-validate, /mdd-review and the /mdd-cycle
+  parity loop never read it.
+end note
+@enduml

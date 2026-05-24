@@ -1,0 +1,36 @@
+@startuml
+skinparam sequence {
+  ParticipantBackgroundColor<<added>> #90EE90
+  ParticipantBackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-INIT-SCAFFOLD) <<added>> this cycle (0018)
+' Cycle 0018 diff (current side): new sequence realizing USE-INIT-FORCE
+' and USE-INIT-MIGRATE — one init invocation, two file classes.
+title mdd init [--force] — regenerable overwrite vs state migration · cycle 0018 diff (current)
+
+actor "Developer / Agent" as Dev
+participant "mdd init [--force]\n(Commands::Init)" as Cli <<added>>
+participant "Project::init_with_\nconflict_handler" as Engine <<added>>
+participant "write_text_if_missing\n(regenerable)" as Text <<added>>
+participant "write_yaml_create_\nor_migrate (state)" as Yaml <<added>>
+
+Dev -> Cli : mdd init [--force]
+alt force flag set
+  Cli -> Cli : handler = always Overwrite
+else no flag (default)
+  Cli -> Cli : handler = prompt_init_conflict ([o/S])
+end
+Cli -> Engine : init_with_conflict_handler(handler)
+group regenerable files (docs, skills, blocks, hook)
+  Engine -> Text : write_text_if_missing(handler) -> create / overwrite / skip
+end
+group state files (config / trace / approvals) — handler NOT consulted
+  Engine -> Yaml : create_or_migrate -> create / migrate (version<current) / skip
+end
+Engine --> Cli : InitReport { created, overwritten, migrated, skipped }
+Cli --> Dev : print summary lines
+@enduml

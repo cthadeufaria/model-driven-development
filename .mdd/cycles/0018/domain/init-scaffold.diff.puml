@@ -1,0 +1,32 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-INIT-FILE-CLASS) <<added>> this cycle (0018)
+' @id(DOM-STATE-MIGRATION) <<added>> this cycle (0018)
+' Cycle 0018 diff (current side): new concept file — the file-class policy
+' split and the forward-only, content-preserving state migration.
+title MDD init — file classes + state migration · cycle 0018 diff (current)
+
+enum InitFileClass <<added>> {
+  Regenerable
+  AccumulatingState
+}
+
+class StateMigration <<added>> {
+  + path : String
+  + schemaVersion : u32
+  + onDiskVersion : u32
+  + migrate() : Outcome
+}
+
+enum Outcome <<added>> {
+  Created
+  Migrated
+  Skipped
+}
+
+StateMigration ..> InitFileClass : applies to AccumulatingState >
+StateMigration ..> Outcome : yields >
+@enduml

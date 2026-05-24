@@ -1,0 +1,106 @@
+@startsalt
+' @id(MCK-VIEWER-FULL)
+' @ref(USE-VIEW-DIAGRAMS)
+' @ref(USE-FISHEYE-FOCUS)
+' @ref(USE-TOGGLE-PANELS)
+' @ref(USE-BROWSE-TREE)
+' @ref(USE-GROUP-BY-CYCLE)
+' @ref(USE-CYCLE-DIFF-VIEW)
+' @ref(USE-DIFF-DIAGRAM)
+' @ref(USE-ELEMENT-DESC)
+' @ref(USE-VIEW-OCL)
+' @ref(USE-VIEW-DEPLOY)
+' @ref(USE-VIEW-PUML-SOURCE)
+' @ref(USE-VIEWER-THEMED)
+' @ui-viewport(desktop,1280,800)
+'
+' Full as-built UI contract for the mdd-viewer window, enumerating every
+' interactive control in MddViewer::update as a workspace-unique UIC-.
+' Native eframe/egui desktop app: deliberately NO @ui-route, so it is NOT
+' implementation-ready and needs no Playwright spec
+' (is_implementation_ready = route.is_some() && !elements.is_empty()).
+' Comprehensive current-side companion to the focused slice mockups
+' MCK-VIEWER-CANVAS (canvas + collapsible panels) and MCK-VIEWER-CYCLE-UI
+' (cycle-aware diff layout), which remain as detail views on this side.
+'
+' @ui-element(UIC-MODELS-COLLAPSE, role=button, name="Collapse or expand the MODELS panel", required=true)
+' @ui-element(UIC-RAIL-MODE-DIRECTORY, role=button, name="Directory rail mode", required=true)
+' @ui-element(UIC-RAIL-MODE-BYCYCLE, role=button, name="By cycle rail mode", required=true)
+' @ui-element(UIC-MODEL-TREE, role=tree, name="Model file tree", required=true)
+' @ui-element(UIC-DEPLOY-SECTION, role=button, name="DEPLOY section, utility not parity-gated", required=false)
+' @ui-element(UIC-VIEW-TAB-DIAGRAM, role=button, name="Diagram view tab", required=true)
+' @ui-element(UIC-VIEW-TAB-SOURCE, role=button, name="Source view tab", required=true)
+' @ui-element(UIC-VIEW-TAB-DIFF, role=button, name="Diff view tab", required=true)
+' @ui-element(UIC-PAGE-SELECTOR, role=button, name="Diagram page selector", required=false)
+' @ui-element(UIC-DIAGRAM-CANVAS, role=img, name="Diagram canvas with center fisheye, scroll zoom and drag pan", required=true)
+' @ui-element(UIC-DIFF-CYCLE-PICKER, role=button, name="Diff cycle picker, only cycles that changed this file", required=false)
+' @ui-element(UIC-DIFF-VIEW-DIAGRAM, role=button, name="Diff Diagram sub-mode", required=false)
+' @ui-element(UIC-DIFF-VIEW-LIST, role=button, name="Diff List sub-mode", required=false)
+' @ui-element(UIC-OCL-VIEW-SOURCE, role=button, name="OCL Source sub-mode", required=false)
+' @ui-element(UIC-OCL-VIEW-DIAGRAM, role=button, name="OCL Diagram sub-mode", required=false)
+' @ui-element(UIC-CONTEXT-COLLAPSE, role=button, name="Collapse or expand the MODEL CONTEXT panel", required=true)
+' @ui-element(UIC-CONTEXT-ID-LIST, role=listbox, name="Model ID list", required=true)
+'
+' @desc(MCK-VIEWER-FULL, "Full window UI contract for the mdd-viewer: top bar with mdd + project root; left MODELS rail with a Directory/By-cycle toggle, the model file tree, and a DEPLOY section that is not parity-gated; centre with Diagram/Source/Diff tabs — Diagram paints the fisheye canvas with a PAGE selector, Diff binds to the rail file plus a CYCLE picker and a Diagram/List toggle, and an .ocl selection swaps in a Source/Diagram toggle; right MODEL CONTEXT panel with file, kind, the selectable IDS list, DESCRIPTION, and TRACE. Both side panels collapse to an 18px sliver. Route-less native egui app — layout/contract reference, not a Playwright target.")
+title mdd viewer — full window UI contract (current, as-built)
+{
+  { mdd | /path/to/project }
+  --
+  {
+    {
+      "MODELS                           [<]"
+      [Directory] | [By cycle]
+      {T
+        + .mdd/models
+        ++ current
+        +++ domain
+        ++++ canvas-view.puml
+        +++ mockups
+        ++++ viewer-full.puml
+        +++ use-cases
+        ++ objective
+        + Cycle 0016 — slug (closed)
+        + Unassigned
+      }
+      --
+      {+ DEPLOY  ·  /mdd-deploy utility, not parity-gated
+        {T
+          + .mdd/deploy
+          ++ container-app.puml
+        }
+      }
+    } |
+    {
+      [*Diagram] | [Source] | [Diff]
+      --
+      "DIAGRAM  ·  PAGE [*1] 2 3  ·  scroll = zoom · drag = pan · centre = fisheye"
+      "[ diagram canvas — centre bulges (fisheye), corners stay fixed ]"
+      --
+      "DIFF  ·  CYCLE [*0016] | [0015]  ·  VIEW [*Diagram] | [List]"
+      "[ superposed diff canvas — shared · +added green · -removed red ]"
+      --
+      "SOURCE  ·  read-only PlantUML, @id / @ref / @sec highlighted, no render"
+      --
+      "OCL FILE  ·  VIEW [*Source] | [Diagram]   (shown only for an .ocl selection)"
+    } |
+    {
+      "[>]   MODEL CONTEXT"
+      --
+      "file" | { current/domain/canvas-view.puml }
+      "kind" | { domain }
+      "IDS"
+      {
+        [*DOM-CANVAS-VIEW]
+        [ DOM-PANEL-LAYOUT ]
+      }
+      {^"DESCRIPTION"
+        "DOM-CANVAS-VIEW"
+        "Base zoom/pan plus the center-fixed fisheye params."
+      }
+      "TRACE" | { SEQ-CANVAS-FISHEYE -> depends_on -> DOM-CANVAS-VIEW }
+    }
+  }
+  --
+  "[<] / [>] chevrons collapse a panel to an 18px sliver; click the sliver to expand"
+}
+@endsalt
