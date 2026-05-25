@@ -1,0 +1,47 @@
+@startuml
+' @id(DOM-INIT-FILE-CLASS)
+' @desc(DOM-INIT-FILE-CLASS, "Implemented as the routing in Project::init_with_conflict_handler plus the StateFile trait (crates/mdd-core/src/lib.rs). Regenerable files (docs, workflow SKILL.md, CLAUDE.md/AGENTS.md managed blocks, SessionStart hook) go through write_text_if_missing(handler) / write_managed_block / write_session_hook and are safe to overwrite. AccumulatingState files (config.yml, trace.yml, approvals.yml) implement the StateFile trait and go through write_yaml_create_or_migrate, which never receives the conflict handler — so --force overwrites the Regenerable set but can never reach the AccumulatingState set. The split is the conceptual reason there are two distinct write paths.")
+' @id(DOM-STATE-MIGRATION)
+' @desc(DOM-STATE-MIGRATION, "Implemented by write_yaml_create_or_migrate + read_yaml_version + the StateFile trait (crates/mdd-core/src/lib.rs). schemaVersion = StateFile::schema_version() (read from each struct's Default — today 1 for MddConfig/Trace/Approvals); onDiskVersion = read_yaml_version() of the existing file (0 when absent/unparseable). migrate() fires only when onDiskVersion < schemaVersion: the file is deserialized into the current struct (fields added since fill from #[serde(default)]), set_schema_version stamps the current version, and it is re-serialized — every prior link/approval/config value survives, only newly-defaulted fields and the version change. onDiskVersion >= schemaVersion is skipped untouched (idempotent; never downgrade); an unparseable older file is also left untouched rather than clobbered. No per-version code.")
+' Current-side domain for cycle 0018: the file-class policy split and the
+' round-trip, forward-only migration, mapped from the implemented engine.
+title MDD init — file classes + state migration (current)
+
+enum InitFileClass {
+  Regenerable
+  AccumulatingState
+}
+
+class StateMigration {
+  + path : String
+  + schemaVersion : u32
+  + onDiskVersion : u32
+  + migrate() : Outcome
+}
+
+enum Outcome {
+  Created
+  Migrated
+  Skipped
+}
+
+StateMigration ..> InitFileClass : applies to AccumulatingState >
+StateMigration ..> Outcome : yields >
+
+note bottom of StateMigration
+  migrate() (write_yaml_create_or_migrate):
+    onDiskVersion < schemaVersion -> Migrated
+      (parse into current struct, defaults fill
+       new fields, bump version, write back)
+    onDiskVersion = schemaVersion -> Skipped (untouched)
+    onDiskVersion > schemaVersion -> Skipped (no downgrade)
+  Preserves all prior content; no per-version code.
+end note
+
+note bottom of InitFileClass
+  Regenerable: docs, skills, CLAUDE.md/AGENTS.md
+  blocks, SessionStart hook -> --force overwrites.
+  AccumulatingState (StateFile trait): config / trace /
+  approvals -> never overwritten; created or migrated.
+end note
+@enduml

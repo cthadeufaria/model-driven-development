@@ -547,6 +547,7 @@ impl Project {
             ".mdd/tests/acceptance",
             ".mdd/tests/ui",
             ".mdd/docs",
+            ".mdd/ralph",
             ".claude/skills",
             ".codex/skills",
         ];
@@ -615,6 +616,26 @@ impl Project {
             &mut overwritten,
             &mut skipped,
             &mut on_conflict,
+        )?;
+        // Ralph workspace (USE-INIT-RALPH). PROMPT.md is Regenerable — it goes
+        // through the conflict handler like every other template. PLAN.md is
+        // SeededOnce (DOM-INIT-SEED-ONCE): created from the starter template
+        // only when missing, then never touched — the conflict handler is
+        // deliberately not consulted, so --force can never overwrite a plan
+        // that the model gap, a backlog, or another agent now owns.
+        self.write_text_if_missing(
+            ".mdd/ralph/PROMPT.md",
+            templates::ralph_prompt(),
+            &mut created,
+            &mut overwritten,
+            &mut skipped,
+            &mut on_conflict,
+        )?;
+        self.write_text_create_if_missing(
+            ".mdd/ralph/PLAN.md",
+            templates::ralph_plan(),
+            &mut created,
+            &mut skipped,
         )?;
         self.write_managed_block(
             "CLAUDE.md",
@@ -2576,6 +2597,35 @@ impl Project {
         Ok(())
     }
 
+    /// Write a SeededOnce file (DOM-INIT-SEED-ONCE): create it from the given
+    /// template only when it is missing, and otherwise leave it untouched. The
+    /// init conflict handler is intentionally NOT consulted, so `--force` can
+    /// never overwrite it — unlike a Regenerable file written through
+    /// [`Project::write_text_if_missing`]. There is no migration path either:
+    /// the file is seeded once and thereafter owned by whoever edits it
+    /// (e.g. `.mdd/ralph/PLAN.md`, consumed and rewritten by the Ralph loop).
+    fn write_text_create_if_missing(
+        &self,
+        relative: &str,
+        value: &str,
+        created: &mut Vec<String>,
+        skipped: &mut Vec<String>,
+    ) -> Result<()> {
+        let path = self.root.join(relative);
+        if path.exists() {
+            skipped.push(relative.to_string());
+            return Ok(());
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        fs::write(&path, value)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        created.push(relative.to_string());
+        Ok(())
+    }
+
     /// Inject (or refresh in place) the deterministic mdd block in a file that
     /// the user may also own. Existing user content is always preserved; the
     /// init conflict handler is intentionally not consulted here.
@@ -4051,6 +4101,39 @@ mod tests {
         assert!(dir.path().join(".mdd/trace.yml").is_file());
         assert!(dir.path().join(".mdd/approvals.yml").is_file());
         assert!(dir.path().join(".mdd/tests/ui").is_dir());
+        // USE-INIT-RALPH: the Ralph workspace is scaffolded by init.
+        assert!(dir.path().join(".claude/skills/mdd-ralph/SKILL.md").is_file());
+        assert!(dir.path().join(".codex/skills/mdd-ralph/SKILL.md").is_file());
+        assert!(dir.path().join(".mdd/ralph").is_dir());
+        assert!(dir.path().join(".mdd/ralph/PROMPT.md").is_file());
+        assert!(dir.path().join(".mdd/ralph/PLAN.md").is_file());
+        assert!(report.created.contains(&".mdd/ralph/PLAN.md".to_string()));
+    }
+
+    #[test]
+    fn init_seeds_ralph_plan_once_force_never_overwrites() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+
+        // A populated plan stands in for one anything else has written.
+        let plan = dir.path().join(".mdd/ralph/PLAN.md");
+        let populated = "# Ralph plan\n\n## Items\n- [ ] ship the thing\n";
+        fs::write(&plan, populated).unwrap();
+
+        // SeededOnce: even --force (always-Overwrite handler) leaves it intact,
+        // reported skipped, never overwritten — unlike a Regenerable file.
+        let report = project
+            .init_with_conflict_handler(|_| Ok(InitFileConflict::Overwrite))
+            .unwrap();
+        assert!(report.skipped.contains(&".mdd/ralph/PLAN.md".to_string()));
+        assert!(!report.overwritten.contains(&".mdd/ralph/PLAN.md".to_string()));
+        assert_eq!(fs::read_to_string(&plan).unwrap(), populated);
+
+        // PROMPT.md is Regenerable, so --force does overwrite it.
+        assert!(report
+            .overwritten
+            .contains(&".mdd/ralph/PROMPT.md".to_string()));
     }
 
     #[test]

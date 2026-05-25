@@ -1,0 +1,42 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam enum {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-INIT-SEED-ONCE) <<added>> this cycle (0022)
+' Cycle 0022 diff (current side): a third InitFileClass — SeededOnce
+' (DOM-INIT-SEED-ONCE) — is added for .mdd/ralph/PLAN.md: created if
+' missing via write_text_create_if_missing, never overwritten (even by
+' --force) and never migrated. Nothing removed; Regenerable,
+' AccumulatingState, StateMigration, and Outcome are reused.
+title MDD init — SeededOnce file class added · cycle 0022 diff (current)
+
+enum InitFileClass {
+  Regenerable
+  AccumulatingState
+  SeededOnce <<added>>
+}
+
+class StateMigration {
+  + path : String
+  + schemaVersion : u32
+  + onDiskVersion : u32
+  + migrate() : Outcome
+}
+
+enum Outcome {
+  Created
+  Migrated
+  Skipped
+}
+
+class "SeededOnce: .mdd/ralph/PLAN.md\nwrite_text_create_if_missing\n(create once; no handler; no migration)" as Seed <<added>>
+
+StateMigration ..> InitFileClass : applies to AccumulatingState >
+StateMigration ..> Outcome : yields >
+Seed ..> InitFileClass : realizes SeededOnce >
+@enduml

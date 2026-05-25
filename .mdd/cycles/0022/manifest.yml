@@ -1,0 +1,18 @@
+number: "0022"
+slug: init-scaffolds-ralph-workspace
+entry: generate
+description: "mdd init scaffolds the Ralph workspace: register mdd-ralph as a workflow skill (regenerable, .claude + .codex), create the .mdd/ralph/ directory, write PROMPT.md as a regenerable template, and seed PLAN.md once (created if missing, never overwritten even by --force, never migrated) — introducing a third InitFileClass, SeededOnce, alongside Regenerable and AccumulatingState."
+status: closed
+opened_at: "2026-05-25T11:40:00Z"
+closed_at: "2026-05-25T11:56:00Z"
+touched_files:
+  - .mdd/models/current/use-cases/init-scaffold.puml
+  - .mdd/models/current/domain/init-scaffold.puml
+  - .mdd/models/current/sequences/init-scaffold.puml
+  - .mdd/models/current/components/init-scaffold.puml
+  - .mdd/models/objective/use-cases/init-scaffold.puml
+  - .mdd/models/objective/domain/init-scaffold.puml
+  - .mdd/models/objective/sequences/init-scaffold.puml
+  - .mdd/models/objective/components/init-scaffold.puml
+  - .mdd/constraints/init-scaffold.ocl
+  - .mdd/trace.yml

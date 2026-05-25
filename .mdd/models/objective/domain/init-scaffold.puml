@@ -3,14 +3,17 @@
 ' @desc(DOM-INIT-FILE-CLASS, "The two classes of file `mdd init` manages, which decide overwrite policy. Regenerable = derived purely from the tool's templates and safe to rewrite: the .mdd/docs/*.md, the workflow SKILL.md files, the CLAUDE.md/AGENTS.md managed blocks, and the SessionStart hook. AccumulatingState = the three files that carry user- and cycle-authored content that the tool can never regenerate: config.yml, trace.yml, approvals.yml. --force may overwrite Regenerable files; AccumulatingState is exempt and only ever created or forward-migrated (see DOM-STATE-MIGRATION). This is the conceptual line behind why write_text_if_missing(handler) governs one set and write_yaml_create_or_migrate governs the other.")
 ' @id(DOM-STATE-MIGRATION)
 ' @desc(DOM-STATE-MIGRATION, "Forward-only, content-preserving upgrade of one AccumulatingState file. schemaVersion is the version the running tool writes (today 1 for all three, taken from each struct's Default); onDiskVersion is the `version:` read from the existing file. migrate() fires only when onDiskVersion < schemaVersion: the file is deserialized into the current struct (fields added since the file was written fill from #[serde(default)]), `version` is set to schemaVersion, and it is re-serialized — so every prior link/approval/config value survives and only newly-added fields and the version number change. onDiskVersion = schemaVersion leaves the file untouched (idempotent); onDiskVersion > schemaVersion is never downgraded. No per-version migration code: a plain round-trip through the newer struct is the upgrade.")
-' Objective-side domain for cycle 0018: the file-class policy split and
-' the round-trip, forward-only state migration that realizes
-' 'updated for newer versions without being overwritten'.
+' @id(DOM-INIT-SEED-ONCE)
+' @desc(DOM-INIT-SEED-ONCE, "The third InitFileClass: SeededOnce. A file written from a starter template only when it does not yet exist, and thereafter NEVER touched by init — neither overwritten (not even by --force) nor version-migrated. It differs from Regenerable (which --force overwrites) and from AccumulatingState (which carries a version and is forward-migrated): a SeededOnce file has no schema, no migration, and no overwrite path at all after creation. The motivating instance is .mdd/ralph/PLAN.md, the Ralph plan: anything may author it (the objective-vs-current model gap, a hand-written backlog, another agent) and Ralph consumes and rewrites it, so init must seed it once and then keep its hands off. Realized by a create-if-missing write that, unlike Regenerable files, is never passed the conflict handler — so the --force always-Overwrite handler can never reach it.")
+' Objective-side domain for cycle 0018 (file-class split + state
+' migration) and cycle 0022 (the SeededOnce class for .mdd/ralph/PLAN.md):
+' the overwrite-policy classes and the forward-only state migration.
 title MDD init — file classes + state migration (objective)
 
 enum InitFileClass {
   Regenerable
   AccumulatingState
+  SeededOnce
 }
 
 class StateMigration {
@@ -40,9 +43,13 @@ note bottom of StateMigration
 end note
 
 note bottom of InitFileClass
-  Regenerable: docs, skills, CLAUDE.md/AGENTS.md
-  blocks, SessionStart hook -> --force overwrites.
+  Regenerable: docs, skills (incl. mdd-ralph),
+  CLAUDE.md/AGENTS.md blocks, SessionStart hook,
+  .mdd/ralph/PROMPT.md -> --force overwrites.
   AccumulatingState: config / trace / approvals
   -> never overwritten; created or forward-migrated.
+  SeededOnce (DOM-INIT-SEED-ONCE): .mdd/ralph/PLAN.md
+  -> created if missing, then never overwritten
+  (even by --force) and never migrated.
 end note
 @enduml

@@ -2,17 +2,19 @@
 ' @id(CMP-INIT-CLI)
 ' @desc(CMP-INIT-CLI, "The `mdd init [--force]` subcommand in crates/mdd-cli/src/main.rs: the Commands::Init { force: bool } variant (a `--force` flag, mirroring `mdd clean --force`) and its match arm. The arm chooses the conflict handler — an always-Overwrite closure when force is set, otherwise the existing interactive prompt_init_conflict — and calls Project::init_with_conflict_handler. It then prints the InitReport, now including a `migrated {path}` line beside created/overwritten/skipped. Thin presentation layer, like Commands::Validate; the file-policy and migration logic live in CMP-INIT-ENGINE.")
 ' @id(CMP-INIT-ENGINE)
-' @desc(CMP-INIT-ENGINE, "Project::init_with_conflict_handler in crates/mdd-core/src/lib.rs and its write helpers. It creates the directory tree, writes each REGENERABLE file through write_text_if_missing(handler) (so the handler decides overwrite vs skip on conflict), refreshes the CLAUDE.md/AGENTS.md managed blocks, and invokes the SessionStart hook merge (CMP-INIT-HOOK). For the three AccumulatingState files it now calls write_yaml_create_or_migrate instead of write_yaml_create_only: create-from-default when missing, else a forward-only round-trip migration (DOM-STATE-MIGRATION) when the on-disk version is older, else skip. The state path never receives the conflict handler, so --force cannot reach config/trace/approvals. Returns InitReport { created, overwritten, migrated, skipped }.")
-' Objective ownership for cycle 0018. The CLI adds a --force flag and a
-' migrated report line; mdd-core gains create-or-migrate for state files
-' while reusing its existing regenerable-file and hook machinery.
+' @desc(CMP-INIT-ENGINE, "Project::init_with_conflict_handler in crates/mdd-core/src/lib.rs and its write helpers. It creates the directory tree (including .mdd/ralph), writes each REGENERABLE file through write_text_if_missing(handler) (so the handler decides overwrite vs skip on conflict) — including the mdd-ralph workflow SKILL.md under .claude/.codex and .mdd/ralph/PROMPT.md — refreshes the CLAUDE.md/AGENTS.md managed blocks, and invokes the SessionStart hook merge (CMP-INIT-HOOK). For the SeededOnce file .mdd/ralph/PLAN.md (DOM-INIT-SEED-ONCE) it calls write_text_create_if_missing: create from the starter template when missing, else skip — never overwritten, no handler. For the three AccumulatingState files it calls write_yaml_create_or_migrate: create-from-default when missing, else a forward-only round-trip migration (DOM-STATE-MIGRATION) when the on-disk version is older, else skip. Neither the SeededOnce nor the state path receives the conflict handler, so --force cannot reach PLAN.md or config/trace/approvals. Returns InitReport { created, overwritten, migrated, skipped }.")
+' Objective ownership for cycle 0018 (--force + migrated report) and
+' cycle 0022 (Ralph workspace). The CLI is unchanged for Ralph; mdd-core
+' adds write_text_create_if_missing for the seeded-once PLAN.md and seeds
+' the mdd-ralph skill + .mdd/ralph/ via its existing regenerable machinery.
 title MDD init — ownership (objective)
 
 actor "Developer / Agent" as Dev
 
 component "mdd init [--force]\n(CMP-INIT-CLI)\nmdd-cli/src/main.rs" as Cli
 component "Project::init_with_conflict_handler\n(CMP-INIT-ENGINE)\nmdd-core/src/lib.rs" as Engine
-component "write_text_if_missing\n(regenerable: docs, skills, blocks)" as Text
+component "write_text_if_missing\n(regenerable: docs, skills incl. mdd-ralph,\nblocks, .mdd/ralph/PROMPT.md)" as Text
+component "write_text_create_if_missing\n(seeded-once: .mdd/ralph/PLAN.md)" as Seed
 component "write_yaml_create_or_migrate\n(state: config/trace/approvals)" as Yaml
 component "SessionStart hook merge\n(CMP-INIT-HOOK)" as Hook
 
@@ -20,8 +22,16 @@ Dev --> Cli : mdd init [--force]
 Cli --> Engine : init_with_conflict_handler(handler)
 Cli --> Cli : handler = force ? always Overwrite : prompt
 Engine --> Text : regenerable files (handler decides overwrite/skip)
+Engine --> Seed : .mdd/ralph/PLAN.md (create if missing only)
 Engine --> Yaml : state files (create or forward-migrate)
 Engine --> Hook : upsert SessionStart hook (idempotent)
+
+note bottom of Seed
+  SeededOnce (DOM-INIT-SEED-ONCE): never consulted with
+  the conflict handler, so --force cannot overwrite
+  .mdd/ralph/PLAN.md. Created from the starter template
+  when missing; skipped otherwise; never migrated.
+end note
 
 note bottom of Yaml
   Never consulted with the conflict handler, so --force

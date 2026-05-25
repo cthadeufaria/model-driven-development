@@ -30,3 +30,14 @@ inv ContentPreservingBump:
   self.migrate() = Outcome::Migrated implies
     (self.onDiskVersion < self.schemaVersion
      and self.priorContent->forAll(v | self.upgradedContent->includes(v)))
+
+-- @id(OCL-INIT-SEED-ONCE)
+-- @ref(DOM-INIT-SEED-ONCE)
+-- A SeededOnce file (.mdd/ralph/PLAN.md) is written only when it does not
+-- exist; once present it is never overwritten — independent of --force —
+-- and never migrated. Unlike Regenerable, the conflict handler is never
+-- consulted, so the --force always-Overwrite handler cannot reach it.
+context InitFileClass
+inv SeededOnceCreatedThenImmutable:
+  self = InitFileClass::SeededOnce implies
+    (self.overwrittenByForce = false and self.migrated = false)

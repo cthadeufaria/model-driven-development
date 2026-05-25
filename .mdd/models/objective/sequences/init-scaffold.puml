@@ -2,16 +2,20 @@
 ' @id(SEQ-INIT-SCAFFOLD)
 ' @ref(USE-INIT-FORCE)
 ' @ref(USE-INIT-MIGRATE)
-' @desc(SEQ-INIT-SCAFFOLD, "Objective flow of one `mdd init [--force]` invocation. The CLI (Commands::Init { force }) picks a conflict handler — always-Overwrite when --force, else the interactive prompt_init_conflict — and passes it to Project::init_with_conflict_handler. The engine: (1) creates any missing directories; (2) for each REGENERABLE file (docs, workflow skills, CLAUDE.md/AGENTS.md managed blocks, SessionStart hook) writes via write_text_if_missing(handler): create when missing, otherwise overwrite-or-skip per the handler (so --force overwrites, no-flag prompts); (3) for each of the three STATE files runs write_yaml_create_or_migrate: create from default when missing, migrate when on_disk.version < current schema version, else skip. It returns InitReport { created, overwritten, migrated, skipped } which the CLI prints. The state branch never consults the conflict handler, so --force cannot overwrite config/trace/approvals.")
-' Objective sequence for cycle 0018: one init invocation, two file
-' classes — regenerable (handler-driven overwrite) vs accumulating
-' state (create-or-forward-migrate, handler-independent).
+' @ref(USE-INIT-RALPH)
+' @desc(SEQ-INIT-SCAFFOLD, "Objective flow of one `mdd init [--force]` invocation. The CLI (Commands::Init { force }) picks a conflict handler — always-Overwrite when --force, else the interactive prompt_init_conflict — and passes it to Project::init_with_conflict_handler. The engine: (1) creates any missing directories (including .mdd/ralph); (2) for each REGENERABLE file (docs, workflow skills incl. mdd-ralph, CLAUDE.md/AGENTS.md managed blocks, SessionStart hook, .mdd/ralph/PROMPT.md) writes via write_text_if_missing(handler): create when missing, otherwise overwrite-or-skip per the handler (so --force overwrites, no-flag prompts); (3) for the SeededOnce file .mdd/ralph/PLAN.md runs write_text_create_if_missing (no handler): create from the starter template when missing, else skip — so it is never overwritten, not even by --force; (4) for each of the three STATE files runs write_yaml_create_or_migrate: create from default when missing, migrate when on_disk.version < current schema version, else skip. It returns InitReport { created, overwritten, migrated, skipped } which the CLI prints. Neither the SeededOnce branch nor the state branch consults the conflict handler, so --force can reach neither PLAN.md nor config/trace/approvals.")
+' Objective sequence for cycle 0018 (force + migrate) and cycle 0022
+' (the SeededOnce PLAN.md branch): one init invocation, three file
+' classes — regenerable (handler-driven overwrite), seeded-once
+' (create-if-missing, handler-independent), and accumulating state
+' (create-or-forward-migrate, handler-independent).
 title mdd init [--force] — regenerable overwrite vs state migration (objective)
 
 actor "Developer / Agent" as Dev
 participant "mdd init [--force]\n(Commands::Init)" as Cli
 participant "Project::init_with_\nconflict_handler" as Engine
 participant "write_text_if_missing\n(regenerable)" as Text
+participant "write_text_create_\nif_missing (seeded-once)" as Seed
 participant "write_yaml_create_\nor_migrate (state)" as Yaml
 
 Dev -> Cli : mdd init [--force]
@@ -31,6 +35,15 @@ group regenerable files (docs, skills, blocks, hook)
     Text --> Engine : overwrite
   else exists + handler=Skip
     Text --> Engine : skip
+  end
+end
+
+group seeded-once file (.mdd/ralph/PLAN.md) — handler NOT consulted
+  Engine -> Seed : write_text_create_if_missing(PLAN.md)
+  alt missing
+    Seed --> Engine : create from starter template
+  else exists
+    Seed --> Engine : skip (never overwritten, even by --force)
   end
 end
 

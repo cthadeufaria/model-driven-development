@@ -1,0 +1,38 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-INIT-RALPH) <<added>> this cycle (0022)
+' Cycle 0022 diff (current side): `mdd init` now scaffolds the Ralph
+' workspace. One use case is added — USE-INIT-RALPH (register the mdd-ralph
+' skill, create .mdd/ralph/, write PROMPT.md regenerable, seed PLAN.md
+' once). Nothing removed; Force / Prompt / Migrate are reused.
+title MDD init scaffolds the Ralph workspace · cycle 0022 diff (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd init" {
+  usecase "Overwrite all regenerable\nscaffolding (--force)\nno per-file prompt" as Force
+  usecase "Keep per-file [o/S]\nprompt (no flag)" as Prompt
+  usecase "Forward-migrate state files\nconfig / trace / approvals\n(never overwrite)" as Migrate
+  usecase "Scaffold the Ralph workspace\nmdd-ralph skill + PROMPT.md (regenerable)\nseed PLAN.md once (never overwrite)" as Ralph <<added>>
+}
+
+Dev --> Force
+Dev --> Prompt
+Dev --> Migrate
+Dev --> Ralph
+
+Force ..> Prompt : <<extend>> (replaces prompt)
+@enduml

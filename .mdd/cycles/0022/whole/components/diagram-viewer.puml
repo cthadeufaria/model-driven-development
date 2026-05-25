@@ -1,0 +1,57 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-VIEWER-RENDER-PIPELINE, 0001)
+' @cycle(CMP-OCL-RENDER, 0004)
+' @id(CMP-VIEWER-RENDER-PIPELINE)
+' @id(CMP-OCL-RENDER)
+' @ref(USE-VIEW-DIAGRAMS)
+' @ref(USE-VIEW-OCL)
+' @desc(CMP-VIEWER-RENDER-PIPELINE, "Implemented: mdd-viewer reads pre-rendered SVG and rasterizes it through usvg/resvg with shared_fontdb()'s populated font database.")
+' @desc(CMP-OCL-RENDER, "Implemented as mdd_render::synthesize_ocl_puml + render_ocl_diagrams: turns each .ocl into a PlantUML constraints diagram and rasterizes it to the .mdd/rendered/constraints/<name>.svg mirror.")
+' Current-side component view after the font fix: the font database is a
+' populated dependency owned at the usvg boundary, fed by shared_fontdb();
+' OCL files get a synthesized constraints diagram via mdd-render.
+title mdd-viewer render pipeline — ownership (current)
+
+actor "Developer" as Dev
+
+component "mdd-cli\nCommands::View" as Cli
+component "mdd-viewer\nMddViewer (eframe::App)\nDiagramPage, shared_fontdb()" as Viewer
+component "mdd-core\nProject, ModelRegistry, Trace" as Core
+folder ".mdd/rendered/\n(pre-rendered SVG)" as Rendered
+folder ".mdd/models/, .mdd/trace.yml" as Models
+
+package "SVG rasterization (external crates)" {
+  component "usvg 0.44\nOptions { fontdb, font_family }" as Usvg
+  component "fontdb 0.22\n(system fonts loaded once)" as FontDb
+  component "resvg 0.44 +\ntiny-skia 0.11" as Resvg
+}
+component "eframe / egui 0.30\n(window, painter, textures)" as Egui
+component "mdd-render\nsynthesize_ocl_puml +\nrender_ocl_diagrams" as OclRend
+folder ".mdd/constraints/\n*.ocl" as Ocl
+
+Dev --> Cli : mdd view
+Cli --> Viewer : run(project)
+OclRend --> Ocl : read *.ocl
+OclRend --> Rendered : write constraints/<name>.svg (mirror)
+Viewer --> Rendered : load constraints/<name>.svg (OCL Diagram)
+Viewer --> Ocl : read raw text (OCL Source)
+Cli --> Core : Project::discover
+Viewer --> Core : model_registry(), read_trace()
+Core --> Models : scan
+Viewer --> Rendered : read SVG bytes
+Viewer --> FontDb : shared_fontdb() (OnceLock, once)
+Usvg --> FontDb : resolves <text> font families
+Viewer --> Usvg : Tree::from_data(Options { fontdb, ..default() })
+Usvg --> Resvg : tree
+Resvg --> Viewer : RGBA pixmap (glyphs rasterized)
+Viewer --> Egui : texture + painter.image()
+Egui --> Dev : on-screen diagram with legible text
+
+note bottom of FontDb
+  The font database lives HERE, not in egui.
+  Loaded once via shared_fontdb()'s static
+  OnceLock and Arc-cloned per parse. egui's
+  `default_fonts` is a separate stack.
+end note
+@enduml

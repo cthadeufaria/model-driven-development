@@ -1,0 +1,49 @@
+@startuml
+' @id(SEQ-APPLY-THEME)
+' @ref(USE-VIEWER-THEMED)
+' @desc(SEQ-APPLY-THEME, "Implemented in crates/mdd-viewer/src/{lib.rs,theme.rs}. run() — invoked by `mdd view` — passes a closure to eframe::run_native; inside that closure, after `MddViewer::new()` returns, theme::register_fonts(&cc.egui_ctx) constructs egui::FontDefinitions::default() and inserts Inter-Regular at index 0 of FontFamily::Proportional, Inter-Medium at index 1 (fallback), and JetBrainsMono-Regular at index 0 of FontFamily::Monospace, then ctx.set_fonts. On every subsequent eframe::App::update, theme::apply_theme(ctx) is the first call: dark_light::detect() -> Mode::{Light, Dark, Unspecified}; Dark/Unspecified -> catppuccin_egui::set_theme(ctx, MOCHA); Light -> set_theme(ctx, LATTE). Then ctx.style_mut sets style.spacing.item_spacing = vec2(8.0, 6.0) and rounding=6.0 on visuals.window_rounding, menu_rounding, and widgets.{noninteractive,inactive,hovered,active,open}.rounding.")
+' Current-side sequence for the Tier-1 theming: one-shot font
+' registration at startup, then a per-frame OS-appearance probe that
+' drives the Catppuccin variant + style mutations.
+title Apply theme (current)
+
+actor Developer as Dev
+participant "eframe::run_native\n(run() closure)" as Eframe
+participant "MddViewer::new" as Ctor
+participant "MddViewer::update" as Upd
+participant "egui::Context" as Ctx
+participant "Bundled TTFs\n(assets/fonts/*.ttf,\ninclude_bytes!)" as Fonts
+participant "dark_light::detect()" as OsAppearance
+participant "catppuccin_egui\n::set_theme" as Catppuccin
+
+Dev -> Eframe : mdd view
+Eframe -> Ctor : construct app
+Ctor --> Eframe : MddViewer
+Eframe -> Fonts : theme::register_fonts(&cc.egui_ctx)
+Fonts -> Ctx : ctx.set_fonts(FontDefinitions {\n Proportional: [Inter-Regular, Inter-Medium, …],\n Monospace: [JetBrainsMono-Regular, …]\n})
+
+== Per-frame chrome refresh ==
+Eframe -> Upd : update(ctx, frame)
+Upd -> OsAppearance : dark_light::detect()
+OsAppearance --> Upd : Mode::{Light | Dark | Unspecified}
+alt Mode == Light
+  Upd -> Catppuccin : set_theme(ctx, LATTE)
+else Mode == Dark or Unspecified
+  Upd -> Catppuccin : set_theme(ctx, MOCHA)
+end
+Upd -> Ctx : style_mut(): spacing.item_spacing = (8.0, 6.0)\n+ rounding = 6.0 on window / menu / widgets.{noninteractive,inactive,hovered,active,open}
+Upd -> Ctx : draw TopBottomPanel + SidePanels + canvas
+
+note right of Catppuccin
+  Re-applied each frame — flipping
+  System Settings → Appearance flips
+  the viewer chrome on the next paint
+  with no restart.
+end note
+
+note over Fonts
+  Bundled under crates/mdd-viewer/assets/fonts/
+  (SIL OFL — licences live next to the TTFs).
+  ≈1.1 MB of assets, embedded via include_bytes!.
+end note
+@enduml
