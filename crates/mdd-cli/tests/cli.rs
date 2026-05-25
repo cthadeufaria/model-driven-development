@@ -337,13 +337,14 @@ fn help_exposes_init_clean_and_render_commands() {
         .stdout(predicate::str::contains("validate"))
         // `mdd context` is the session brief wired as the SessionStart hook.
         .stdout(predicate::str::contains("context"))
+        // `mdd arch` exposes the architecture diff/status verb.
+        .stdout(predicate::str::contains("arch"))
         .stdout(predicate::str::contains("describe").not())
-        .stdout(predicate::str::contains("diff").not())
         .stdout(predicate::str::contains("approve").not())
-        // NB: no bare `test` command, but `test-plan`/`test-detect` legitimately
-        // contain that substring — `removed_commands_fail_as_unknown` below is
-        // the real guard that the bare `test` command is gone, so we do not
-        // substring-match "test" in the help here.
+        // NB: we do NOT substring-match "test" or "diff" here — `test-plan` /
+        // `test-detect` and the `arch` (diff/status) command's help blurb
+        // legitimately contain them. `removed_commands_fail_as_unknown` below
+        // is the real guard that the bare `test`/`diff` commands are unknown.
         .stdout(predicate::str::contains("code").not())
         .stdout(predicate::str::contains("app").not());
 }

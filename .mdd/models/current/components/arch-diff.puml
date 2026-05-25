@@ -1,0 +1,17 @@
+@startuml
+' @id(CMP-ARCH-CLI)
+' @desc(CMP-ARCH-CLI, "Implemented as the mdd-cli `mdd arch` nested subcommand (Commands::Arch -> ArchCommand::Diff/Status, --json) plus the mdd-core architecture.rs engine (ArchitectureSpec parse, pure diff(), pure check(), and Project::read_text_at_ref git-show base reader). Distinct from CMP-ARCH-TRACKING (the spec artifact + templates + agent doc): this is the tooling that diffs and gates it; check() is also called by Project::validate_inner.")
+' Current-side component for the architecture CLI + engine (cycle 0029).
+title Architecture CLI + engine (current)
+
+component "mdd arch (CLI)\nmdd-cli Commands::Arch" as Cli
+component "architecture.rs engine\n(parse / diff / check)" as Engine
+component "mdd validate\n(Project::validate_inner)" as Validate
+artifact ".mdd/architecture/*.yml" as Spec
+component "git" as Git
+
+Cli --> Engine : diff / status
+Engine --> Spec : parse working
+Engine --> Git : read base at ref (git show)
+Validate --> Engine : check() as WARNING rules
+@enduml

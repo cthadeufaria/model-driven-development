@@ -40,12 +40,14 @@ technology, add a cross-cutting rule):
    `supersedes: <old id>`. Never delete or edit an accepted decision — the file
    is the history.
 3. **Keep `components.yml` in sync** with the component diagrams you touched.
-4. **Commit.** The structured diff is captured in git (the interim history
-   mechanism). A dedicated `mdd arch diff` / `mdd arch status` verb — folding
-   SoT changes into the MDD snapshot/diff machinery and runnable detached from a
-   cycle — is the planned follow-up.
+4. **Inspect + commit.** Run `mdd arch diff [--base <ref>]` for a structured
+   semantic diff of the SoT against a git ref (default `HEAD`: added/removed/
+   changed components, decisions, constraints; `--json` for tooling), and
+   `mdd arch status` to summarize the spec and check the invariants below (it
+   exits non-zero on a violation). Both are detached — they run any time, not
+   only inside a cycle. Then commit; git holds the change history.
 
-## Invariants (see `.mdd/constraints/architecture.ocl`)
+## Invariants — checked by `mdd arch status` and `mdd validate` (see `.mdd/constraints/architecture.ocl`)
 
 - Every decision has a `status` (`OCL-ARCH-DECISION-HAS-STATUS`).
 - A `superseded` decision names its successor (`OCL-ARCH-SUPERSEDE-LINKED`).

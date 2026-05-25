@@ -1,0 +1,45 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-VIEW-PUML-SOURCE, 0012)
+' @id(SEQ-VIEW-PUML-SOURCE)
+' @ref(USE-VIEW-PUML-SOURCE)
+'
+' Current-side flow as implemented in crates/mdd-viewer/src/lib.rs: the
+' CentralPanel Diagram | Source | Diff toggle row, View::Source dispatch,
+' and MddViewer::source_ui reading the .puml straight from disk.
+'
+' @desc(SEQ-VIEW-PUML-SOURCE, "As coded: update()'s CentralPanel paints a Diagram | Source | Diff selectable_label row. Clicking Source sets self.view = View::Source; update() then dispatches `if self.view == View::Source { self.source_ui(ui); return; }` before the constraint/canvas branch. source_ui reads the selected file once into source_view (cached by self.source_view.loaded), then paints each line in egui::ScrollArea::both as a read-only monospace label, coloring `' @` markers, `@start`/`@end` directives and `'` comments. No DiagramPage or usvg/resvg call.")
+title View a model file's PlantUML source (current)
+
+actor "Developer" as Dev
+participant "MddViewer::update\n(CentralPanel)" as Viewer
+participant "self.view : View\n{Svg|Source|Diff}" as Mode
+participant "self.source_view\nSourceView { loaded, source }" as SV
+database ".mdd/models/<side>/\n<kind>/<name>.puml" as Puml
+
+Dev -> Viewer : select a model file in the rail
+Viewer -> Dev : paint "Diagram | Source | Diff" selectable_label row
+
+alt self.view == Svg (default)
+  Viewer -> Dev : paint_canvas (rendered SVG) — existing branch
+else self.view == Source
+  Dev -> Viewer : click "Source"
+  Viewer -> Mode : self.view = View::Source
+  Viewer -> Viewer : source_ui(ui)  (return before OCL/canvas branch)
+  alt self.source_view.loaded != selected path
+    Viewer -> Puml : fs::read_to_string(root.join(file_rel))
+    Puml --> SV : source text (loaded = path)
+  end
+  loop each painted frame
+    Viewer -> Dev : ScrollArea::both of read-only monospace labels\n(' @ markers yellow, @start/@end blue, ' comments dim)
+  end
+end
+
+note over SV
+  source_ui caches (loaded, source) so the file is read
+  once per selection. It calls no DiagramPage / usvg /
+  resvg path — the text is read straight from disk, so
+  Source works even when the SVG is unrendered
+  (OCL-PUML-SOURCE-NO-RENDER).
+end note
+@enduml

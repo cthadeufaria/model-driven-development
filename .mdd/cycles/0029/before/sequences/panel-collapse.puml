@@ -1,0 +1,36 @@
+@startuml
+' @id(SEQ-PANEL-COLLAPSE)
+' @ref(USE-TOGGLE-PANELS)
+' @desc(SEQ-PANEL-COLLAPSE, "Clicking a side panel's inner-edge chevron flips PanelLayout collapsed; the panel is rebuilt as an exact-width sliver button that re-expands on click, widening the canvas in between.")
+' Current-side flow derived from MddViewer::update / PanelLayout in
+' crates/mdd-viewer/src/lib.rs.
+title Collapse / expand a side panel (current)
+
+actor "Developer" as Dev
+participant "MddViewer\n(eframe::App)" as Viewer
+participant "PanelLayout\n(left/right_collapsed)" as PL
+participant "egui SidePanel" as SP
+participant "CentralPanel\n(canvas)" as Canvas
+
+alt panel expanded
+  Viewer -> SP : SidePanel.default_width(..).resizable(true)
+  Viewer -> SP : header row + inner-edge chevron button
+  Dev -> SP : click chevron
+  SP -> Viewer : toggle_left/right = true
+  Viewer -> PL : toggle_left() / toggle_right()
+else panel collapsed
+  Viewer -> SP : SidePanel.exact_width(sliver_width).resizable(false)
+  Viewer -> SP : add_sized full-area expand button
+  Dev -> SP : click sliver
+  SP -> Viewer : toggle_* = true
+  Viewer -> PL : toggle_left() / toggle_right()
+end
+PL --> Canvas : CentralPanel reclaims / yields width next frame
+
+note right of PL
+  left = MODELS rail, right = MODEL CONTEXT.
+  sliver_width = 18.0 (> 0) so a collapsed panel
+  always shows a clickable sliver
+  (OCL-PANEL-SLIVER-MIN).
+end note
+@enduml

@@ -1,0 +1,14 @@
+@startuml
+' @id(SEQ-ARCH-DIFF) <<added>> this cycle (0029)
+' Cycle 0029 diff (current side): how mdd arch diff / status run.
+' New sequence; nothing removed.
+title mdd arch diff and status · cycle 0029 diff (current)
+
+participant "mdd arch (CLI)" as CLI
+participant "git show ref" as Git
+participant "diff() / check()" as Core
+
+note over CLI #90EE90: <<added>> 0029
+CLI -> Git : read base spec at ref (diff)
+CLI -> Core : diff(base, head) / check(spec, ids)
+@enduml

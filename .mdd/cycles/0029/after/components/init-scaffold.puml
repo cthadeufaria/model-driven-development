@@ -1,0 +1,40 @@
+@startuml
+' @id(CMP-INIT-CLI)
+' @desc(CMP-INIT-CLI, "Implemented as the Commands::Init { force: bool } variant and its match arm in crates/mdd-cli/src/main.rs (main). The `--force` flag mirrors `mdd clean --force`. The arm picks the conflict handler — an always-Overwrite closure when force is set, else the interactive prompt_init_conflict — calls Project::init_with_conflict_handler, and prints the InitReport including a `migrated {path}` line beside created/overwrote/skipped. Thin presentation layer, like Commands::Validate; the file-policy and migration logic live in CMP-INIT-ENGINE.")
+' @id(CMP-INIT-ENGINE)
+' @desc(CMP-INIT-ENGINE, "Implemented as Project::init_with_conflict_handler and its write helpers in crates/mdd-core/src/lib.rs. It creates the directory tree (including .mdd/ralph), writes REGENERABLE files via write_text_if_missing(handler) — including the mdd-ralph SKILL.md (templates::WORKFLOW_SKILLS) under .claude/.codex and .mdd/ralph/PROMPT.md — refreshes the CLAUDE.md/AGENTS.md managed blocks, and invokes the SessionStart hook merge (CMP-INIT-HOOK). For the SeededOnce file .mdd/ralph/PLAN.md (DOM-INIT-SEED-ONCE) it calls the new write_text_create_if_missing: create from template when missing, else skip — no handler. For the three AccumulatingState files it calls write_yaml_create_or_migrate (over the StateFile trait): create-from-default when missing, else a forward-only round-trip migration (DOM-STATE-MIGRATION) when the on-disk version is older, else skip. Neither the SeededOnce nor the state path receives the conflict handler, so --force cannot reach PLAN.md or config/trace/approvals. Returns InitReport { created, overwritten, migrated, skipped }.")
+' Current-side ownership for cycle 0018 (--force + migrated report) and
+' cycle 0022 (Ralph workspace), mapped from the implemented engine.
+title MDD init — ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd init [--force]\n(CMP-INIT-CLI)\nmdd-cli/src/main.rs" as Cli
+component "Project::init_with_conflict_handler\n(CMP-INIT-ENGINE)\nmdd-core/src/lib.rs" as Engine
+component "write_text_if_missing\n(regenerable: docs, skills incl. mdd-ralph,\nblocks, .mdd/ralph/PROMPT.md)" as Text
+component "write_text_create_if_missing\n(seeded-once: .mdd/ralph/PLAN.md)" as Seed
+component "write_yaml_create_or_migrate\n(state: config/trace/approvals)" as Yaml
+component "SessionStart hook merge\n(CMP-INIT-HOOK)" as Hook
+
+Dev --> Cli : mdd init [--force]
+Cli --> Engine : init_with_conflict_handler(handler)
+Cli --> Cli : handler = force ? always Overwrite : prompt
+Engine --> Text : regenerable files (handler decides overwrite/skip)
+Engine --> Seed : .mdd/ralph/PLAN.md (create if missing only)
+Engine --> Yaml : state files (create or forward-migrate)
+Engine --> Hook : upsert SessionStart hook (idempotent)
+
+note bottom of Seed
+  SeededOnce (DOM-INIT-SEED-ONCE): never consulted with
+  the conflict handler, so --force cannot overwrite
+  .mdd/ralph/PLAN.md. Created from the template when
+  missing; skipped otherwise; never migrated.
+end note
+
+note bottom of Yaml
+  Never consulted with the conflict handler, so --force
+  cannot overwrite config/trace/approvals. Create when
+  missing; round-trip migrate when on-disk version is
+  older; skip when equal or newer. Reports `migrated`.
+end note
+@enduml

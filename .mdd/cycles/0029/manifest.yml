@@ -1,0 +1,14 @@
+number: 29
+slug: arch-diff-status-verb
+entry: generate
+description: "The deferred architecture diff/status tooling: a nested `mdd arch diff` (structured semantic diff of .mdd/architecture/ vs a git ref, detached) and `mdd arch status` (summary + OCL-ARCH-* invariant checks, non-zero on violation), plus wiring those invariants into `mdd validate` as WARNING rules. Core diff/check/parse are pure unit-testable fns in a new architecture.rs; git-show is a thin base reader."
+status: closed
+opened_at: "2026-05-25T19:38:03Z"
+closed_at: "2026-05-25T19:45:00Z"
+touched_files:
+  - .mdd/models/objective/domain/arch-diff.puml
+  - .mdd/models/objective/sequences/arch-diff.puml
+  - .mdd/models/objective/components/arch-diff.puml
+  - .mdd/models/current/domain/arch-diff.puml
+  - .mdd/models/current/sequences/arch-diff.puml
+  - .mdd/models/current/components/arch-diff.puml

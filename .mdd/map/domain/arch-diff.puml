@@ -1,0 +1,44 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(DOM-ARCH-DIFF, 0029)
+' @id(DOM-ARCH-DIFF)
+' @desc(DOM-ARCH-DIFF, "Implemented in crates/mdd-core/src/architecture.rs: ArchDiff partitions changes by entity + id (added/removed/changed components, decisions, constraints) via the pure diff(base, head); ArchViolation + ViolationKind report broken OCL-ARCH-* invariants via the pure check(spec, model_ids). Both are pure (no IO/git), so they unit-test directly; check() backs `mdd arch status` and the validate WARNING rules.")
+' Current-side domain for the architecture diff + check model (cycle 0029).
+title Architecture diff + check model (current)
+
+class ArchDiff {
+  + addedComponents : List<Id>
+  + removedComponents : List<Id>
+  + changedComponents : List<Id>
+  + addedDecisions : List<Id>
+  + removedDecisions : List<Id>
+  + changedDecisions : List<Id>
+  + addedConstraints : List<Id>
+  + removedConstraints : List<Id>
+  + changedConstraints : List<Id>
+  + isEmpty() : Boolean
+}
+class ArchViolation {
+  + kind : ViolationKind
+  + subject : Id
+  + message : String
+}
+enum ViolationKind {
+  DecisionMissingStatus
+  SupersededMissingSuccessor
+  ComponentRefUnresolved
+}
+
+ArchDiff ..> ArchitectureSpec : diff(base, head) of >
+ArchViolation ..> ArchitectureSpec : check(spec, modelIds) of >
+ArchViolation --> ViolationKind
+
+note bottom of ArchViolation
+  check() backs both `mdd arch status` (exits
+  non-zero on any violation) and the WARNING-level
+  OCL-ARCH-* rules in mdd validate:
+  OCL-ARCH-DECISION-HAS-STATUS,
+  OCL-ARCH-SUPERSEDE-LINKED,
+  OCL-ARCH-COMPONENTS-IN-SYNC.
+end note
+@enduml

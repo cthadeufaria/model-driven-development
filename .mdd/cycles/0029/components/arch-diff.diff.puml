@@ -1,0 +1,12 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-ARCH-CLI) <<added>> this cycle (0029)
+' Cycle 0029 diff (current side): the `mdd arch` CLI + the architecture.rs
+' engine. New component; nothing removed.
+title Architecture CLI + engine · cycle 0029 diff (current)
+
+component "mdd arch (CLI) +\narchitecture.rs engine\n(parse / diff / check)" as Arch <<added>>
+@enduml

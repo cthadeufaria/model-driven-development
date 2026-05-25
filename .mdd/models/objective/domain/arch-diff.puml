@@ -1,0 +1,41 @@
+@startuml
+' @id(DOM-ARCH-DIFF)
+' @desc(DOM-ARCH-DIFF, "The structured diff + invariant-check model over the architecture SoT (DOM-ARCH-SPEC). An ArchDiff partitions changes by entity and id: added/removed/changed components, decisions (incl. newly superseded), and constraints — semantic, not textual. An ArchViolation reports a broken OCL-ARCH-* invariant. Both are pure functions of two parsed specs (diff) or one spec + the model registry ids (check), so they are unit-testable without git or IO.")
+title Architecture diff + check model (objective)
+
+class ArchDiff {
+  + addedComponents : List<Id>
+  + removedComponents : List<Id>
+  + changedComponents : List<Id>
+  + addedDecisions : List<Id>
+  + removedDecisions : List<Id>
+  + changedDecisions : List<Id>
+  + addedConstraints : List<Id>
+  + removedConstraints : List<Id>
+  + changedConstraints : List<Id>
+  + isEmpty() : Boolean
+}
+class ArchViolation {
+  + kind : ViolationKind
+  + subject : Id
+  + message : String
+}
+enum ViolationKind {
+  DecisionMissingStatus
+  SupersededMissingSuccessor
+  ComponentRefUnresolved
+}
+
+ArchDiff ..> ArchitectureSpec : diff(base, head) of >
+ArchViolation ..> ArchitectureSpec : check(spec, modelIds) of >
+ArchViolation --> ViolationKind
+
+note bottom of ArchViolation
+  check() backs both `mdd arch status` (exits
+  non-zero on any violation) and the WARNING-level
+  OCL-ARCH-* rules folded into `mdd validate`:
+  OCL-ARCH-DECISION-HAS-STATUS,
+  OCL-ARCH-SUPERSEDE-LINKED,
+  OCL-ARCH-COMPONENTS-IN-SYNC.
+end note
+@enduml

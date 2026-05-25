@@ -133,6 +133,25 @@ links:
   - from: OCL-ARCH-COMPONENTS-IN-SYNC
     to: DOM-ARCH-SPEC
     relation: constrains
+  # cycle 0029 — mdd arch diff/status verb (greenfield-kickoff follow-up)
+  - from: USE-TRACK-ARCH
+    to: SEQ-ARCH-DIFF
+    relation: realizes
+  - from: USE-TRACK-ARCH
+    to: CMP-ARCH-CLI
+    relation: realized_by
+  - from: SEQ-ARCH-DIFF
+    to: DOM-ARCH-DIFF
+    relation: depends_on
+  - from: SEQ-ARCH-DIFF
+    to: DOM-ARCH-SPEC
+    relation: depends_on
+  - from: CMP-ARCH-CLI
+    to: DOM-ARCH-DIFF
+    relation: depends_on
+  - from: CMP-ARCH-CLI
+    to: DOM-ARCH-SPEC
+    relation: depends_on
   - from: SEQ-RENDER-CYCLE-DIFF
     to: DOM-CYCLE-DIFF
     relation: depends_on
@@ -1124,6 +1143,91 @@ source_links:
     path: .mdd/docs/architecture-tracking.md
   - model_id: SEQ-ARCH-TRACK
     path: .mdd/docs/architecture-tracking.md
+  # cycle 0029 — mdd arch diff/status verb (greenfield-kickoff follow-up)
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchitectureSpec
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchitectureSpec::parse
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchitectureSpec::is_empty
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchitectureSpec::summary
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: Component
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: Decision
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: Constraint
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ComponentsFile
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: DecisionsFile
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ConstraintsFile
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchDiff
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchDiff::is_empty
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchSummary
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ArchViolation
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: ViolationKind
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: diff
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: check
+  - model_id: DOM-ARCH-DIFF
+    path: crates/mdd-core/src/architecture.rs
+    symbol: partition_by_id
+  - model_id: SEQ-ARCH-DIFF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::arch_diff
+  - model_id: SEQ-ARCH-DIFF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::arch_status
+  - model_id: SEQ-ARCH-DIFF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::load_architecture
+  - model_id: SEQ-ARCH-DIFF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::read_text_at_ref
+  - model_id: CMP-ARCH-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands
+  - model_id: CMP-ARCH-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::Arch
+  - model_id: CMP-ARCH-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: ArchCommand
+  - model_id: CMP-ARCH-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: print_arch_diff
+  - model_id: CMP-ARCH-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: print_arch_status
+  - model_id: CMP-ARCH-CLI
+    path: crates/mdd-core/src/lib.rs
+    symbol: ArchStatusReport
   - model_id: CMP-TRACE-GATE
     path: crates/mdd-core/src/lib.rs
     symbol: Project::validate_inner

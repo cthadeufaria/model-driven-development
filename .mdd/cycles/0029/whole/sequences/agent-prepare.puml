@@ -1,0 +1,21 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-AGENT-PREPARE, 0020)
+' @id(SEQ-AGENT-PREPARE)
+' @ref(USE-AGENT-PREPARE)
+' @desc(SEQ-AGENT-PREPARE, "Runtime flow of `mdd agent --kind <agent>`: the Commands::Agent arm in mdd-cli calls AgentKind::parse(&kind), discovers the Project, and calls mdd_agent::prepare_agent. prepare_agent writes the per-agent instruction file under .mdd/docs via write_agent_instructions, then run_pre_code_hooks runs each .mdd/hooks/pre-code* executable in sorted order, bailing on the first non-zero exit, and returns AgentPreparationReport { instruction_file, hooks_run } which the CLI prints. mdd-agent is now a declared mdd-cli dependency.")
+title MDD agent prepare — runtime flow (current)
+
+actor "Developer / Agent" as Dev
+participant "mdd agent --kind\n(mdd-cli)" as Cli
+participant "prepare_agent\n(mdd-agent)" as Agent
+participant "filesystem\n.mdd/docs + .mdd/hooks" as Fs
+
+Dev -> Cli : mdd agent --kind claude
+Cli -> Cli : AgentKind::parse("claude")
+Cli -> Agent : prepare_agent(&project, kind)
+Agent -> Fs : write .mdd/docs/claude-mdd.md
+Agent -> Fs : run .mdd/hooks/pre-code* (sorted)
+Agent --> Cli : AgentPreparationReport
+Cli --> Dev : print instruction_file + hooks_run
+@enduml

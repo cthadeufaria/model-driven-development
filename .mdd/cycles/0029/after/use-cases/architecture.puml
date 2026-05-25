@@ -1,0 +1,19 @@
+@startuml
+' @id(USE-TRACK-ARCH)
+' @desc(USE-TRACK-ARCH, "Implemented: /mdd-kickoff authors the initial .mdd/architecture/ spec (skill phase 3), and the agent-facing .mdd/docs/architecture-tracking.md + the CLAUDE.md/AGENTS.md pointer put the tracking workflow into any agent's context so the spec is kept current on every architectural change. Decisions are append-only (supersede, don't rewrite); diffs via git today, structured mdd arch verb planned.")
+' Current-side use case for tracking the architectural source of truth (cycle 0028).
+title Track the architectural source of truth (current)
+
+left to right direction
+actor "Developer / Agent" as Agent
+usecase "Define + track the architectural\nsource of truth (.mdd/architecture/)" as Track
+Agent --> Track
+
+note bottom of Track
+  Code: /mdd-kickoff phase 3 authors the spec;
+  .mdd/docs/architecture-tracking.md (scaffolded by
+  mdd init) + the entrypoint pointer document the
+  workflow for any agent. Decisions append-only.
+  Realized by SEQ-ARCH-TRACK.
+end note
+@enduml

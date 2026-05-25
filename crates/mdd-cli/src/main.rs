@@ -110,6 +110,34 @@ enum Commands {
         #[arg(long)]
         kind: String,
     },
+    /// Inspect the architectural source of truth (.mdd/architecture/):
+    /// a structured semantic diff vs a git ref, or a status + invariant check.
+    Arch {
+        #[command(subcommand)]
+        command: ArchCommand,
+    },
+}
+
+/// `mdd arch` subcommands (CMP-ARCH-CLI).
+#[derive(Debug, Subcommand)]
+enum ArchCommand {
+    /// Structured semantic diff of .mdd/architecture/ vs a git ref (added /
+    /// removed / changed components, decisions, constraints).
+    Diff {
+        /// Git ref to diff the working spec against.
+        #[arg(long, default_value = "HEAD")]
+        base: String,
+        /// Emit the diff as JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Summarize the spec and check the OCL-ARCH-* invariants. Exits non-zero
+    /// on any violation.
+    Status {
+        /// Emit the report as JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -369,6 +397,30 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Commands::Arch { command } => {
+            let project = Project::discover(env::current_dir()?)?;
+            match command {
+                ArchCommand::Diff { base, json } => {
+                    let diff = project.arch_diff(&base)?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&diff)?);
+                    } else {
+                        print_arch_diff(&base, &diff);
+                    }
+                }
+                ArchCommand::Status { json } => {
+                    let report = project.arch_status()?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        print_arch_status(&report);
+                    }
+                    if !report.violations.is_empty() {
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
@@ -376,6 +428,50 @@ fn main() -> Result<()> {
 
 fn pass_fail(ok: bool) -> &'static str {
     if ok { "PASS" } else { "FAIL" }
+}
+
+/// Text rendering of `mdd arch diff` (CMP-ARCH-CLI): `+` added, `~` changed,
+/// `-` removed, grouped by entity.
+fn print_arch_diff(base: &str, diff: &mdd_core::ArchDiff) {
+    if diff.is_empty() {
+        println!("architecture: no changes vs {base}");
+        return;
+    }
+    println!("architecture diff vs {base}:");
+    let section = |label: &str, ids: &[String], sign: char| {
+        for id in ids {
+            println!("  {sign} {label} {id}");
+        }
+    };
+    section("component", &diff.added_components, '+');
+    section("component", &diff.changed_components, '~');
+    section("component", &diff.removed_components, '-');
+    section("decision", &diff.added_decisions, '+');
+    section("decision", &diff.changed_decisions, '~');
+    section("decision", &diff.removed_decisions, '-');
+    section("constraint", &diff.added_constraints, '+');
+    section("constraint", &diff.changed_constraints, '~');
+    section("constraint", &diff.removed_constraints, '-');
+}
+
+/// Text rendering of `mdd arch status` (CMP-ARCH-CLI): counts + invariants.
+fn print_arch_status(report: &mdd_core::ArchStatusReport) {
+    let s = &report.summary;
+    println!(
+        "architecture: {} component(s), {} decision(s), {} constraint(s)",
+        s.components, s.decisions, s.constraints
+    );
+    for (status, count) in &s.decisions_by_status {
+        println!("  decisions[{status}]: {count}");
+    }
+    if report.violations.is_empty() {
+        println!("invariants:      {}", pass_fail(true));
+    } else {
+        println!("invariants:      {} ({} violation(s))", pass_fail(false), report.violations.len());
+        for violation in &report.violations {
+            println!("  - {}", violation.message);
+        }
+    }
 }
 
 /// Render the session brief (`mdd context`): the whole-map table of contents

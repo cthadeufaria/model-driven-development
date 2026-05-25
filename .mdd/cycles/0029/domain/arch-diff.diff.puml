@@ -1,0 +1,18 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-ARCH-DIFF) <<added>> this cycle (0029)
+' Cycle 0029 diff (current side): the structured arch diff + check model.
+' New; nothing removed.
+title Architecture diff + check model · cycle 0029 diff (current)
+
+class ArchDiff <<added>> {
+  + isEmpty() : Boolean
+}
+class ArchViolation <<added>> {
+  + kind : ViolationKind
+}
+enum ViolationKind <<added>>
+@enduml

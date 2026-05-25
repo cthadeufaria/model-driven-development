@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 
+pub mod architecture;
 pub mod cycle;
 mod templates;
 pub mod traceability;
 
+pub use architecture::{ArchDiff, ArchSummary, ArchViolation, ArchitectureSpec};
 pub use cycle::{Cycle, CycleDiff, CycleRegistry, CycleStatus, EntryPoint};
 pub use traceability::SymbolSpan;
 
@@ -526,6 +528,14 @@ pub struct CodeGateReport {
     pub ok: bool,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+/// Outcome of `mdd arch status` (CMP-ARCH-CLI): the SoT summary plus any
+/// OCL-ARCH-* invariant violations.
+#[derive(Debug, Clone, Serialize)]
+pub struct ArchStatusReport {
+    pub summary: ArchSummary,
+    pub violations: Vec<ArchViolation>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1529,6 +1539,71 @@ impl Project {
 
     pub fn validate(&self) -> Result<ValidationReport> {
         self.validate_inner(true)
+    }
+
+    /// Load the architecture source of truth (DOM-ARCH-SPEC) from the working
+    /// tree. Missing files parse to no entries, so a repo with no
+    /// `.mdd/architecture/` yields an empty spec.
+    pub fn load_architecture(&self) -> Result<ArchitectureSpec> {
+        let read = |name: &str| -> Result<String> {
+            let path = self.root.join(architecture::ARCH_DIR).join(name);
+            match fs::read_to_string(&path) {
+                Ok(text) => Ok(text),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+                Err(e) => Err(e).with_context(|| format!("failed to read {}", path.display())),
+            }
+        };
+        ArchitectureSpec::parse(
+            &read("components.yml")?,
+            &read("decisions.yml")?,
+            &read("constraints.yml")?,
+        )
+    }
+
+    /// `mdd arch status` (CMP-ARCH-CLI): SoT summary + the OCL-ARCH-* violations.
+    pub fn arch_status(&self) -> Result<ArchStatusReport> {
+        let spec = self.load_architecture()?;
+        let model_ids: BTreeSet<String> =
+            self.model_registry()?.ids.iter().map(|e| e.id.clone()).collect();
+        Ok(ArchStatusReport {
+            violations: architecture::check(&spec, &model_ids),
+            summary: spec.summary(),
+        })
+    }
+
+    /// `mdd arch diff` (SEQ-ARCH-DIFF): structurally diff the working spec
+    /// against `base_ref` (a git ref). The base version is read with
+    /// `git show <ref>:<path>`; a file absent at that ref counts as empty, so
+    /// it shows as all-added.
+    pub fn arch_diff(&self, base_ref: &str) -> Result<ArchDiff> {
+        let head = self.load_architecture()?;
+        let at_ref = |name: &str| -> Result<String> {
+            Ok(self
+                .read_text_at_ref(base_ref, &format!("{}/{name}", architecture::ARCH_DIR))?
+                .unwrap_or_default())
+        };
+        let base = ArchitectureSpec::parse(
+            &at_ref("components.yml")?,
+            &at_ref("decisions.yml")?,
+            &at_ref("constraints.yml")?,
+        )?;
+        Ok(architecture::diff(&base, &head))
+    }
+
+    /// Read a repo file as it was at a git ref via `git show <ref>:<path>`.
+    /// `None` when the path does not exist at that ref (or git fails), so the
+    /// caller treats it as absent rather than erroring.
+    fn read_text_at_ref(&self, git_ref: &str, rel_path: &str) -> Result<Option<String>> {
+        let output = std::process::Command::new("git")
+            .arg("show")
+            .arg(format!("{git_ref}:{rel_path}"))
+            .current_dir(&self.root)
+            .output()
+            .with_context(|| format!("failed to run git show {git_ref}:{rel_path}"))?;
+        Ok(output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).into_owned()))
     }
 
     /// The parity scope for the currently open cycle, or empty when none.
@@ -3158,6 +3233,18 @@ impl Project {
                         element.id
                     ));
                 }
+            }
+        }
+
+        // Architecture-SoT invariants (OCL-ARCH-*), WARNING-level (the arch
+        // verb cycle). Inert when there is no .mdd/architecture/ spec, so a
+        // repo that has not adopted the SoT gets no new warnings.
+        let arch = self.load_architecture()?;
+        if !arch.is_empty() {
+            let model_ids: BTreeSet<String> =
+                registry.ids.iter().map(|element| element.id.clone()).collect();
+            for violation in architecture::check(&arch, &model_ids) {
+                warnings.push(format!("architecture spec: {}", violation.message));
             }
         }
 

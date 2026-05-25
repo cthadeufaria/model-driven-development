@@ -1,0 +1,131 @@
+@startuml
+' @id(USE-DEPLOY-GUIDANCE)
+' @id(USE-DEPLOY-INSPECT)
+' @id(USE-DEPLOY-DIALECT)
+' @id(USE-DEPLOY-PURPOSE)
+' @id(USE-DEPLOY-ACCESS-CHECK)
+' @id(USE-DEPLOY-EXECUTE)
+' @id(USE-DEPLOY-GOLIVE)
+'
+' Current-side use cases for /mdd-deploy, derived from the implemented
+' code: templates::MDD_DEPLOY_SKILL (Phase A steps 1-10 + Phase B steps
+' 11-16) + .mdd/docs/deploy-profile.md, materialized into
+' .claude/.codex/skills/mdd-deploy/SKILL.md by `mdd init`. Standalone
+' utility, a sibling of /mdd-render, NOT routed into any gate.
+'
+' CHANGE (cycle 0021): the implemented skill is inverted from
+' guidance-only into a FULL EXECUTOR. It still PLANS (the dialect/purpose/
+' access gates + diagram + IaC + runbook), then EXECUTES the runbook to
+' live traffic. Two new gates join the plan-phase gates: USE-DEPLOY-EXECUTE
+' (walk the runbook autonomously, blocking only at irreversible steps; halt
+' on first error) and USE-DEPLOY-GOLIVE (surface the full billing
+' multi-factor gate, block before the live cutover). The old "executes
+' nothing / never runs az" non-goal is RETIRED.
+'
+' @desc(USE-DEPLOY-GUIDANCE, "Implemented in templates::MDD_DEPLOY_SKILL: /mdd-deploy PLANS (deployment diagram + secure-by-default IaC in the operator-CONFIRMED dialect + runbook) and then EXECUTES that runbook end to end to live traffic for azure-container-apps — managing cloud auth, dry-running, applying, provisioning secrets, running the pre-traffic migration job, deploying the revision, and routing traffic. It pauses with a blocking clarification on ambiguity and on any GENERALIZED landmine (app-config, purpose, access-path axes), and during execution it pauses ONLY at irreversible steps, halting on the first failed step.")
+' @desc(USE-DEPLOY-INSPECT, "Implemented: templates::MDD_RENDER_SKILL rasterizes .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive, non-gating.")
+' @desc(USE-DEPLOY-DIALECT, "Implemented in templates::MDD_DEPLOY_SKILL step 4 (+ deploy-profile.md): the dialect is exactly one of bicep or terraform per run; the skill resolves it and BLOCKS for explicit operator confirmation before writing ANY deploy artifact. No silent default; Terraform enforces the same invariants + secure-by-default posture as Bicep, differing only in structure.")
+' @desc(USE-DEPLOY-PURPOSE, "Implemented in templates::MDD_DEPLOY_SKILL step 5 (+ deploy-profile.md): before any purpose-driven default, the skill establishes dev/staging/prod and BLOCKS for explicit operator confirmation — no silent default, never assumes prod- or dev-grade. The confirmed purpose drives DB tier/redundancy, backup retention and the RECOMMENDED network/doorway posture; the skill surfaces options for the operator to confirm and preserves secure-by-default. Constrained by OCL-DEPLOY-IAC-PURPOSE / -SURFACE-NOT-DECIDE.")
+' @desc(USE-DEPLOY-ACCESS-CHECK, "Implemented in templates::MDD_DEPLOY_SKILL step 6 (+ deploy-profile.md): before writing artifacts, the skill accounts for who READS and who WRITES every secured store (Key Vault, DB, ACR, remote state), each with an identity and an admitted network path. A store read-but-never-written, or a writer with no admitted path, is SURFACED as a blocking question with the connectivity options framed by purpose. Constrained by OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.")
+' @desc(USE-DEPLOY-EXECUTE, "Implemented in templates::MDD_DEPLOY_SKILL Phase B (steps 11-16): after planning, the skill EXECUTES the runbook itself. It manages cloud auth (az login + selects/verifies the subscription, stopping if it is wrong), validates the IaC, runs a dry-run (terraform plan / az what-if) and shows the diff, then walks the runbook via Bash. Idempotent/reversible steps run AUTONOMOUSLY; the executor BLOCKS for operator confirmation only at IRREVERSIBLE steps — one APPLY gate covering infra apply + secret writes + the migration job — and deploys the new revision at 0% traffic until health-checked. HALTS on the first failed step. Constrained by OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY, -HALT-ON-ERROR, -PAUSE-IRREVERSIBLE.")
+' @desc(USE-DEPLOY-GOLIVE, "Implemented in templates::MDD_DEPLOY_SKILL step 15: the single mandatory stop even in full-auto. Before routing live traffic and crossing the production billing multi-factor gate, the skill surfaces the FULL gate state — ENABLE_PRODUCTION_BILLING, APP_ENV, DATABASE_MARKER, PUBLIC_HOST, APPLE_ENVIRONMENT, App Attest prod identity — and BLOCKS for explicit operator confirmation. Never auto-confirmed. Constrained by OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED.")
+title /mdd-deploy deployment guidance + execution — use cases (current)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "PLAN then EXECUTE an Azure Container\nApps deployment: diagram + IaC +\nrunbook, then run it to live traffic" as Guide
+  usecase "Choose & CONFIRM the IaC dialect\n(Bicep XOR Terraform) before any\nartifact is written — no silent default" as Dialect
+  usecase "Confirm the deployment PURPOSE\n(dev/staging/prod) before any\npurpose-driven default — no silent default" as Purpose
+  usecase "Account for who READS and WRITES\nevery secured store (identity + admitted\npath) before emitting — surface holes" as AccessCheck
+  usecase "EXECUTE the runbook: manage auth,\ndry-run, apply, provision, migrate, route —\nautonomous except irreversible steps; halt on error" as Execute
+  usecase "CONFIRM go-live: surface the full\nproduction billing multi-factor gate\nbefore live-traffic cutover" as GoLive
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+}
+
+Op --> Guide
+Op --> Dialect
+Op --> Purpose
+Op --> AccessCheck
+Op --> Execute
+Op --> GoLive
+Op --> Inspect
+
+Guide ..> Dialect : <<include>>
+Guide ..> Purpose : <<include>>
+Guide ..> AccessCheck : <<include>>
+Guide ..> Execute : <<include>>
+Execute ..> GoLive : <<include>>
+Guide ..> Inspect : <<extend>>
+
+note bottom of Guide
+  Implemented in templates::MDD_DEPLOY_SKILL:
+  v1 supports only azure-container-apps. Reads MDD models
+  + the target repo read-only to PLAN, then EXECUTES the
+  runbook to live traffic. PAUSES with a BLOCKING
+  clarification on ambiguity OR a GENERALIZED go-live
+  landmine (app-config / purpose / access-path). Now RUNS
+  az / terraform / docker via Bash; the old "executes
+  nothing" non-goal is retired.
+  Realized by SEQ-DEPLOY-GUIDANCE (plan) + SEQ-DEPLOY-EXECUTE (run).
+end note
+
+note bottom of Dialect
+  Implemented in templates::MDD_DEPLOY_SKILL step 4.
+  Mandatory <<include>>: guidance cannot proceed until
+  the dialect is explicitly confirmed. One per run
+  (Bicep XOR Terraform). FULL PARITY; no silent default.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Purpose
+  Implemented in templates::MDD_DEPLOY_SKILL step 5.
+  Mandatory <<include>>: no purpose-driven default is
+  generated until dev/staging/prod is confirmed. No
+  silent default. RECOMMENDS sizing/posture; operator
+  confirms; secure-by-default preserved. Constrained by
+  OCL-DEPLOY-IAC-PURPOSE / -SURFACE-NOT-DECIDE.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of AccessCheck
+  Implemented in templates::MDD_DEPLOY_SKILL step 6.
+  Mandatory <<include>>: before emitting, every secured
+  store must have a named READER and WRITER, each with
+  an admitted network path. A read-but-never-written
+  store, or a writer with no admitted path, is SURFACED
+  as a blocking question. Constrained by
+  OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.
+  Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Execute
+  Implemented in templates::MDD_DEPLOY_SKILL Phase B
+  (steps 11-16). Mandatory <<include>>: walk the runbook
+  itself — manage auth, dry-run before any apply, run
+  idempotent steps AUTONOMOUSLY, BLOCK only at irreversible
+  steps. HALT on first error; new revision at 0% traffic
+  until verified. Constrained by
+  OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY / -HALT-ON-ERROR /
+  -PAUSE-IRREVERSIBLE. Realized by SEQ-DEPLOY-EXECUTE.
+end note
+
+note bottom of GoLive
+  Implemented in templates::MDD_DEPLOY_SKILL step 15.
+  Mandatory <<include>> of Execute: the ONE stop full-auto
+  never skips. Surfaces the full production billing
+  multi-factor gate state, then BLOCKS for explicit
+  operator confirmation before the live-traffic cutover.
+  Never auto-confirmed. Constrained by
+  OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED.
+  Realized by SEQ-DEPLOY-EXECUTE.
+end note
+
+note bottom of Inspect
+  Not a gate. /mdd-validate, /mdd-review and the
+  /mdd-cycle parity loop never read .mdd/deploy/.
+  Realized by SEQ-DEPLOY-INSPECT.
+end note
+@enduml
