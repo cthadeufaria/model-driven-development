@@ -75,6 +75,10 @@ pub fn deploy_profile_doc() -> &'static str {
     MDD_DEPLOY_PROFILE_DOC
 }
 
+pub fn test_profile_doc() -> &'static str {
+    MDD_TEST_PROFILE_DOC
+}
+
 pub fn ralph_prompt() -> &'static str {
     RALPH_PROMPT
 }
@@ -977,3 +981,4 @@ Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative p
 
 const MDD_SECURITY_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/security-profile.md");
 const MDD_DEPLOY_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/deploy-profile.md");
+const MDD_TEST_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/test-profile.md");

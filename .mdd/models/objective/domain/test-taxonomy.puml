@@ -1,0 +1,57 @@
+@startuml
+' @id(DOM-TEST-LINK)
+' @desc(DOM-TEST-LINK, "The unified trace record for one test, added to Trace as `tests: Vec<TestLink>` in mdd-core. Fields: id (UT-/IT-/AT-/UIT-/SECT-...), path (repo-relative test file), model_id (the diagram @id it verifies), layer (DOM-TEST-LAYER), framework (Option<String>, the runner — resolved from the test profile, no longer hardcoded), expect (DOM-TEST-EXPECT). This is the preferred, kind-agnostic home for test links; the legacy generated_tests/generated_ui_tests arrays keep deserializing and are PROJECTED into this same shape (DOM-TEST-PROJECTION) so validate has one view. relation: verified_by.")
+' @id(DOM-TEST-LAYER)
+' @desc(DOM-TEST-LAYER, "The test layer enum: Unit | Integration | E2e | Acceptance | Ui | Security (serde kebab-case: unit|integration|e2e|acceptance|ui|security). The §5.1 taxonomy maps each diagram kind to an expected layer: domain+OCL->unit, sequences+components->integration, use-cases->e2e/acceptance, mockups->ui, @sec markers->security. A linked test declares which layer it occupies so the coverage rule (USE-TEST-COVERAGE) can match it to the kind that expects it, and the membership rule (USE-TEST-LAYER-MEMBERSHIP) can check it against the configured profile.")
+' @id(DOM-TEST-EXPECT)
+' @desc(DOM-TEST-EXPECT, "The expectation enum on a TestLink: Pass (default) | RedUntilImplemented (serde: pass | red-until-implemented). RedUntilImplemented marks a gap test authored from the objective diagrams before its code exists — the seed of the non-negotiable red->green evidence gate that lands in Cycle C. In Cycle A it is a pure data marker carried on the link; nothing executes or gates on it yet.")
+' @id(DOM-TEST-PROJECTION)
+' @desc(DOM-TEST-PROJECTION, "The backward-compatibility projection that gives validate a single view over all test links. It reads the legacy generated_tests (category -> layer; default acceptance) and generated_ui_tests (layer = ui, framework = playwright) and yields them as DOM-TEST-LINK-shaped records alongside the native `tests` collection. No legacy struct is removed; existing trace.yml files deserialize unchanged. New links are written to `tests`. The unified projection is what the coverage and membership rules iterate.")
+' Objective-side domain for Cycle A: the unified test-trace record,
+' the layer + expectation enums it carries, and the projection that
+' folds the legacy two arrays into one view. Pure data + a pure fn.
+title MDD diagram-driven tests — trace model (objective)
+
+enum TestLayer {
+  Unit
+  Integration
+  E2e
+  Acceptance
+  Ui
+  Security
+}
+
+enum TestExpect {
+  Pass
+  RedUntilImplemented
+}
+
+class TestLink {
+  + id : String
+  + path : String
+  + model_id : String
+  + layer : TestLayer
+  + framework : Option<String>
+  + expect : TestExpect
+}
+
+class LegacyProjection <<function>> {
+  + project(trace) : Vec<TestLink>
+}
+
+TestLink "1" --> "1" TestLayer : occupies >
+TestLink "1" --> "1" TestExpect : marked >
+LegacyProjection ..> TestLink : yields generated_* as >
+
+note bottom of LegacyProjection
+  DOM-TEST-PROJECTION: generated_tests (category->layer,
+  default acceptance) + generated_ui_tests (layer=ui,
+  framework=playwright) projected to TestLink. Legacy
+  structs kept; existing trace.yml deserializes unchanged.
+end note
+
+note bottom of TestExpect
+  RedUntilImplemented is a Cycle-A data marker only;
+  the red->green evidence gate it seeds lands in Cycle C.
+end note
+@enduml

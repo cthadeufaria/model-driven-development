@@ -1,0 +1,30 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-INIT-TEST-PROFILE) <<added>> this cycle (0023)
+' Cycle 0023 diff (current side): `mdd init` now also scaffolds the
+' test-profile. One use case is added — USE-INIT-TEST-PROFILE (the test:
+' block rides config.yml's migrate path; test-profile.md is regenerable).
+' Force / Prompt / Migrate / Ralph are reused; nothing removed.
+title MDD init scaffolds the test-profile · cycle 0023 diff (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd init" {
+  usecase "Overwrite all regenerable\nscaffolding (--force)\nno per-file prompt" as Force
+  usecase "Keep per-file [o/S]\nprompt (no flag)" as Prompt
+  usecase "Forward-migrate state files\nconfig / trace / approvals\n(never overwrite)" as Migrate
+  usecase "Scaffold the Ralph workspace\nmdd-ralph skill + PROMPT.md (regenerable)\nseed PLAN.md once (never overwrite)" as Ralph
+  usecase "Scaffold the test-profile\ntest: block in config (migrated)\ntest-profile.md doc (regenerable)" as TestProfile <<added>>
+}
+
+Dev --> Force
+Dev --> Prompt
+Dev --> Migrate
+Dev --> Ralph
+Dev --> TestProfile
+@enduml

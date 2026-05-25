@@ -1,0 +1,19 @@
+number: 0023
+slug: diagram-driven-tests-cycle-a
+entry: generate
+description: "Cycle A of diagram-driven tests: unified tests trace model, layer/framework taxonomy, structural validate rules, test-assertion.ocl, test config block + init scaffolding. No test execution."
+status: closed
+opened_at: "2026-05-25T00:00:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/test-taxonomy.puml
+  - .mdd/models/objective/domain/test-taxonomy.puml
+  - .mdd/models/objective/components/test-taxonomy.puml
+  - .mdd/models/objective/sequences/test-taxonomy.puml
+  - .mdd/models/objective/use-cases/init-scaffold.puml
+  - .mdd/models/current/use-cases/test-taxonomy.puml
+  - .mdd/models/current/domain/test-taxonomy.puml
+  - .mdd/models/current/components/test-taxonomy.puml
+  - .mdd/models/current/sequences/test-taxonomy.puml
+  - .mdd/models/current/use-cases/init-scaffold.puml
+  - .mdd/constraints/test-assertion.ocl
+closed_at: "2026-05-25T16:35:00Z"

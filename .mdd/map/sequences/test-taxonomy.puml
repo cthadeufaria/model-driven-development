@@ -1,0 +1,51 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-TEST-VALIDATE, 0023)
+' @id(SEQ-TEST-VALIDATE)
+' @ref(USE-TEST-COVERAGE)
+' @desc(SEQ-TEST-VALIDATE, "Objective flow for the test rules inside Project::validate_inner. The engine builds one unified test view by reading Trace.tests and projecting the legacy generated_tests/generated_ui_tests (DOM-TEST-PROJECTION). For each link it checks the file exists and model_id is known (ERROR), and — only when config.test.layers is non-empty — that layer/framework are members of the profile (USE-TEST-LAYER-MEMBERSHIP). Then, ONLY when layers are configured, for every implementation-bearing @id it checks at least one linked test of the expected layer (USE-TEST-COVERAGE); a gap BLOCKS when test.gate=error and WARNS when gate=warn. With no configured layers the coverage and membership rules are inert (safe-by-default). No test is executed — this is the structural gate only.")
+' Current sequence for Cycle A: validate over the unified test view.
+' Structural existence/linkage/membership/coverage only; no execution.
+title mdd validate — test rules (current)
+
+participant "Project::validate_inner" as V
+participant "trace.yml\ntests + generated_*" as Trace
+participant "projection\n(DOM-TEST-PROJECTION)" as Proj
+participant "config.yml\ntest.gate + test.layers" as Cfg
+participant "ValidationReport\n{errors, warnings}" as Rep
+
+V -> Trace : read tests + generated_*
+V -> Proj : project legacy into unified TestLink view
+Proj --> V : Vec<TestLink>
+V -> Cfg : read test.gate + test.layers
+
+loop each TestLink
+  V -> V : path exists? model_id known?
+  alt missing file or unknown id
+    V -> Rep : ERROR
+  end
+  alt layers configured
+    V -> V : layer/framework in test.layers?
+    alt not a member
+      V -> Rep : ERROR (no longer a silent drop)
+    end
+  end
+end
+
+alt layers configured
+  loop each implementation-bearing @id
+    V -> V : >=1 linked test of expected layer?
+    alt none
+      alt gate=error
+        V -> Rep : ERROR
+      else
+        V -> Rep : WARNING
+      end
+    end
+  end
+else no layers (Cycle A default)
+  V -> V : coverage inert (safe-by-default)
+end
+
+Rep --> V : ok = no blocking errors
+@enduml

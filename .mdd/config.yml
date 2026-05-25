@@ -1,4 +1,4 @@
-version: 1
+version: 2
 model_source: plantuml
 constraint_source: ocl
 rendered_dir: .mdd/rendered
@@ -6,3 +6,6 @@ security:
   parity_check: error
 traceability:
   parity_check: error
+test:
+  gate: error
+  layers: {}

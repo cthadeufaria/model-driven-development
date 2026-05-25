@@ -129,6 +129,32 @@ pub struct MddConfig {
     pub security: SecurityConfig,
     #[serde(default)]
     pub traceability: TraceabilityConfig,
+    #[serde(default)]
+    pub test: TestConfig,
+}
+
+/// Config for diagram-driven tests (CMP-TEST-CONFIG). `gate` governs the
+/// coverage-rule severity (and, in later cycles, the close-time green gate);
+/// `layers` is the per-layer test profile (runner framework + command),
+/// populated by the detect-then-confirm UX in a later cycle. Cycle A seeds an
+/// empty `layers`, which keeps the coverage rule advisory (safe-by-default).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+pub struct TestConfig {
+    #[serde(default)]
+    pub gate: ParityMode,
+    #[serde(default)]
+    pub layers: BTreeMap<String, TestLayerConfig>,
+}
+
+/// One configured test layer: the runner `framework` and its `command`.
+/// `command` execution is deferred to a later cycle; Cycle A only validates
+/// layer/framework membership against these keys.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+pub struct TestLayerConfig {
+    #[serde(default)]
+    pub framework: String,
+    #[serde(default)]
+    pub command: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
@@ -163,6 +189,13 @@ pub struct Trace {
     pub generated_tests: Vec<GeneratedTest>,
     #[serde(default)]
     pub generated_ui_tests: Vec<GeneratedUiTest>,
+    /// Unified, kind-agnostic test links (CMP-TEST-TRACE-MODEL). Preferred
+    /// home for new links across every layer; `#[serde(default)]` so existing
+    /// trace.yml files that predate it deserialize unchanged. The legacy
+    /// `generated_tests` / `generated_ui_tests` arrays are kept and projected
+    /// into this same shape for validation (DOM-TEST-PROJECTION).
+    #[serde(default)]
+    pub tests: Vec<TestLink>,
     #[serde(default)]
     pub source_links: Vec<SourceLink>,
 }
@@ -190,6 +223,60 @@ pub struct GeneratedUiTest {
     pub model_id: String,
     #[serde(default = "default_ui_test_framework")]
     pub framework: String,
+}
+
+/// One unified test link (DOM-TEST-LINK): the diagram element it verifies
+/// (`model_id`), where the test lives (`path`), which layer it occupies, the
+/// runner `framework` (resolved from the test profile; optional), and an
+/// `expect` marker. Cycle A is pure structure — nothing here is executed.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct TestLink {
+    pub id: String,
+    pub path: String,
+    pub model_id: String,
+    pub layer: TestLayer,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub framework: Option<String>,
+    #[serde(default)]
+    pub expect: TestExpect,
+}
+
+/// The layer a test occupies (DOM-TEST-LAYER); see the §5.1 diagram-kind ->
+/// layer taxonomy. Serialized kebab-case (`unit`, `e2e`, ...).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[serde(rename_all = "kebab-case")]
+pub enum TestLayer {
+    Unit,
+    Integration,
+    E2e,
+    Acceptance,
+    Ui,
+    Security,
+}
+
+impl TestLayer {
+    /// The profile key / config-layer name this variant matches.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TestLayer::Unit => "unit",
+            TestLayer::Integration => "integration",
+            TestLayer::E2e => "e2e",
+            TestLayer::Acceptance => "acceptance",
+            TestLayer::Ui => "ui",
+            TestLayer::Security => "security",
+        }
+    }
+}
+
+/// A test's expectation (DOM-TEST-EXPECT). `RedUntilImplemented` marks a gap
+/// test authored before its code — a pure data marker in Cycle A; the
+/// non-negotiable red->green evidence gate it seeds lands in Cycle C.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum TestExpect {
+    #[default]
+    Pass,
+    RedUntilImplemented,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -450,12 +537,16 @@ pub struct TocEntry {
 impl Default for MddConfig {
     fn default() -> Self {
         Self {
-            version: 1,
+            // v2 adds the `test:` block (CMP-TEST-CONFIG); bumping the schema
+            // version forward-migrates existing v1 config.yml files in place so
+            // the block materializes without overwriting any operator content.
+            version: 2,
             model_source: "plantuml".to_string(),
             constraint_source: "ocl".to_string(),
             rendered_dir: ".mdd/rendered".to_string(),
             security: SecurityConfig::default(),
             traceability: TraceabilityConfig::default(),
+            test: TestConfig::default(),
         }
     }
 }
@@ -467,8 +558,52 @@ impl Default for Trace {
             links: Vec::new(),
             generated_tests: Vec::new(),
             generated_ui_tests: Vec::new(),
+            tests: Vec::new(),
             source_links: Vec::new(),
         }
+    }
+}
+
+impl Trace {
+    /// Project every test link — native `tests` plus the legacy
+    /// `generated_tests` / `generated_ui_tests` arrays — into one unified
+    /// `TestLink` view (DOM-TEST-PROJECTION). Legacy arrays are never mutated;
+    /// this gives `validate` a single shape to reason over while existing
+    /// trace.yml files keep working untouched.
+    pub fn unified_tests(&self) -> Vec<TestLink> {
+        let mut out = self.tests.clone();
+        for t in &self.generated_tests {
+            let layer = match t.category.as_deref() {
+                Some("security") => TestLayer::Security,
+                Some("unit") => TestLayer::Unit,
+                Some("integration") => TestLayer::Integration,
+                Some("e2e") => TestLayer::E2e,
+                Some("ui") => TestLayer::Ui,
+                // Acceptance is the historical meaning of generated_tests
+                // (use-case `.feature` files), so an absent/other category
+                // projects to acceptance.
+                _ => TestLayer::Acceptance,
+            };
+            out.push(TestLink {
+                id: t.id.clone(),
+                path: t.path.clone(),
+                model_id: t.model_id.clone(),
+                layer,
+                framework: None,
+                expect: TestExpect::Pass,
+            });
+        }
+        for t in &self.generated_ui_tests {
+            out.push(TestLink {
+                id: t.id.clone(),
+                path: t.path.clone(),
+                model_id: t.model_id.clone(),
+                layer: TestLayer::Ui,
+                framework: Some(t.framework.clone()),
+                expect: TestExpect::Pass,
+            });
+        }
+        out
     }
 }
 
@@ -617,6 +752,17 @@ impl Project {
             &mut skipped,
             &mut on_conflict,
         )?;
+        // Test-profile doc (USE-INIT-TEST-PROFILE) — Regenerable, like the
+        // other docs. The machine-readable `test:` block rides config.yml's
+        // create-or-forward-migrate path above (AccumulatingState).
+        self.write_text_if_missing(
+            ".mdd/docs/test-profile.md",
+            templates::test_profile_doc(),
+            &mut created,
+            &mut overwritten,
+            &mut skipped,
+            &mut on_conflict,
+        )?;
         // Ralph workspace (USE-INIT-RALPH). PROMPT.md is Regenerable — it goes
         // through the conflict handler like every other template. PLAN.md is
         // SeededOnce (DOM-INIT-SEED-ONCE): created from the starter template
@@ -727,6 +873,22 @@ impl Project {
 
     pub fn read_trace(&self) -> Result<Trace> {
         self.read_yaml(TRACE_FILE)
+    }
+
+    /// Resolve the framework for an authored UI test from the test profile
+    /// (CMP-TEST-CONFIG): the `ui` layer's configured framework when present,
+    /// else the `playwright` fallback. Replaces the previous hardcoded default
+    /// at the authoring site with profile resolution.
+    pub fn resolve_ui_framework(&self) -> Result<String> {
+        let framework = self
+            .read_config()?
+            .test
+            .layers
+            .get("ui")
+            .map(|layer| layer.framework.clone())
+            .filter(|fw| !fw.is_empty())
+            .unwrap_or_else(default_ui_test_framework);
+        Ok(framework)
     }
 
     pub fn write_trace(&self, trace: &Trace) -> Result<()> {
@@ -1640,7 +1802,7 @@ impl Project {
                 id: test_id,
                 path: rel_path.clone(),
                 model_id: contract.model_id,
-                framework: default_ui_test_framework(),
+                framework: self.resolve_ui_framework()?,
             });
             generated.push(rel_path);
         }
@@ -2363,6 +2525,99 @@ impl Project {
             }
         }
 
+        // Diagram-driven tests — structural rules (CMP-TEST-VALIDATE).
+        // Existence/linkage/membership/coverage only; nothing is executed in
+        // this cycle. Safe-by-default: the coverage and membership rules stay
+        // inert until the test profile actually configures layers, so a repo
+        // that has not yet adopted diagram-driven tests is unaffected.
+        let test_cfg = &self.read_config()?.test;
+        let unified_tests = trace.unified_tests();
+
+        // Every native `tests` link references a known model ID and an
+        // existing file (mirrors the legacy generated_* path checks).
+        for test in &trace.tests {
+            if !all_ids.contains(&test.model_id) {
+                errors.push(format!(
+                    "test {} references unknown model ID {}",
+                    test.id, test.model_id
+                ));
+            }
+            if !self.root.join(&test.path).exists() {
+                errors.push(format!("test file is missing: {}", test.path));
+            }
+        }
+
+        if !test_cfg.layers.is_empty() {
+            // Layer/framework membership (USE-TEST-LAYER-MEMBERSHIP): replaces
+            // the historical silent drop of non-playwright frameworks. Only
+            // meaningful once a profile defines the layer set.
+            for test in &unified_tests {
+                match test_cfg.layers.get(test.layer.as_str()) {
+                    None => errors.push(format!(
+                        "test {} declares layer `{}`, which is not in the configured test profile (config.test.layers)",
+                        test.id,
+                        test.layer.as_str()
+                    )),
+                    Some(layer_cfg) => {
+                        if let Some(fw) = &test.framework
+                            && !layer_cfg.framework.is_empty()
+                            && &layer_cfg.framework != fw
+                        {
+                            errors.push(format!(
+                                "test {} declares framework `{}` for layer `{}`, but the profile configures `{}`",
+                                test.id,
+                                fw,
+                                test.layer.as_str(),
+                                layer_cfg.framework
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // Coverage (USE-TEST-COVERAGE): every implementation-bearing @id
+            // has >=1 linked test of the layer its kind expects (§5.1). A gap
+            // blocks when test.gate=error, else warns. Runs only with a
+            // configured profile (above check), so this repo stays quiet until
+            // it opts in.
+            // Components have no dedicated ModelKind (they classify as Other),
+            // so collect them by their `CMP-` id prefix.
+            let component_ids: BTreeSet<String> = all_ids
+                .iter()
+                .filter(|id| id.starts_with("CMP-"))
+                .cloned()
+                .collect();
+            let coverage_blocks = test_cfg.gate == ParityMode::Error;
+            let expected: [(&BTreeSet<String>, &[TestLayer], &str); 5] = [
+                (&domain_ids, &[TestLayer::Unit], "unit"),
+                (&sequence_ids, &[TestLayer::Integration], "integration"),
+                (&component_ids, &[TestLayer::Integration], "integration"),
+                (
+                    &use_case_ids,
+                    &[TestLayer::E2e, TestLayer::Acceptance],
+                    "e2e/acceptance",
+                ),
+                (&mockup_ids, &[TestLayer::Ui], "ui"),
+            ];
+            for (ids, layers, label) in expected {
+                for id in ids {
+                    let covered = unified_tests
+                        .iter()
+                        .any(|t| &t.model_id == id && layers.contains(&t.layer));
+                    if !covered {
+                        let msg = format!(
+                            "implementation-bearing {id} has no linked {label} test in .mdd/trace.yml"
+                        );
+                        if coverage_blocks {
+                            errors.push(msg);
+                        } else {
+                            warnings.push(msg);
+                        }
+                    }
+                }
+            }
+        }
+
         // Source-link existence (USE-VERIFY-SOURCE-LINK): honor checklist
         // item 5 — every source_link must point at a file that exists and,
         // when a symbol is given on a .rs file, a symbol syn can resolve.
@@ -3015,6 +3270,10 @@ const ENCRYPT_SCOPES: &[&str] = &["at_rest", "in_transit", "both"];
 const SQLI_SANITIZERS: &[&str] =
     &["parameterized", "prepared-statement", "orm", "escape", "stored-procedure"];
 
+/// Serde default for the legacy `GeneratedUiTest.framework` field — kept so
+/// pre-existing trace.yml files (which omit it) still deserialize. New
+/// authoring resolves the framework from the test profile instead
+/// (`Project::resolve_ui_framework`), not this hardcoded constant.
 fn default_ui_test_framework() -> String {
     "playwright".to_string()
 }
@@ -4170,12 +4429,20 @@ mod tests {
         assert!(report.migrated.contains(&".mdd/config.yml".to_string()));
         assert!(!report.overwritten.contains(&".mdd/config.yml".to_string()));
         let cfg = project.read_config().unwrap();
-        assert_eq!(cfg.version, 1, "version bumped to current schema");
+        assert_eq!(
+            cfg.version,
+            MddConfig::default().version,
+            "version bumped to current schema"
+        );
         let raw = fs::read_to_string(&cfg_path).unwrap();
         assert!(raw.contains("model_source: plantuml"), "prior content preserved");
         assert!(
             raw.contains("parity_check"),
             "fields added since the file was written are materialized from defaults"
+        );
+        assert!(
+            raw.contains("test:"),
+            "the v2 test: block is materialized by forward migration"
         );
     }
 
@@ -5914,5 +6181,194 @@ mod tests {
             framework: "playwright".to_string(),
         });
         project.write_trace(&trace).unwrap();
+    }
+
+    /// Overwrite config.yml with a `test:` block (gate + the named layers,
+    /// each given a same-named framework) for the coverage/membership tests.
+    fn write_test_config(project: &Project, gate: &str, layers: &[&str]) {
+        let mut yaml = format!(
+            "version: 2\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\ntest:\n  gate: {gate}\n"
+        );
+        if layers.is_empty() {
+            yaml.push_str("  layers: {}\n");
+        } else {
+            yaml.push_str("  layers:\n");
+            for layer in layers {
+                yaml.push_str(&format!("    {layer}:\n      framework: {layer}-runner\n"));
+            }
+        }
+        fs::write(project.root().join(".mdd/config.yml"), yaml).unwrap();
+    }
+
+    #[test]
+    fn unified_tests_projects_legacy_arrays() {
+        let mut trace = Trace::default();
+        trace.tests.push(TestLink {
+            id: "UT-DOM-USER".to_string(),
+            path: "src/user.rs".to_string(),
+            model_id: "DOM-USER".to_string(),
+            layer: TestLayer::Unit,
+            framework: Some("cargo-test".to_string()),
+            expect: TestExpect::RedUntilImplemented,
+        });
+        trace.generated_tests.push(GeneratedTest {
+            id: "AT-USE-LOGIN".to_string(),
+            path: ".mdd/tests/acceptance/use-login.feature".to_string(),
+            model_id: "USE-LOGIN".to_string(),
+            category: None,
+        });
+        trace.generated_tests.push(GeneratedTest {
+            id: "SECT-SEC-X".to_string(),
+            path: ".mdd/tests/acceptance/sec-x.feature".to_string(),
+            model_id: "SEC-X".to_string(),
+            category: Some("security".to_string()),
+        });
+        trace.generated_ui_tests.push(GeneratedUiTest {
+            id: "UIT-MCK-LOGIN".to_string(),
+            path: ".mdd/tests/ui/login.spec.ts".to_string(),
+            model_id: "MCK-LOGIN".to_string(),
+            framework: "playwright".to_string(),
+        });
+
+        let unified = trace.unified_tests();
+        assert_eq!(unified.len(), 4);
+        // Native link preserved verbatim.
+        assert!(unified.iter().any(|t| t.id == "UT-DOM-USER"
+            && t.layer == TestLayer::Unit
+            && t.expect == TestExpect::RedUntilImplemented));
+        // Legacy acceptance (no category) -> acceptance layer.
+        assert!(unified
+            .iter()
+            .any(|t| t.id == "AT-USE-LOGIN" && t.layer == TestLayer::Acceptance));
+        // category=security -> security layer.
+        assert!(unified
+            .iter()
+            .any(|t| t.id == "SECT-SEC-X" && t.layer == TestLayer::Security));
+        // UI test -> ui layer with its framework.
+        assert!(unified.iter().any(|t| t.id == "UIT-MCK-LOGIN"
+            && t.layer == TestLayer::Ui
+            && t.framework.as_deref() == Some("playwright")));
+    }
+
+    #[test]
+    fn validate_coverage_inert_without_configured_layers() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+
+        let report = project.validate().unwrap();
+
+        assert!(report.ok, "errors: {:?}", report.errors);
+        assert!(
+            !report.warnings.iter().any(|w| w.contains("no linked")),
+            "coverage must be inert with no configured layers: {:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn validate_coverage_warns_when_layers_configured_and_gate_warn() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        write_test_config(&project, "warn", &["unit", "integration", "e2e"]);
+
+        let report = project.validate().unwrap();
+
+        assert!(report.ok, "warn gate never blocks: {:?}", report.errors);
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.contains("DOM-USER") && w.contains("unit")));
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.contains("SEQ-LOGIN") && w.contains("integration")));
+    }
+
+    #[test]
+    fn validate_coverage_blocks_when_layers_configured_and_gate_error() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        write_test_config(&project, "error", &["unit", "integration", "e2e"]);
+
+        let report = project.validate().unwrap();
+
+        assert!(!report.ok, "uncovered ids must block under gate=error");
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| e.contains("DOM-USER") && e.contains("no linked unit test")));
+    }
+
+    #[test]
+    fn validate_rejects_test_link_with_unconfigured_layer() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        // A real file the link can point at.
+        let test_path = ".mdd/tests/acceptance/user.feature";
+        fs::write(dir.path().join(test_path), "Feature: x\n").unwrap();
+        let mut trace = project.read_trace().unwrap();
+        trace.tests.push(TestLink {
+            id: "SECT-DOM-USER".to_string(),
+            path: test_path.to_string(),
+            model_id: "DOM-USER".to_string(),
+            layer: TestLayer::Security,
+            framework: None,
+            expect: TestExpect::Pass,
+        });
+        project.write_trace(&trace).unwrap();
+        // Profile configures only `unit` — `security` is not a member.
+        write_test_config(&project, "warn", &["unit"]);
+
+        let report = project.validate().unwrap();
+
+        assert!(!report.ok);
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| e.contains("SECT-DOM-USER") && e.contains("not in the configured test profile")));
+    }
+
+    #[test]
+    fn validate_rejects_test_link_with_missing_file() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        let mut trace = project.read_trace().unwrap();
+        trace.tests.push(TestLink {
+            id: "UT-DOM-USER".to_string(),
+            path: "crates/does/not/exist.rs".to_string(),
+            model_id: "DOM-USER".to_string(),
+            layer: TestLayer::Unit,
+            framework: None,
+            expect: TestExpect::Pass,
+        });
+        project.write_trace(&trace).unwrap();
+
+        let report = project.validate().unwrap();
+
+        assert!(!report.ok);
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| e.contains("test file is missing") && e.contains("exist.rs")));
+    }
+
+    #[test]
+    fn resolve_ui_framework_prefers_profile_over_playwright_default() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+
+        // No `ui` layer configured -> playwright fallback.
+        assert_eq!(project.resolve_ui_framework().unwrap(), "playwright");
+
+        // A configured `ui` layer framework wins.
+        let yaml = "version: 2\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\ntest:\n  gate: error\n  layers:\n    ui:\n      framework: cypress\n";
+        fs::write(dir.path().join(".mdd/config.yml"), yaml).unwrap();
+        assert_eq!(project.resolve_ui_framework().unwrap(), "cypress");
     }
 }

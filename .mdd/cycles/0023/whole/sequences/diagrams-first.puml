@@ -1,0 +1,27 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-DIAGRAMS-FIRST, 0014)
+' @id(SEQ-DIAGRAMS-FIRST)
+' @ref(USE-DIAGRAMS-FIRST)
+' @desc(SEQ-DIAGRAMS-FIRST, "Implemented as the reading-order text in templates::claude_entrypoint / agents_entrypoint, injected into the CLAUDE.md / AGENTS.md managed blocks by mdd init (CMP-ENTRYPOINT-DIRECTIVE). After `mdd context` gives the freshness verdict, the agent branches: FRESH -> read the diagrams and follow trace.yml source_links to the code; STALE -> run /mdd-map on the drifted area (named by the map_status drift list) first, then read.")
+' Current-side sequence: the reading-order algorithm the directive encodes.
+title Diagrams-first reading order (current)
+
+actor "Agent" as Agent
+participant "mdd context\nverdict" as Verdict
+participant ".mdd/models + trace.yml\nsource_links" as Diagrams
+participant "/mdd-map\n(re-derive current)" as Map
+participant "code" as Code
+
+Agent -> Verdict : freshness from session brief
+alt FRESH
+  Verdict --> Agent : diagrams trusted
+  Agent -> Diagrams : read concept diagrams
+  Agent -> Code : follow source_links, then act
+else STALE (drift list)
+  Verdict --> Agent : drifted model_ids
+  Agent -> Map : /mdd-map the drifted area FIRST
+  Map --> Diagrams : current/ re-synced
+  Agent -> Diagrams : now read trusted diagrams
+end
+@enduml

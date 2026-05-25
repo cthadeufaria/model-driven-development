@@ -5,10 +5,13 @@
 ' @desc(USE-INIT-MIGRATE, "On every `mdd init` (with or without --force) upgrade the three accumulating state files (config.yml, trace.yml, approvals.yml) to the current schema version WITHOUT overwriting their content. If an on-disk file's `version` is older than the tool's current schema version it is migrated in place: parsed through the current struct (so fields added since the file was written fill from their defaults), `version` bumped to current, and written back — accumulated links, approvals, and config choices preserved. If the file is already at the current version it is left byte-for-byte untouched (idempotent; keeps curated trace.yml comments). A file whose version is NEWER than the running tool is never downgraded. This is what 'updated for newer versions without being overwritten' means. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-ENGINE.")
 ' @id(USE-INIT-RALPH)
 ' @desc(USE-INIT-RALPH, "Running `mdd init` scaffolds the Ralph workspace so the Ralph loop is available without any hand-created files: it registers the `mdd-ralph` workflow skill (SKILL.md under both .claude/skills and .codex/skills — a REGENERABLE file overwritten by --force like every other skill), creates the `.mdd/ralph/` directory, writes `.mdd/ralph/PROMPT.md` as a REGENERABLE per-iteration loop prompt template (overwritten by --force), and SEEDS `.mdd/ralph/PLAN.md` exactly once. PLAN.md is the SeededOnce class (DOM-INIT-SEED-ONCE): created from a starter template only when missing, and thereafter NEVER overwritten — not by a plain re-init and not by --force — and never version-migrated, because the plan is consumed-and-rewritten state that anything (the model gap, a hand-written backlog, another agent) may own. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-ENGINE.")
-' Objective use cases for cycle 0018 (force + migrate) and cycle 0022
-' (Ralph workspace scaffolding): a one-shot template refresh (--force)
-' that exempts the three accumulating state files (migrated forward) and
-' the seeded-once PLAN.md (created once, never overwritten).
+' @id(USE-INIT-TEST-PROFILE)
+' @desc(USE-INIT-TEST-PROFILE, "Running `mdd init` scaffolds the test-profile so diagram-driven tests (Cycle A) are available without hand-created files. It writes the `test:` block into config.yml through the EXISTING create-or-forward-migrate path (config.yml is AccumulatingState — created when missing, forward-migrated otherwise, NEVER overwritten, so a re-init or --force preserves any layers the operator configured), and writes a new REGENERABLE .mdd/docs/test-profile.md operational doc via write_text_if_missing (overwritten by --force like the other docs). Cycle A seeds the block with gate=error and NO layers, so the profile is inert and the coverage rule stays advisory until a later cycle populates layers. Realized by SEQ-INIT-SCAFFOLD; owned by CMP-INIT-ENGINE + CMP-TEST-CONFIG.")
+' Objective use cases for cycle 0018 (force + migrate), cycle 0022
+' (Ralph workspace scaffolding), and cycle 0023 (test-profile scaffold):
+' a one-shot template refresh (--force) that exempts the three
+' accumulating state files (migrated forward) and the seeded-once
+' PLAN.md (created once, never overwritten), plus the test-profile.
 title MDD init — force-overwrite scaffolding + forward-migrate state (objective)
 
 left to right direction
@@ -20,12 +23,14 @@ rectangle "mdd init" {
   usecase "Keep per-file [o/S]\nprompt (no flag)" as Prompt
   usecase "Forward-migrate state files\nconfig / trace / approvals\n(never overwrite)" as Migrate
   usecase "Scaffold the Ralph workspace\nmdd-ralph skill + PROMPT.md (regenerable)\nseed PLAN.md once (never overwrite)" as Ralph
+  usecase "Scaffold the test-profile\ntest: block in config (migrated)\ntest-profile.md doc (regenerable)" as TestProfile
 }
 
 Dev --> Force
 Dev --> Prompt
 Dev --> Migrate
 Dev --> Ralph
+Dev --> TestProfile
 
 Force ..> Prompt : <<extend>> (replaces prompt)
 
@@ -49,5 +54,13 @@ note bottom of Ralph
   Regenerable (--force overwrites). .mdd/ralph/PLAN.md
   is SeededOnce: created if missing, then never
   overwritten (even by --force) and never migrated.
+end note
+
+note bottom of TestProfile
+  USE-INIT-TEST-PROFILE: the test: block rides config.yml's
+  AccumulatingState path (created or forward-migrated, never
+  overwritten); test-profile.md is Regenerable (--force
+  overwrites). Cycle A seeds gate=error + no layers, so the
+  coverage rule stays advisory until layers are configured.
 end note
 @enduml

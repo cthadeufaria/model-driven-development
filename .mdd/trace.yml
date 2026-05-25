@@ -494,6 +494,44 @@ links:
   - from: OCL-INIT-SEED-ONCE
     to: DOM-INIT-SEED-ONCE
     relation: constrains
+  # Cycle 0023 — diagram-driven tests (Cycle A): unified test-trace model
+  # + structural validate rules + test config/profile scaffolding.
+  - from: USE-TEST-COVERAGE
+    to: SEQ-TEST-VALIDATE
+    relation: realizes
+  - from: USE-TEST-LAYER-MEMBERSHIP
+    to: SEQ-TEST-VALIDATE
+    relation: realizes
+  - from: USE-TEST-COVERAGE
+    to: CMP-TEST-VALIDATE
+    relation: realized_by
+  - from: USE-TEST-LAYER-MEMBERSHIP
+    to: CMP-TEST-VALIDATE
+    relation: realized_by
+  - from: SEQ-TEST-VALIDATE
+    to: DOM-TEST-LINK
+    relation: depends_on
+  - from: CMP-TEST-VALIDATE
+    to: DOM-TEST-PROJECTION
+    relation: depends_on
+  - from: CMP-TEST-TRACE-MODEL
+    to: DOM-TEST-LINK
+    relation: depends_on
+  - from: CMP-TEST-CONFIG
+    to: DOM-TEST-LINK
+    relation: depends_on
+  - from: USE-INIT-TEST-PROFILE
+    to: SEQ-INIT-SCAFFOLD
+    relation: realizes
+  - from: USE-INIT-TEST-PROFILE
+    to: CMP-TEST-CONFIG
+    relation: realized_by
+  - from: OCL-TEST-EVERY-IMPL-ID-HAS-TEST
+    to: DOM-TEST-LINK
+    relation: constrains
+  - from: OCL-TEST-LAYER-IN-PROFILE
+    to: DOM-TEST-LINK
+    relation: constrains
   - from: USE-OPEN-RENDER
     to: SEQ-OPEN-RENDER
     relation: realizes
@@ -1024,3 +1062,58 @@ source_links:
     path: .claude/skills/mdd-map/SKILL.md
   - model_id: CMP-MAP-SKILL
     path: .claude/skills/mdd-map/SKILL.md
+  # Cycle 0023 — diagram-driven tests (Cycle A)
+  - model_id: DOM-TEST-LINK
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestLink
+  - model_id: DOM-TEST-LAYER
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestLayer
+  - model_id: DOM-TEST-LAYER
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestLayer::as_str
+  - model_id: DOM-TEST-EXPECT
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestExpect
+  - model_id: DOM-TEST-PROJECTION
+    path: crates/mdd-core/src/lib.rs
+    symbol: Trace::unified_tests
+  - model_id: CMP-TEST-TRACE-MODEL
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestLink
+  - model_id: CMP-TEST-VALIDATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::validate_inner
+  - model_id: SEQ-TEST-VALIDATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::validate_inner
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestConfig
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestLayerConfig
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::resolve_ui_framework
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: MddConfig
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: MddConfig::default
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::generate_ui_tests
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/lib.rs
+    symbol: default_ui_test_framework
+  - model_id: CMP-TEST-CONFIG
+    path: crates/mdd-core/src/templates.rs
+    symbol: test_profile_doc
+  - model_id: CMP-TEST-TRACE-MODEL
+    path: crates/mdd-core/src/lib.rs
+    symbol: Trace
+  - model_id: CMP-TEST-TRACE-MODEL
+    path: crates/mdd-core/src/lib.rs
+    symbol: Trace::default

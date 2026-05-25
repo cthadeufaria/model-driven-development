@@ -1,0 +1,25 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-TEST-TRACE-MODEL) <<added>> this cycle (0023)
+' @id(CMP-TEST-VALIDATE) <<added>> this cycle (0023)
+' @id(CMP-TEST-CONFIG) <<added>> this cycle (0023)
+' Cycle 0023 diff (current side): three thin additions to mdd-core — the
+' trace-model data, the validate rules, and the config block + scaffolding.
+' All added; none removed.
+title MDD diagram-driven tests — ownership · cycle 0023 diff (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd validate\n(existing CLI)" as Cli
+component "Project::validate_inner\ntest rules\n(CMP-TEST-VALIDATE)" as Validate <<added>>
+component "Trace.tests + TestLink\n+ enums + projection\n(CMP-TEST-TRACE-MODEL)" as Model <<added>>
+component "MddConfig.test\n+ init scaffolding\n+ ui-framework resolver\n(CMP-TEST-CONFIG)" as Config <<added>>
+
+Dev --> Cli : mdd validate
+Cli --> Validate : validate()
+Validate --> Model : unified test view
+Validate --> Config : test.gate + test.layers
+@enduml

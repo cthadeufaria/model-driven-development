@@ -1,0 +1,27 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-TEST-COVERAGE) <<added>> this cycle (0023)
+' @id(USE-TEST-LAYER-MEMBERSHIP) <<added>> this cycle (0023)
+' Cycle 0023 diff (current side): a new concept — diagram-driven tests,
+' Cycle A. Both use cases are added; nothing removed.
+title MDD diagram-driven tests — structural coverage · cycle 0023 diff (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd validate" {
+  usecase "Every impl-bearing @id\nhas a linked test of\nthe expected layer" as Coverage <<added>>
+  usecase "Test layer + framework\nare members of the\nconfigured test profile" as Membership <<added>>
+}
+
+Dev --> Coverage
+Dev --> Membership
+@enduml

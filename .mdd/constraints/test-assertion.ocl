@@ -1,0 +1,29 @@
+-- @id(OCL-TEST-EVERY-IMPL-ID-HAS-TEST)
+-- @ref(DOM-TEST-LINK)
+-- Every implementation-bearing model element should be verified by at least
+-- one linked test of the layer its kind expects (§5.1 taxonomy). This is the
+-- structural coverage invariant behind USE-TEST-COVERAGE. Safe-by-default:
+-- the rule is enforced only when the profile has configured layers, and then a
+-- violation blocks when test.gate = error and warns when gate = warn; with no
+-- configured layers it is inert. Cycle A enforces the existence/linkage shape
+-- only — no test is executed.
+context TestLink
+inv EveryImplIdHasTest:
+  ModelElement.allInstances()->select(e | e.isImplementationBearing)->forAll(e |
+    TestLink.allInstances()->exists(t |
+      t.model_id = e.id and t.layer = e.expectedLayer))
+
+-- @id(OCL-TEST-LAYER-IN-PROFILE)
+-- @ref(DOM-TEST-LINK)
+-- A test link's layer and (when present) framework must be members of the
+-- configured test profile (config.test.layers) — the invariant behind
+-- USE-TEST-LAYER-MEMBERSHIP that replaces the silent drop of non-playwright
+-- frameworks. When no layers are configured the membership cannot be checked
+-- and the rule is vacuously satisfied, so a profile-less repo is never wrongly
+-- blocked.
+context TestLink
+inv LayerInProfile:
+  TestConfig.layers->notEmpty() implies
+    (TestConfig.layers->exists(l | l.name = self.layer)
+     and (self.framework->notEmpty() implies
+          TestConfig.layers->exists(l | l.name = self.layer and l.framework = self.framework)))

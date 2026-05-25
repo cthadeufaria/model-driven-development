@@ -1,0 +1,44 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-TEST-LINK) <<added>> this cycle (0023)
+' @id(DOM-TEST-LAYER) <<added>> this cycle (0023)
+' @id(DOM-TEST-EXPECT) <<added>> this cycle (0023)
+' @id(DOM-TEST-PROJECTION) <<added>> this cycle (0023)
+' Cycle 0023 diff (current side): the unified test-trace record, its layer
+' and expectation enums, and the legacy projection. All added; none removed.
+title MDD diagram-driven tests — trace model · cycle 0023 diff (current)
+
+enum TestLayer <<added>> {
+  Unit
+  Integration
+  E2e
+  Acceptance
+  Ui
+  Security
+}
+
+enum TestExpect <<added>> {
+  Pass
+  RedUntilImplemented
+}
+
+class TestLink <<added>> {
+  + id : String
+  + path : String
+  + model_id : String
+  + layer : TestLayer
+  + framework : Option<String>
+  + expect : TestExpect
+}
+
+class LegacyProjection <<added>> {
+  + project(trace) : Vec<TestLink>
+}
+
+TestLink "1" --> "1" TestLayer : occupies >
+TestLink "1" --> "1" TestExpect : marked >
+LegacyProjection ..> TestLink : yields generated_* as >
+@enduml

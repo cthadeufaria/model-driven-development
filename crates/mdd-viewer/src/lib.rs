@@ -263,6 +263,7 @@ impl MddViewer {
             links: Vec::new(),
             generated_tests: Vec::new(),
             generated_ui_tests: Vec::new(),
+            tests: Vec::new(),
             source_links: Vec::new(),
         });
         let descriptions = project.descriptions().unwrap_or_default();

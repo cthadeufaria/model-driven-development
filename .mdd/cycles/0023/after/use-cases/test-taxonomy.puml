@@ -1,0 +1,37 @@
+@startuml
+' @id(USE-TEST-COVERAGE)
+' @desc(USE-TEST-COVERAGE, "Validate gates that every implementation-bearing @id (domain, sequence, component, use case, mockup) has at least one linked test of the layer that kind expects (§5.1 taxonomy: DOM/OCL->unit, SEQ/CMP->integration, USE->e2e/acceptance, MCK->ui). The link may live in the new unified trace `tests` collection OR in the legacy generated_tests/generated_ui_tests arrays (projected into the same view). Severity is SAFE-BY-DEFAULT: the rule runs ONLY when the test profile has configured layers (config.test.layers); with no layers (the Cycle A default on a fresh repo) it is inert — neither error nor warning — so a repo that has not yet adopted diagram-driven tests is untouched. When layers ARE configured, a missing test BLOCKS when test.gate=error and WARNS when gate=warn. This is the structural half of test assertion — existence/linkage only, NO execution (deferred to Cycle B/C). Realized by SEQ-TEST-VALIDATE; owned by CMP-TEST-VALIDATE.")
+' @id(USE-TEST-LAYER-MEMBERSHIP)
+' @desc(USE-TEST-LAYER-MEMBERSHIP, "Validate checks that every linked test's `layer` (unit|integration|e2e|acceptance|ui|security) and, when present, its `framework` are members of the configured test.layers set in .mdd/config.yml — replacing today's SILENT DROP of any generated_ui_test whose framework != 'playwright'. When the profile has no configured layers (the Cycle A default on a fresh repo), membership cannot be checked and the rule is skipped, so nothing is silently discarded and nothing wrongly blocks. The `test:` config block itself must be well-formed when present (parses, each layer names a framework). Realized by SEQ-TEST-VALIDATE; owned by CMP-TEST-VALIDATE + CMP-TEST-CONFIG.")
+' Current use cases for Cycle A of diagram-driven tests
+' (docs/proposals/tdd-and-test-assertion.md §9): pure structure —
+' a coverage rule and a layer/framework membership rule over the
+' unified test-trace view. No test execution; green/red gates deferred.
+title MDD diagram-driven tests — structural coverage (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd validate" {
+  usecase "Every impl-bearing @id\nhas a linked test of\nthe expected layer" as Coverage
+  usecase "Test layer + framework\nare members of the\nconfigured test profile" as Membership
+}
+
+Dev --> Coverage
+Dev --> Membership
+
+note bottom of Coverage
+  USE-TEST-COVERAGE: structural existence/linkage only.
+  Runs only when layers are configured; then BLOCKS on
+  gate=error, WARNS on gate=warn. Inert with no layers, so
+  a profile-less repo stays green. Realized by SEQ-TEST-VALIDATE.
+end note
+
+note bottom of Membership
+  USE-TEST-LAYER-MEMBERSHIP: layer/framework must be in
+  test.layers (when configured) — replaces the silent
+  drop of non-playwright UI frameworks. Skipped when no
+  layers are configured. The `test:` block must parse.
+end note
+@enduml

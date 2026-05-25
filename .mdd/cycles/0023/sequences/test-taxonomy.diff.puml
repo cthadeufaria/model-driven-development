@@ -1,0 +1,19 @@
+@startuml
+' @id(SEQ-TEST-VALIDATE) <<added>> this cycle (0023)
+' Cycle 0023 diff (current side): the validate-over-unified-tests flow.
+' New sequence; nothing removed.
+title mdd validate — test rules · cycle 0023 diff (current)
+
+participant "Project::validate_inner" as V
+participant "trace.yml\ntests + generated_*" as Trace
+participant "projection\n(DOM-TEST-PROJECTION)" as Proj
+participant "config.yml\ntest.gate + test.layers" as Cfg
+participant "ValidationReport" as Rep
+
+V -> Trace : read tests + generated_*
+V -> Proj : project legacy into unified TestLink view
+Proj --> V : Vec<TestLink>
+V -> Cfg : read test.gate + test.layers
+note over V #90EE90: <<added>> 0023: path/model_id checks,\nlayer/framework membership,\nand per-kind coverage (inert with no layers)
+Rep --> V : ok = no blocking errors
+@enduml
