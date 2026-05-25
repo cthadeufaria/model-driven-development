@@ -1,0 +1,14 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-KICKOFF) <<added>> this cycle (0027)
+' Cycle 0027 diff (current side): the /mdd-kickoff skill + the PLAN @scope
+' parser/validate in mdd-core. New component; nothing removed.
+title Greenfield kickoff component · cycle 0027 diff (current)
+
+component "/mdd-kickoff skill +\nPLAN @scope parser (mdd-core)" as K <<added>>
+artifact ".mdd/ralph/PLAN.md" as Plan
+K --> Plan : writes @scope per model item
+@enduml

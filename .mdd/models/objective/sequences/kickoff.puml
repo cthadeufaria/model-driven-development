@@ -1,0 +1,33 @@
+@startuml
+' @id(SEQ-KICKOFF)
+' @ref(USE-KICKOFF)
+' @desc(SEQ-KICKOFF, "The /mdd-kickoff flow: preflight greenfield; interview the developer to objective+architecture alignment (clarify, never guess); write .mdd/docs/brief.md and STOP at a sign-off gate; on approval run /mdd-generate for the full objective then /mdd-validate; decompose the objective into a foundations-first priority-ordered PLAN.md where model-bearing items carry inline @scope(<id>,…) and infra items carry none; STOP with a summary and the next command. Never launches Ralph.")
+' Objective sequence for the greenfield kickoff front door (cycle 0027,
+' greenfield-kickoff Cycle B).
+title Greenfield kickoff flow (objective)
+
+actor "Developer" as Dev
+participant "/mdd-kickoff" as K
+participant "/mdd-generate" as Gen
+participant "/mdd-validate" as Val
+participant ".mdd/docs/brief.md" as Brief
+participant ".mdd/ralph/PLAN.md" as Plan
+
+Dev -> K : /mdd-kickoff [idea]
+K -> K : preflight — repo is greenfield?
+loop until the developer confirms alignment
+  K -> Dev : clarifying question (objective / architecture / tooling)
+  Dev --> K : answer
+end
+K -> Brief : write objective, scope, ADR-lite decisions, tooling, NFRs
+K -> Dev : present brief for sign-off
+note right of Dev: SIGN-OFF GATE — no model before alignment
+Dev --> K : approve
+K -> Gen : generate the FULL objective from the agreed brief
+Gen --> K : objective model
+K -> Val : validate
+Val --> K : clean
+K -> Plan : decompose foundations-first; model items carry @scope, infra items none
+K -> Dev : summary + next command (review brief + PLAN, then /mdd-ralph)
+note right of K: STOP — never launches Ralph
+@enduml

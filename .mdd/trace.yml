@@ -83,6 +83,34 @@ links:
   - from: OCL-REVIEW-WHOLE-PARITY-AT-DONE
     to: DOM-CYCLE
     relation: constrains
+  # cycle 0027 — greenfield kickoff skill (greenfield-kickoff Cycle B)
+  - from: USE-KICKOFF
+    to: SEQ-KICKOFF
+    relation: realizes
+  - from: USE-KICKOFF
+    to: CMP-KICKOFF
+    relation: realized_by
+  - from: SEQ-KICKOFF
+    to: DOM-BRIEF
+    relation: depends_on
+  - from: SEQ-KICKOFF
+    to: DOM-PLAN-SCOPE
+    relation: depends_on
+  - from: CMP-KICKOFF
+    to: DOM-BRIEF
+    relation: depends_on
+  - from: CMP-KICKOFF
+    to: DOM-PLAN-SCOPE
+    relation: depends_on
+  - from: OCL-KICKOFF-SCOPE-IDS-EXIST
+    to: DOM-PLAN-SCOPE
+    relation: constrains
+  - from: OCL-KICKOFF-PLAN-COVERS-OBJECTIVE
+    to: DOM-PLAN-SCOPE
+    relation: constrains
+  - from: OCL-KICKOFF-BRIEF-SIGNED-OFF
+    to: DOM-BRIEF
+    relation: constrains
   - from: SEQ-RENDER-CYCLE-DIFF
     to: DOM-CYCLE-DIFF
     relation: depends_on
@@ -1039,6 +1067,24 @@ source_links:
   - model_id: DOM-CYCLE
     path: crates/mdd-core/src/cycle.rs
     symbol: CycleManifest
+  # cycle 0027 — greenfield kickoff skill (greenfield-kickoff Cycle B)
+  - model_id: CMP-KICKOFF
+    path: .codex/skills/mdd-kickoff/SKILL.md
+  - model_id: CMP-KICKOFF
+    path: crates/mdd-core/src/lib.rs
+    symbol: extract_scope_ids
+  - model_id: SEQ-KICKOFF
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::plan_scope_ids
+  - model_id: DOM-PLAN-SCOPE
+    path: crates/mdd-core/src/lib.rs
+    symbol: extract_scope_ids
+  - model_id: DOM-PLAN-SCOPE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::plan_scope_ids
+  - model_id: DOM-BRIEF
+    path: crates/mdd-core/src/templates.rs
+    symbol: brief
   - model_id: CMP-TRACE-GATE
     path: crates/mdd-core/src/lib.rs
     symbol: Project::validate_inner

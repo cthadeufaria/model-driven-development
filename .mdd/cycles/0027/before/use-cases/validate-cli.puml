@@ -1,0 +1,34 @@
+@startuml
+' @id(USE-VALIDATE-CLI)
+' @desc(USE-VALIDATE-CLI, "`mdd validate` runs the deterministic structural gate from the CLI. The Commands::Validate arm in mdd-cli discovers the project and calls Project::validate() (the existing engine over both current/ and objective/: id presence/uniqueness, per-side @ref resolution, trace-link + use-case->sequence integrity, source_link existence, the @sec contract). Text mode prints error/warning lines and a VALIDATION: PASSED/FAILED summary; `--json` prints a slim {ok, errors, warnings} object. Exit is non-zero only when report.ok is false; readiness warnings (approvals, tests, SVGs) never block. It does not invoke review. Realized by SEQ-VALIDATE-CLI; owned by CMP-VALIDATE-CLI.")
+' Current use case (cycle 0015): the structural gate now has a real
+' CLI entry point; the /mdd-validate skill calls it instead of
+' re-deriving the checklist by inspection.
+title MDD validate CLI — deterministic structural gate (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Run the structural gate\nfrom the CLI\n(mdd validate)" as ValidateCli
+  usecase "Emit a machine-readable\nverdict (--json)" as ValidateJson
+}
+
+Dev --> ValidateCli
+Dev --> ValidateJson
+
+ValidateCli ..> ValidateJson : <<extend>>
+
+note bottom of ValidateCli
+  Current (USE-VALIDATE-CLI): Commands::Validate ->
+  Project::validate(). Exit 0 when report.ok, non-zero
+  on a blocking structural error. Independent of review.
+end note
+
+note bottom of ValidateJson
+  --json emits {ok, errors, warnings} via serde_json,
+  excluding the ModelRegistry, so the skill parses a
+  stable contract.
+end note
+@enduml

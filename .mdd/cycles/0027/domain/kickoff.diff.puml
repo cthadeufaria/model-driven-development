@@ -1,0 +1,19 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-BRIEF) <<added>> this cycle (0027)
+' @id(DOM-PLAN-SCOPE) <<added>> this cycle (0027)
+' Cycle 0027 diff (current side): the brief + PLAN-scope concepts.
+' New; nothing removed.
+title Greenfield kickoff domain · cycle 0027 diff (current)
+
+class Brief <<added>> {
+  + signedOff : Boolean
+}
+class PlanItem <<added>> {
+  + scope : List<Id>
+  + isInfra() : Boolean
+}
+@enduml

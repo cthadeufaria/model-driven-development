@@ -1,0 +1,92 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-DEPLOY-GUIDANCE, 0007)
+' @cycle(SEQ-DEPLOY-INSPECT, 0007)
+' @cycle(SEQ-DEPLOY-EXECUTE, 0021)
+' @id(SEQ-DEPLOY-GUIDANCE)
+' @id(SEQ-DEPLOY-INSPECT)
+' @id(SEQ-DEPLOY-EXECUTE)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-INSPECT)
+' @ref(USE-DEPLOY-EXECUTE)
+' @ref(USE-DEPLOY-GOLIVE)
+'
+' Current-side runtime flow as implemented in templates::MDD_DEPLOY_SKILL
+' and the extended templates::MDD_RENDER_SKILL. The skill body is the
+' executable contract the agent follows: a PLAN phase writes the artifacts
+' + runbook, then (cycle 0021) an EXECUTE phase runs that runbook to live
+' traffic, pausing only at irreversible steps and halting on first error.
+'
+' @desc(SEQ-DEPLOY-GUIDANCE, "PLAN phase as implemented in templates::MDD_DEPLOY_SKILL: reject non-azure-container-apps targets, read .mdd/models + ../atlas-ate-server read-only, pause on ambiguity, confirm dialect + purpose, run the access-completeness pass, write the diagram + runbook, generate the IaC in the confirmed dialect, then HAND OFF to SEQ-DEPLOY-EXECUTE.")
+' @desc(SEQ-DEPLOY-INSPECT, "As implemented in templates::MDD_RENDER_SKILL step 8: /mdd-render rasterizes every .mdd/deploy/**/*.puml to its deterministic .mdd/rendered/deploy/**/*.svg mirror. Additive, non-gating.")
+' @desc(SEQ-DEPLOY-EXECUTE, "Cycle 0021: EXECUTE phase — /mdd-deploy walks the runbook to live traffic via Bash (az/terraform/docker): manage auth, dry-run before any apply, run idempotent steps autonomously, BLOCK only at irreversible steps (one apply gate over infra + secrets + migration), deploy the revision at 0% traffic, then the GO-LIVE gate surfaces the full billing multi-factor state and BLOCKS before routing live traffic. Halts on first error. Realizes USE-DEPLOY-EXECUTE + USE-DEPLOY-GOLIVE.")
+title /mdd-deploy plan, execute, and inspection (current)
+
+actor "Operator" as Op
+participant "/mdd-deploy\n(utility skill)" as Dep
+participant ".mdd/models/\ncomponents + use-cases" as Models
+participant "../atlas-ate-server\n(target repo, read-only)" as Target
+database ".mdd/deploy/\nazure-container-apps/" as Store
+participant "../atlas-ate-server/\ninfra/ (generated Bicep)" as Infra
+participant "/mdd-render" as Render
+database ".mdd/rendered/deploy/" as Rendered
+
+== SEQ-DEPLOY-GUIDANCE ==
+Op -> Dep : /mdd-deploy <deployment description>
+alt target != azure-container-apps
+  Dep --> Op : not yet supported (v1 = azure-container-apps only); stop
+else target == azure-container-apps
+  Dep -> Models : read components + use-cases (the "what")
+  Dep -> Target : read README, Dockerfile, docker-compose.yml,\n.env.example, src (READ-ONLY)
+  opt topology or security choice genuinely ambiguous
+    Dep -> Op : ask clarifying question(s)
+    Op --> Dep : answer
+    note right of Dep
+      Mandatory pause. The skill NEVER guesses an
+      ambiguous topology/security decision.
+    end note
+  end
+  Dep -> Store : write diagram.puml (UML deployment diagram;\ndocumentation-only security stereotypes)
+  Dep -> Infra : generate infra/main.bicep (+ modules):\nContainer Apps, ACR, Azure DB for PostgreSQL (TLS),\nKey Vault + secret refs, ingress 8080, migration job
+  Dep -> Store : write runbook.md (numbered steps; exact command,\nlocation, env/secret; STOP before every state-changing\nor go-live step incl. the billing production gate)
+  note right of Dep
+    Enforces every atlas-ate-server invariant from
+    .mdd/docs/deploy-profile.md: Key-Vault-only
+    secrets, App Attest required, billing production
+    multi-factor gate, BYOK never touches the
+    server, DB TLS + at-rest, pre-traffic migration
+    job, non-root, port 8080.
+  end note
+  Dep -> Dep : plan complete — HAND OFF to SEQ-DEPLOY-EXECUTE (cycle 0021)
+end
+
+== SEQ-DEPLOY-EXECUTE (RUN) — added cycle 0021 ==
+participant "Bash: az, terraform, docker" as CLI
+participant "Azure subscription (LIVE)" as Az
+Dep -> CLI : step 12 — az login + az account set (manage auth); stop on subscription mismatch
+Dep -> CLI : step 13 — DRY-RUN (terraform plan / az what-if); show diff
+Dep -> Op : step 14 — BLOCKING confirm "apply this plan?" (infra apply + secrets + migration)
+Op --> Dep : approve
+Dep -> CLI : apply; provision secrets; migrate; deploy revision at 0% traffic; health-check
+CLI -> Az : provision + write secrets + schema migrate
+opt any step failed
+  Dep -> Op : HALT — report failing step; run NO further step
+end
+Dep -> Op : step 15 — GO-LIVE: surface full billing multi-factor gate; BLOCKING confirm (never auto)
+Op --> Dep : confirm go-live
+Dep -> CLI : route 100% traffic (GO LIVE)
+CLI -> Az : live-traffic cutover
+Dep --> Op : step 16 — verify + report (LIVE, or HALTED)
+
+== SEQ-DEPLOY-INSPECT ==
+Op -> Render : /mdd-render
+Render -> Store : read .mdd/deploy/**/*.puml
+Render -> Rendered : write .mdd/rendered/deploy/**/*.svg\n(deterministic mirror; additive, non-gating)
+Render --> Op : rendered SVG list
+
+note over Store
+  .mdd/deploy/ is an inspection artifact only.
+  /mdd-validate, /mdd-review and the /mdd-cycle
+  parity loop never read it.
+end note
+@enduml

@@ -1,0 +1,49 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-TEST-DETECT, 0024)
+' @cycle(CMP-TEST-PLAN, 0024)
+' @cycle(CMP-TEST-GREEN-GATE, 0024)
+' @id(CMP-TEST-DETECT)
+' @desc(CMP-TEST-DETECT, "Build-file detection in mdd-core: Project::detect_test_profile() -> DetectedProfile. Inspects the repo root for Cargo.toml, package.json (devDependencies), pyproject.toml/setup.py, go.mod, pom.xml/build.gradle, *.csproj, Gemfile and maps each to a recommended per-layer framework+command per the §5.3 table; records undecidable choices in `ambiguities`. Pure and read-only — recommends, never writes config. Surfaced by the new `mdd test-detect [--json]` CLI verb. The detect-then-confirm UX (operator approves before write) lives in the /mdd-cycle skill.")
+' @id(CMP-TEST-PLAN)
+' @desc(CMP-TEST-PLAN, "The deterministic plan layer in mdd-core: Project::test_plan() -> Vec<TestPlanStep>, plus the `mdd test-plan [--json]` CLI verb (Commands::TestPlan). Resolves config.test.layers x the unified trace tests (DOM-TEST-PROJECTION) into ordered steps, attaching each layer's command and flagging the gap subset. No execution; unit-tested. This is the stable contract the /mdd-cycle loop runs, mirroring how the deploy runbook is generated deterministically and executed by the skill.")
+' @id(CMP-TEST-GREEN-GATE)
+' @desc(CMP-TEST-GREEN-GATE, "The green-gate verdict in mdd-core: Project::evaluate_green_gate(results) -> GreenGateReport { all_green, still_red, blocking }. Takes the per-step run results (produced by the skill running the plan via Bash at close) and reads config.test.gate: blocking = !all_green AND gate=error. Deterministic and unit-tested so the gate rule is precise; the /mdd-cycle Close step calls it and either blocks (error) or reports + allows a user-accepted close (warn). Sibling to Project::review() — structural parity stays separate from test execution.")
+' Current ownership for Cycle B. Three deterministic mdd-core
+' functions (detect, plan, green-gate verdict) + two CLI verbs; the
+' detect-confirm UX and the actual plan execution are skill (Bucket C),
+' mirroring deploy's plan-deterministic / execute-in-skill split.
+title MDD diagram-driven tests — profile/plan/gate ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd test-detect / test-plan\n(CLI verbs)" as Cli
+component "Project::detect_test_profile\n(CMP-TEST-DETECT)" as Detect
+component "Project::test_plan\n(CMP-TEST-PLAN)" as Plan
+component "Project::evaluate_green_gate\n(CMP-TEST-GREEN-GATE)" as Gate
+component "config.yml\ntest.layers + test.gate" as Cfg
+component "trace.yml\nunified tests" as Trace
+component "/mdd-cycle skill\n(confirm + execute)" as Skill
+
+Dev --> Cli
+Cli --> Detect : test-detect
+Cli --> Plan : test-plan
+Detect --> Cfg : reads build files (recommends)
+Plan --> Cfg : test.layers
+Plan --> Trace : unified tests
+Skill --> Detect : recommend
+Skill --> Cfg : write confirmed profile
+Skill --> Plan : get steps
+Skill --> Gate : run results -> verdict
+Gate --> Cfg : test.gate (error|warn)
+
+note bottom of Detect
+  Recommends only; the skill confirms with the operator
+  before writing config.test.layers. Ambiguity blocks.
+end note
+
+note bottom of Gate
+  blocking = !all_green AND gate=error. Green side only;
+  the red->green gate (Cycle C) is non-negotiable.
+end note
+@enduml

@@ -1,0 +1,24 @@
+@startuml
+' @id(USE-KICKOFF)
+' @desc(USE-KICKOFF, "Implemented as the /mdd-kickoff skill (templates::MDD_KICKOFF_SKILL, shipped to .claude/ and .codex/): preflight greenfield, interview the developer to objective+architecture alignment, write a signed-off .mdd/docs/brief.md, run /mdd-generate for the FULL objective, decompose it into a Ralph-ready .mdd/ralph/PLAN.md (model-bearing items carry @scope), then stop. Utility front door, outside the parity gate.")
+' Current-side use case for the greenfield kickoff front door (cycle 0027),
+' derived from the implemented /mdd-kickoff skill. The PLAN it writes is
+' consumed item-by-item via USE-REALIZE-SLICE.
+title MDD greenfield kickoff — use cases (current)
+
+left to right direction
+actor "Developer" as Dev
+
+usecase "Kick off a greenfield project:\ninterview -> signed-off brief ->\nfull objective -> Ralph-ready PLAN,\nthen stop" as Kickoff
+
+Dev --> Kickoff
+
+note bottom of Kickoff
+  Code: the /mdd-kickoff skill registered in
+  templates::WORKFLOW_SKILLS, shipped as SKILL.md
+  to .claude/ and .codex/. Utility, opens no
+  cycle. Two human gates (brief sign-off, final
+  stop); never auto-launches Ralph. Realized by
+  SEQ-KICKOFF; each PLAN item feeds USE-REALIZE-SLICE.
+end note
+@enduml

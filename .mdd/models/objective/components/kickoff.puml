@@ -1,0 +1,19 @@
+@startuml
+' @id(CMP-KICKOFF)
+' @desc(CMP-KICKOFF, "The /mdd-kickoff skill (templates::MDD_KICKOFF_SKILL, shipped to .claude/ and .codex/) plus the mdd-core PLAN @scope parser and the brief.md scaffold. It orchestrates /mdd-generate + /mdd-validate and writes .mdd/docs/brief.md and .mdd/ralph/PLAN.md. A utility front door outside the parity gate; opens no cycle.")
+' Objective component for the greenfield kickoff front door (cycle 0027).
+title Greenfield kickoff component (objective)
+
+component "/mdd-kickoff skill" as Skill
+component "PLAN @scope parser +\ncoverage validate (mdd-core)" as Parser
+component "/mdd-generate" as Gen
+component "/mdd-validate" as Val
+artifact ".mdd/docs/brief.md" as Brief
+artifact ".mdd/ralph/PLAN.md" as Plan
+
+Skill --> Gen : generate full objective
+Skill --> Val : validate
+Skill --> Brief : writes (signed off)
+Skill --> Plan : writes (@scope per model item)
+Parser --> Plan : parse @scope; check ids exist + coverage
+@enduml

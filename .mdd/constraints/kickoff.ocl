@@ -1,0 +1,30 @@
+-- @id(OCL-KICKOFF-SCOPE-IDS-EXIST)
+-- @ref(DOM-PLAN-SCOPE)
+-- Every objective @id a PLAN item names in its @scope(...) must resolve to a
+-- real objective @id, so a realize-slice cycle Ralph opens from that item can
+-- never close against ids that do not exist. `mdd validate` enforces this
+-- structurally (WARNING by default).
+context PlanItem
+inv ScopeIdsResolve:
+  self.scope->forAll(id | ObjectiveModel.ids->includes(id))
+
+-- @id(OCL-KICKOFF-PLAN-COVERS-OBJECTIVE)
+-- @ref(DOM-PLAN-SCOPE)
+-- The union of every PLAN item's @scope covers every implementation-bearing
+-- objective @id. This is what makes "Ralph exhausts the PLAN" coincide with
+-- "whole-model parity is reached" (each realize-slice cycle closes its own
+-- slice; the last one closes the whole model). `mdd validate` reports a gap
+-- (WARNING by default); kickoff's decomposition is the authoritative producer.
+context PlanItem
+inv ScopeUnionCoversObjective:
+  ObjectiveModel.implementableIds->forAll(oid |
+    PlanItem.allInstances().scope->asSet()->includes(oid))
+
+-- @id(OCL-KICKOFF-BRIEF-SIGNED-OFF)
+-- @ref(DOM-BRIEF)
+-- /mdd-kickoff generates the objective model only after the brief exists and
+-- the developer has signed it off — no model before alignment. The interview
+-- and brief sign-off precede every /mdd-generate call kickoff makes.
+context Brief
+inv SignedOffBeforeModel:
+  self.signedOff

@@ -1,0 +1,49 @@
+@startuml
+' @id(DOM-BRIEF)
+' @id(DOM-PLAN-SCOPE)
+' @desc(DOM-BRIEF, "The .mdd/docs/brief.md alignment artifact: objective/outcome, in-scope, out-of-scope/non-goals, ADR-lite architecture decisions, best-practice tooling choices, and NFRs. Signed off by the developer before any model or PLAN is produced; it is the description /mdd-generate consumes.")
+' @desc(DOM-PLAN-SCOPE, "A .mdd/ralph/PLAN.md item parsed from the priority-ordered checklist. Model-bearing items carry an inline @scope(<id>,…) naming the objective @ids they realize (Ralph routes them to a realize-slice cycle); infra/tooling items carry none (general tools). Every @scope id must resolve to an objective @id, and the union of all @scope ids must cover every implementation-bearing objective @id, so RALPH-DONE coincides with whole-model parity.")
+' Objective-side domain for the greenfield kickoff (cycle 0027).
+title Greenfield kickoff domain (objective)
+
+class Brief {
+  + objective : String
+  + inScope : List<String>
+  + outOfScope : List<String>
+  + decisions : List<AdrEntry>
+  + tooling : List<String>
+  + nfrs : List<String>
+  + signedOff : Boolean
+}
+
+class AdrEntry {
+  + context : String
+  + decision : String
+  + rationale : String
+  + alternatives : String
+}
+
+class PlanItem {
+  + text : String
+  + done : Boolean
+  + scope : List<Id>
+  + isInfra() : Boolean
+}
+
+Brief "1" o-- "*" AdrEntry : records >
+
+note bottom of Brief
+  Signed off before any model is generated
+  (OCL-KICKOFF-BRIEF-SIGNED-OFF). The description
+  /mdd-generate consumes.
+end note
+
+note bottom of PlanItem
+  isInfra() is true exactly when scope is empty.
+  Every scope id resolves to an objective @id
+  (OCL-KICKOFF-SCOPE-IDS-EXIST); the union of all
+  items' scope covers every implementation-bearing
+  objective @id (OCL-KICKOFF-PLAN-COVERS-OBJECTIVE),
+  so exhausting the PLAN equals whole-model parity.
+end note
+@enduml

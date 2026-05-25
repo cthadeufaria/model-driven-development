@@ -1,0 +1,15 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-KICKOFF) <<added>> this cycle (0027)
+' Cycle 0027 diff (current side): the greenfield kickoff front door.
+' New use case; nothing removed.
+title MDD greenfield kickoff · cycle 0027 diff (current)
+
+left to right direction
+actor "Developer" as Dev
+usecase "Kick off a greenfield project:\ninterview -> brief -> full objective\n-> Ralph-ready PLAN, then stop" as Kickoff <<added>>
+Dev --> Kickoff
+@enduml

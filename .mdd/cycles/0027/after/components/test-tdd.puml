@@ -1,0 +1,34 @@
+@startuml
+' @id(CMP-TEST-EVIDENCE)
+' @desc(CMP-TEST-EVIDENCE, "The evidence layer in mdd-core: TestEvidence/GapTest/PhaseRecord types, Project::read_test_evidence(cycle) -> Option<TestEvidence>, and the validate_inner SHAPE check — when a .mdd/cycles/<N>/test-evidence.yml exists it must parse, carry a version and cycle, and every gap_tests entry must be well-formed (id/model_id/layer; a present red has exit_code != 0; a present green has exit_code == 0). Also backs USE-MAP-TEST-DISCOVERY: the helper /mdd-map uses to refresh native-test links. Shape only — execution stays agent-Bash.")
+' @id(CMP-TEST-RED-GATE)
+' @desc(CMP-TEST-RED-GATE, "The non-negotiable red->green verdict in mdd-core: Project::evaluate_red_green_gate(evidence, gap_ids) -> RedGreenReport { satisfied, missing_evidence, not_red_first, still_red }. satisfied = every gap_id has a gap_tests entry whose red.result=Fail AND green.result=Pass. missing_evidence = gap_ids with no entry; not_red_first = entries whose red did not fail (vacuous); still_red = entries whose green is absent or failing. NO config switch — unlike test.gate (green side). The /mdd-cycle Close step calls it alongside Project::review() (parity) and evaluate_green_gate (green); all three must pass to close.")
+' @id(CMP-TEST-SKILL)
+' @desc(CMP-TEST-SKILL, "The new /mdd-test workflow skill (.claude/skills/mdd-test/SKILL.md + .codex mirror, a Regenerable template in mdd-core/templates.rs, registered in WORKFLOW_SKILLS). It owns the RED phase: for each gap @id it realizes the linked test as a runnable native test in the confirmed framework, runs it against pre-implement code, asserts an assertion-failure RED, and writes .mdd/cycles/<N>/test-evidence.yml — then hands to /mdd-implement (green). It also owns the diagram-derived acceptance authoring (Playwright e2e keyed to USE-, Gherkin-as-doc retired). Bucket C (skill orchestration) over the CMP-TEST-EVIDENCE / CMP-TEST-RED-GATE deterministic core.")
+' Current ownership for Cycle C. The deterministic core records and
+' gates on evidence (read + shape-validate + red->green verdict); the
+' /mdd-test skill (Bucket C) realizes and runs the failing tests.
+title MDD diagram-driven tests — red->green ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "/mdd-test skill\n(red phase + acceptance)\n(CMP-TEST-SKILL)" as Skill
+component "Project::read_test_evidence\n+ validate shape\n(CMP-TEST-EVIDENCE)" as Evidence
+component "Project::evaluate_red_green_gate\n(CMP-TEST-RED-GATE)" as Gate
+component "test-evidence.yml\n(.mdd/cycles/<N>/)" as File
+component "runner (Bash)" as Bash
+component "/mdd-cycle Close" as Close
+
+Dev --> Skill
+Skill --> Bash : run gap test (pre-implement)
+Skill --> File : write red (then green via implement)
+Evidence --> File : read + shape-validate
+Close --> Gate : evaluate_red_green_gate(evidence, gap_ids)
+Gate --> File : read evidence
+
+note bottom of Gate
+  CMP-TEST-RED-GATE: satisfied = every gap @id shows
+  fail-then-pass. NO off-switch. Sibling of review()
+  parity + the green gate at Close.
+end note
+@enduml

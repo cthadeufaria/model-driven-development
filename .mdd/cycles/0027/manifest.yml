@@ -1,0 +1,17 @@
+number: 27
+slug: mdd-kickoff-skill
+entry: generate
+description: "Cycle B of greenfield-kickoff (docs/proposals/greenfield-kickoff.md §9): the /mdd-kickoff front-door skill — preflight greenfield, interview to objective+architecture alignment, write a signed-off .mdd/docs/brief.md, generate the full objective, decompose into a foundations-first PLAN.md with inline @scope per model-bearing item, then stop. Plus PLAN @scope parsing + validate rules (scope-ids-exist, coverage), brief.md template + init scaffold, kickoff.ocl, /mdd-ralph routing rule, and docs."
+status: closed
+opened_at: "2026-05-25T17:09:52Z"
+closed_at: "2026-05-25T17:15:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/kickoff.puml
+  - .mdd/models/objective/sequences/kickoff.puml
+  - .mdd/models/objective/components/kickoff.puml
+  - .mdd/models/objective/domain/kickoff.puml
+  - .mdd/models/current/use-cases/kickoff.puml
+  - .mdd/models/current/sequences/kickoff.puml
+  - .mdd/models/current/components/kickoff.puml
+  - .mdd/models/current/domain/kickoff.puml
+  - .mdd/constraints/kickoff.ocl

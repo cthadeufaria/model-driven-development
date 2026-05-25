@@ -1,0 +1,16 @@
+@startuml
+' @id(SEQ-KICKOFF) <<added>> this cycle (0027)
+' Cycle 0027 diff (current side): the /mdd-kickoff flow.
+' New sequence; nothing removed.
+title Greenfield kickoff flow · cycle 0027 diff (current)
+
+participant "/mdd-kickoff" as K
+participant "/mdd-generate" as Gen
+participant ".mdd/ralph/PLAN.md" as Plan
+
+note over K #90EE90: <<added>> 0027
+K -> K : interview -> signed-off brief (sign-off gate)
+K -> Gen : generate the full objective
+K -> Plan : decompose; model items carry @scope
+note over K #90EE90: STOP — never launches Ralph
+@enduml

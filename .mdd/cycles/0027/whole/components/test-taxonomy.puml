@@ -1,0 +1,48 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-TEST-TRACE-MODEL, 0023)
+' @cycle(CMP-TEST-VALIDATE, 0023)
+' @cycle(CMP-TEST-CONFIG, 0023)
+' @id(CMP-TEST-TRACE-MODEL)
+' @desc(CMP-TEST-TRACE-MODEL, "The trace-model additions in mdd-core (crates/mdd-core/src/lib.rs): the `tests: Vec<TestLink>` field on Trace (#[serde(default)] so old files load), the TestLink struct, the TestLayer and TestExpect enums, and the projection that yields the legacy generated_tests/generated_ui_tests as TestLink records (DOM-TEST-PROJECTION). Pure data + one pure projection fn; no behavior change to existing fields. Backward compatible: legacy arrays still (de)serialize and round-trip through init migration.")
+' @id(CMP-TEST-VALIDATE)
+' @desc(CMP-TEST-VALIDATE, "The new structural rules in Project::validate_inner (mdd-core): (1) coverage — every implementation-bearing @id has >=1 linked test of the expected layer over the unified projected view (USE-TEST-COVERAGE); runs ONLY when config.test.layers is non-empty, then BLOCKS when gate=error and WARNS when gate=warn, and is inert otherwise (safe-by-default); (2) path existence + known model_id for every `tests` link (mirrors the existing generated_* checks); (3) layer/framework membership against config.test.layers when configured (USE-TEST-LAYER-MEMBERSHIP), replacing the silent non-playwright drop. No execution — existence/linkage/shape only.")
+' @id(CMP-TEST-CONFIG)
+' @desc(CMP-TEST-CONFIG, "The `test:` config block on MddConfig (TestConfig { gate: ParityMode=error, layers: BTreeMap<String, TestLayerConfig{framework, command}> }) plus init scaffolding: `mdd init` writes the block (via the existing create-or-forward-migrate path for config.yml — AccumulatingState, never overwritten) and a new Regenerable .mdd/docs/test-profile.md operational doc (write_text_if_missing, overwritten by --force like the other docs). It also replaces the hardcoded `default_ui_test_framework()=\"playwright\"` AUTHORING default with a config-aware resolver (profile's ui-layer framework, playwright fallback); the serde default is kept for deserialization safety. Cycle A populates no layers, so the profile is inert and coverage stays advisory.")
+' Current ownership for Cycle A. Three thin additions to mdd-core:
+' the trace-model data, the validate rules, and the config block +
+' init scaffolding. No CLI verb, no execution (test-plan + green gate
+' are Cycle B; the red->green evidence gate is Cycle C).
+title MDD diagram-driven tests — ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd validate\n(existing CLI)" as Cli
+component "Project::validate_inner\ntest rules\n(CMP-TEST-VALIDATE)" as Validate
+component "Trace.tests + TestLink\n+ TestLayer/TestExpect\n+ projection\n(CMP-TEST-TRACE-MODEL)" as Model
+component "MddConfig.test\n+ init scaffolding\n+ ui-framework resolver\n(CMP-TEST-CONFIG)" as Config
+component "trace.yml\ntests + generated_*" as Trace
+component "config.yml\ntest: block" as Cfg
+folder ".mdd/docs/test-profile.md\n(Regenerable doc)" as Doc
+
+Dev --> Cli : mdd validate
+Cli --> Validate : validate()
+Validate --> Model : unified test view
+Validate --> Config : test.gate + test.layers
+Model --> Trace : read tests + project generated_*
+Config --> Cfg : read/scaffold test block
+Config --> Doc : scaffold (write_text_if_missing)
+
+note bottom of Validate
+  CMP-TEST-VALIDATE: coverage + membership run only
+  when layers configured; coverage then BLOCKS on
+  gate=error, WARNS on gate=warn. Inert otherwise.
+  Structural only — no test runs in this cycle.
+end note
+
+note bottom of Config
+  CMP-TEST-CONFIG: config.yml is AccumulatingState
+  (created or forward-migrated, never overwritten);
+  test-profile.md is Regenerable (--force overwrites).
+end note
+@enduml

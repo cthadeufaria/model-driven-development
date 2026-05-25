@@ -1,0 +1,24 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-MAP-SKILL, 0020)
+' @id(CMP-MAP-SKILL)
+' @desc(CMP-MAP-SKILL, "The /mdd-map skill definition at .claude/skills/mdd-map/SKILL.md — the agent-executed instructions that derive the current view from code. As of cycle 0020 its workflow includes a mockup-authoring step (3a): whole-repo scope auto-includes current-side MCK- Salt mockups for discovered UI apps (UIC ids mirroring data-testids); feature/module scope keeps mockups opt-in. No Rust changes; the deterministic mdd-validate gate enforces the MCK-/UIC- contract rules the step satisfies.")
+title MDD map skill — mockup-aware ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "/mdd-map SKILL.md\n(CMP-MAP-SKILL)\n.claude/skills/mdd-map" as Map
+component "current/<kind>/*.puml\n(5 UML kinds)" as Uml
+component "current/mockups/*.puml\n(MCK-, whole-repo scope)" as Mck
+component "mdd validate\n(deterministic gate)" as Validate
+
+Dev --> Map : /mdd-map <scope>
+Map --> Uml : author use-cases (+ kinds on request)
+Map --> Mck : whole-repo -> author mockups for UI apps
+Map --> Validate : hand off
+
+note bottom of Mck
+  Whole-repo scope auto-includes mockups; feature/module
+  scope keeps them opt-in. UIC ids mirror app data-testids.
+end note
+@enduml

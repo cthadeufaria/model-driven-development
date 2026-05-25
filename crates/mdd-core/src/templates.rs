@@ -55,6 +55,11 @@ pub const WORKFLOW_SKILLS: &[SkillTemplate] = &[
         description: "Utility: run the Ralph loop — an unattended self-paced loop (driven by /loop) that picks one highest-priority item from a plan pointer (.mdd/ralph/PLAN.md by default; any source may write it) each iteration, routes it to the right MDD skill or general tools, and must pass the parity gate before committing; runs on a feature branch, exits on RALPH-DONE; outside the parity gate, on-demand",
         body: MDD_RALPH_SKILL,
     },
+    SkillTemplate {
+        name: "mdd-kickoff",
+        description: "Utility: greenfield front door — interview the developer to objective+architecture alignment, write a signed-off .mdd/docs/brief.md, generate the full objective, then decompose it into a Ralph-ready .mdd/ralph/PLAN.md (model-bearing items carry @scope, infra items do not); stops before launching Ralph. Outside the parity gate; opens no cycle",
+        body: MDD_KICKOFF_SKILL,
+    },
 ];
 
 pub fn skill_markdown(skill: &SkillTemplate) -> String {
@@ -90,6 +95,10 @@ pub fn ralph_prompt() -> &'static str {
 
 pub fn ralph_plan() -> &'static str {
     RALPH_PLAN
+}
+
+pub fn brief() -> &'static str {
+    MDD_BRIEF_TEMPLATE
 }
 
 pub fn claude_entrypoint() -> &'static str {
@@ -558,6 +567,10 @@ Implement cycle:
 
 `/mdd-cycle` runs the whole loop from a single description. It selects the entry point (`/mdd-generate` when a description is given, otherwise it behaves as `/mdd-map` with no comments and stops), and it **owns the cycle boundary**: it opens a numbered cycle under `.mdd/cycles/<N>/`, snapshots `.mdd/models/current/` to `before/`, loops to parity, then on review match snapshots `after/`, writes annotated `<diagram>.diff.puml` files, and closes the manifest. Standalone `/mdd-map` and `/mdd-generate` never open or close a cycle. Whenever a decision is genuinely ambiguous, `/mdd-cycle` pauses and asks the user — it never guesses. The viewer reads `.mdd/cycles/` to group diagrams by cycle and render the superposed before/after diff.
 
+## Greenfield kickoff
+
+`/mdd-kickoff` is the front door for a **new** project (a utility skill, outside the parity gate — it opens no cycle). It interviews the developer to objective + architecture alignment, writes a signed-off `.mdd/docs/brief.md`, runs `/mdd-generate` for the full objective model, then decomposes it into a Ralph-ready `.mdd/ralph/PLAN.md` and stops — a human launches `/mdd-ralph`. Model-bearing PLAN items carry an inline `@scope(<id>, …)` of the objective `@id`s they realize; Ralph routes each to a `/mdd-cycle` realize-slice (which closes against just that scope), and infra/tooling items (no `@scope`) run with general tools. `mdd validate` checks (as warnings) that every PLAN `@scope` id resolves to an objective id and that the `@scope` union covers every implementation-bearing objective id, so exhausting the PLAN coincides with whole-model parity. Incremental change on an existing repo still goes through `/mdd-cycle`.
+
 ## Whole-map baseline
 
 `/mdd-cycle` keeps a project-wide **whole-map** under `.mdd/map/` — a per-concept picture of the whole system that grows cycle by cycle. It is maintained only by the cycle **Close** step: after the cycle's `<diagram>.diff.puml` files are written, that cycle's `CycleDiff` is folded into `.mdd/map/<kind>/<name>.puml` (added `@id`s copied in from `after/` and tagged with a `' @cycle(<ID>, <N>)` provenance line, removed `@id`s deleted, unchanged ones keeping their earlier provenance). It is never re-derived from code and there is no `/mdd-map` "whole" mode; accumulation is one cheap diff application per cycle, so an element added by one cycle and removed by a later one nets to **neither** (no `<<removed>>` ghost, unlike a single cycle's `.diff.puml`). `.mdd/map/manifest.yml` records `version`, `last_cycle`, `generated_at`, and `files`. The whole `.mdd/map/` tree is snapshotted into `.mdd/cycles/<N>/whole/` at close so the picture *as of cycle N* is recoverable, and `/mdd-render` rasterizes `.mdd/map/**.puml` to `.mdd/rendered/map/**.svg`.
@@ -904,7 +917,7 @@ Ralph (after Geoffrey Huntley's technique) is, at its core, `while :; do cat PRO
 ## The contract the loop must honor (do not relax)
 
 - **One item per iteration.** Pick the single highest-priority unfinished item from the plan. Do not batch. This is context-window discipline — degradation is real well before the advertised window.
-- **Route, don't hardcode.** Choose the action that best advances the chosen item: `/mdd-cycle` for a feature/change from a description; `/mdd-map` when diagrams drifted from code; `/mdd-generate` when the objective is wrong/missing; `/mdd-implement` then `/mdd-map` for a targeted code gap with intent already agreed; `/mdd-render` or `/mdd-deploy` for inspection/infra items; general tools (Read, Grep, Bash, Edit) for everything else.
+- **Route, don't hardcode.** Choose the action that best advances the chosen item: an item carrying `@scope(<id>,…)` (a kickoff-decomposed objective slice) → `/mdd-cycle` *realize-slice* with that scope — skip generate and drive current to the slice at scoped parity; an item with **no** `@scope` (infra/tooling) → general tools, committed after `/mdd-validate` passes; `/mdd-cycle` for a feature/change from a description; `/mdd-map` when diagrams drifted from code; `/mdd-generate` when the objective is wrong/missing; `/mdd-implement` then `/mdd-map` for a targeted code gap with intent already agreed; `/mdd-render` or `/mdd-deploy` for inspection/infra items; general tools (Read, Grep, Bash, Edit) for everything else.
 - **The parity gate is the only backpressure — it is mandatory.** Full-unattended + free tool choice means a bare `/mdd-implement` or raw `Edit` could drift the models from the code with nothing to catch it. So: **no iteration commits until `/mdd-validate` AND `/mdd-review` pass.** If the iteration used `/mdd-cycle`, that gate already ran; otherwise run it explicitly before committing. Never loosen `.mdd/config.yml` to `warn` to get past it.
 - **Don't assume — search first.** Before implementing, search `current/` and the code so you don't re-build something that exists. Fan search/read out to `Explore`/`Agent` subagents; keep build/validate serialized (Ralph's "many search subagents, one build subagent") to protect the main context.
 - **Full unattended for modeling/implementation — but irreversible actions still stop.** Resolve ordinary modeling/implementation ambiguity yourself and keep going (a deliberate exception to the standing clarify-before-deciding rule; the parity gate is the safety net that makes it acceptable). This does **not** extend to irreversible or outward-facing actions: a `/mdd-deploy` apply / provision / migration or the **never-auto-confirmed** go-live cutover, force-pushes, deletes, and publishing to external services still pause for explicit human confirmation. The parity gate is backpressure for code; a human is still the gate for go-live.
@@ -993,6 +1006,7 @@ Utility skills (on demand, not a workflow gate):
 - `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
 - `/mdd-deploy` — plan then EXECUTE an Azure Container Apps deployment: generates a UML deployment diagram, runbook, and Bicep or Terraform IaC (operator-confirmed dialect + purpose), then runs the runbook to live traffic — managing auth, dry-running, applying, provisioning, migrating, and routing traffic, pausing only at irreversible steps and a never-auto-confirmed go-live gate, halting on first error; outside the parity gate.
 - `/mdd-ralph` — run the Ralph loop: an unattended, self-paced loop (driven by `/loop`) that takes one highest-priority item per iteration from a plan pointer (`.mdd/ralph/PLAN.md` by default; any source may write it), routes it to the right MDD skill or general tools, and must pass the parity gate before committing. Runs on a feature branch, never `main`; exits on `RALPH-DONE`; outside the parity gate.
+- `/mdd-kickoff` — greenfield front door (utility, opens no cycle): interview to objective + architecture alignment, write a signed-off `.mdd/docs/brief.md`, generate the full objective, then decompose it into a Ralph-ready `.mdd/ralph/PLAN.md` (model-bearing items carry `@scope`, infra items do not); stops before launching Ralph. Use `/mdd-cycle` for incremental change on an existing repo.
 
 ## Session start: diagrams-first
 
@@ -1019,6 +1033,7 @@ Codex and other agents should use the project skills in `.codex/skills/`:
 - `/mdd-render` — utility: render PlantUML diagrams to SVG for external visual inspection.
 - `/mdd-deploy` — utility: plan then EXECUTE an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect + purpose); runs the runbook to live traffic, pausing only at irreversible steps + a never-auto-confirmed go-live gate and halting on first error; outside the parity gate.
 - `/mdd-ralph` — utility: run the Ralph loop — an unattended, self-paced loop (driven by `/loop`) that takes one highest-priority item per iteration from a plan pointer (`.mdd/ralph/PLAN.md` by default; any source may write it), routes it to the right MDD skill or general tools, and must pass the parity gate before committing; runs on a feature branch, exits on `RALPH-DONE`; outside the parity gate.
+- `/mdd-kickoff` — utility: greenfield front door — interview to objective + architecture alignment, write a signed-off `.mdd/docs/brief.md`, generate the full objective, then decompose into a Ralph-ready `.mdd/ralph/PLAN.md` (model-bearing items carry `@scope`, infra items do not); stops before launching Ralph; opens no cycle.
 
 ## Session start: diagrams-first
 
@@ -1028,6 +1043,85 @@ At the start of a session, run `mdd context`. It prints a compact whole-map tabl
 - **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
+"#;
+
+const MDD_KICKOFF_SKILL: &str = r#"# MDD Kickoff
+
+You are an MDD, UML, PlantUML, and OCL specialist running the **greenfield kickoff** for this repo.
+
+This is a **utility skill, NOT a workflow gate** — a sibling of `/mdd-ralph` and `/mdd-deploy`. It opens no cycle and does not gate `/mdd-validate` / `/mdd-review`. It is the **front door for a new project**: it takes a developer from "I want to build X" to a validated objective model plus a Ralph-ready `.mdd/ralph/PLAN.md`, then **stops** so a human launches Ralph. Incremental change on a mature repo still goes through `/mdd-cycle`; brownfield onboarding of existing code is `/mdd-map`.
+
+Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md`.
+
+## The flow — six phases, two human gates
+
+0. **Preflight — confirm greenfield.** Kickoff is for a new project: `.mdd/models/objective/` and `.mdd/models/current/` empty, no closed cycle under `.mdd/cycles/`, and `PLAN.md` still the seed. If the repo is **not** greenfield, **surface it as a blocking question** (kickoff would operate alongside existing models; or use `/mdd-cycle` for incremental change) — never clobber. If `.mdd/` is absent, run `mdd init` first.
+
+1. **Interview — align on objective + architecture.** Interview the developer (free-form discussion + targeted questions) until the whole picture is clear: the objective and **final outcome** of the build; actors and primary flows; architecture (stack, framework, data store, API style, integrations, deployment target, component boundaries); NFRs (scale, security, PII, availability); constraints (must-use tech, existing systems); and the best-practice toolchain (formatter, linter, test framework, CI, pre-commit). **Clarification is the contract of this phase: whenever a decision is genuinely ambiguous, stop and ask — never guess.** Recommend a stack-idiomatic toolchain but let the developer confirm (detect-then-confirm; no silent default).
+
+2. **Brief + SIGN-OFF GATE.** Write `.mdd/docs/brief.md`: objective/outcome, in-scope, out-of-scope/non-goals, ADR-lite architecture decisions (context, decision, rationale, alternatives), tooling choices, NFRs. Present it and **stop until the developer signs it off.** Generate no model before sign-off.
+
+3. **Generate the full objective.** Run `/mdd-generate` with the agreed brief as the description to produce the **complete** objective model under `.mdd/models/objective/` (every diagram kind, security markers, OCL constraints, test intent).
+
+4. **Validate.** Run `/mdd-validate`; fix structural errors until clean.
+
+5. **Decompose into PLAN.md.** Write `.mdd/ralph/PLAN.md` as a priority-ordered checklist, **foundations-first**:
+   1. infra/tooling items (scaffold the project first, then formatter / linter / test runner / CI / pre-commit) — **no `@scope`** (Ralph runs these with general tools);
+   2. core domain + invariants;
+   3. features / use cases in dependency order;
+   4. cross-cutting / security.
+   Each **model-bearing** item carries an inline **`@scope(<id>, <id>, …)`** naming the objective `@id`s it realizes — Ralph routes it to a `/mdd-cycle` realize-slice. Size each model item to one cycle (about one use case plus its supporting sequence/components, or one domain cluster). The union of all `@scope` ids must cover every implementation-bearing objective `@id` (so finishing the PLAN equals whole-model parity); `mdd validate` reports gaps. If `PLAN.md` already has real items, confirm before overwriting.
+
+6. **Summary + STOP.** Report the brief path, objective counts by kind, the PLAN item count, and the exact next step: review `brief.md` + `PLAN.md`, then run `/mdd-ralph` on a feature branch with `/loop`. **Do not launch Ralph.**
+
+## Why the PLAN carries `@scope`
+
+The full objective exists up front, so a whole-model parity gate would mark every unbuilt id as missing. Each PLAN item's `@scope` lets `/mdd-cycle`'s realize-slice entry close that item against just its slice (`Project::review` reads the open cycle's manifest scope automatically); whole-model parity is reached when the last item closes. That is why the `@scope` union must cover the objective — it makes `RALPH-DONE` coincide with full parity.
+"#;
+
+const MDD_BRIEF_TEMPLATE: &str = r#"# Project Brief
+
+> Written by `/mdd-kickoff` and **signed off by the developer before any model is generated**.
+> It is the description `/mdd-generate` consumes and the durable record of what we agreed to
+> build and why. `mdd init` scaffolds this template once; kickoff fills it in.
+
+## Objective
+
+<!-- The product vision and the FINAL OUTCOME of the build — the whole-project definition of done. -->
+
+## In scope
+
+<!-- The capabilities / use cases this build delivers. -->
+
+## Out of scope / non-goals
+
+<!-- Explicitly bounded, so the objective model and PLAN do not sprawl. -->
+
+## Architecture decisions (ADR-lite)
+
+<!-- One entry per significant choice. Duplicate the block as needed. -->
+
+### <decision title>
+
+- **Context:**
+- **Decision:**
+- **Rationale:**
+- **Alternatives considered:**
+
+## Tooling
+
+<!-- Best-practice toolchain for the chosen stack: formatter, linter, test framework(s), CI,
+     pre-commit, docs. These become PLAN items; Ralph sets them up. -->
+
+## Non-functional requirements
+
+<!-- Scale, performance, security / compliance / PII, availability, must-use technologies, timeline. -->
+
+## Sign-off
+
+<!-- The developer confirms this brief before /mdd-kickoff generates the objective model. -->
+
+- [ ] Signed off
 "#;
 
 const MDD_SECURITY_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/security-profile.md");

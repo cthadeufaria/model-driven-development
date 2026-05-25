@@ -1,0 +1,53 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(DOM-BRIEF, 0027)
+' @cycle(DOM-PLAN-SCOPE, 0027)
+' @id(DOM-BRIEF)
+' @id(DOM-PLAN-SCOPE)
+' @desc(DOM-BRIEF, "Implemented as the .mdd/docs/brief.md template (templates::brief / MDD_BRIEF_TEMPLATE), scaffolded SeededOnce by mdd init (write_text_create_if_missing) so a filled-in brief is never clobbered. /mdd-kickoff fills it and the developer signs it off before any model is generated; it is the description /mdd-generate consumes.")
+' @desc(DOM-PLAN-SCOPE, "Implemented as extract_scope_ids (parses @scope(<id>,…) from .mdd/ralph/PLAN.md) + Project::plan_scope_ids, plus two mdd validate rules: every PLAN @scope id resolves to an objective @id, and the @scope union covers every implementation-bearing objective @id (USE-/SEQ-/DOM-/CMP-/STM-/MCK-). Both are WARNING and inert unless the PLAN carries @scope. Ralph routes @scope items to a realize-slice cycle, infra items to general tools.")
+' Current-side domain for the greenfield kickoff (cycle 0027).
+title Greenfield kickoff domain (current)
+
+class Brief {
+  + objective : String
+  + inScope : List<String>
+  + outOfScope : List<String>
+  + decisions : List<AdrEntry>
+  + tooling : List<String>
+  + nfrs : List<String>
+  + signedOff : Boolean
+}
+
+class AdrEntry {
+  + context : String
+  + decision : String
+  + rationale : String
+  + alternatives : String
+}
+
+class PlanItem {
+  + text : String
+  + done : Boolean
+  + scope : List<Id>
+  + isInfra() : Boolean
+}
+
+Brief "1" o-- "*" AdrEntry : records >
+
+note bottom of Brief
+  templates::brief() / MDD_BRIEF_TEMPLATE,
+  scaffolded create-if-missing by mdd init.
+  Signed off before any model is generated
+  (OCL-KICKOFF-BRIEF-SIGNED-OFF).
+end note
+
+note bottom of PlanItem
+  extract_scope_ids + Project::plan_scope_ids
+  parse @scope; isInfra() == scope empty. Validate
+  warns when a scope id is unknown
+  (OCL-KICKOFF-SCOPE-IDS-EXIST) or the union misses
+  an impl-bearing objective id
+  (OCL-KICKOFF-PLAN-COVERS-OBJECTIVE).
+end note
+@enduml

@@ -876,6 +876,15 @@ impl Project {
             &mut skipped,
             &mut on_conflict,
         )?;
+        // Project brief (USE-KICKOFF) — SeededOnce like PLAN.md: `mdd init`
+        // writes the template once, then /mdd-kickoff (or the developer) owns
+        // it, so --force never clobbers a filled-in brief.
+        self.write_text_create_if_missing(
+            ".mdd/docs/brief.md",
+            templates::brief(),
+            &mut created,
+            &mut skipped,
+        )?;
         // Ralph workspace (USE-INIT-RALPH). PROMPT.md is Regenerable — it goes
         // through the conflict handler like every other template. PLAN.md is
         // SeededOnce (DOM-INIT-SEED-ONCE): created from the starter template
@@ -3081,12 +3090,63 @@ impl Project {
             warnings.push("trace.yml has no model-to-model links yet".to_string());
         }
 
+        // Greenfield-kickoff PLAN `@scope` rules (Cycle B). Inert unless the
+        // Ralph plan carries `@scope` markers (i.e. a kickoff-decomposed plan),
+        // so a repo that does not drive Ralph from a kickoff PLAN gets no new
+        // warnings. Both rules are WARNING, never blocking.
+        let plan_scopes = self.plan_scope_ids()?;
+        if !plan_scopes.is_empty() {
+            let objective_ids: BTreeSet<&str> = registry
+                .ids
+                .iter()
+                .filter(|element| element.side == ModelSide::Objective)
+                .map(|element| element.id.as_str())
+                .collect();
+            // Rule 1 (OCL-KICKOFF-SCOPE-IDS-EXIST): every PLAN `@scope` id
+            // resolves to an objective `@id`.
+            for id in &plan_scopes {
+                if !objective_ids.contains(id.as_str()) {
+                    warnings.push(format!(
+                        "PLAN.md @scope references unknown objective @id {id}"
+                    ));
+                }
+            }
+            // Rule 2 (OCL-KICKOFF-PLAN-COVERS-OBJECTIVE): the `@scope` union
+            // covers every implementation-bearing objective `@id`, so finishing
+            // the PLAN coincides with whole-model parity.
+            const IMPL_PREFIXES: [&str; 6] = ["USE-", "SEQ-", "DOM-", "CMP-", "STM-", "MCK-"];
+            let scope_set: BTreeSet<&str> = plan_scopes.iter().map(|s| s.as_str()).collect();
+            for element in registry.ids.iter().filter(|e| e.side == ModelSide::Objective) {
+                let impl_bearing = IMPL_PREFIXES.iter().any(|p| element.id.starts_with(p));
+                if impl_bearing && !scope_set.contains(element.id.as_str()) {
+                    warnings.push(format!(
+                        "PLAN.md @scope union does not cover objective @id {} (no PLAN item realizes it)",
+                        element.id
+                    ));
+                }
+            }
+        }
+
         Ok(ValidationReport {
             ok: errors.is_empty(),
             errors,
             warnings,
             registry,
         })
+    }
+
+    /// Objective `@id`s named by `@scope(...)` markers in the Ralph plan
+    /// (`.mdd/ralph/PLAN.md`). Empty when the plan is missing or carries no
+    /// `@scope` — `/mdd-kickoff` is the source that writes them, so this is the
+    /// PLAN-consumption contract for the greenfield handoff (Cycle B).
+    fn plan_scope_ids(&self) -> Result<Vec<String>> {
+        let path = self.root.join(".mdd/ralph/PLAN.md");
+        if !path.is_file() {
+            return Ok(Vec::new());
+        }
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        extract_scope_ids(&content)
     }
 
     fn rendered_pages_for(&self, relative_source: &str) -> Vec<String> {
@@ -3802,6 +3862,26 @@ fn extract_refs(content: &str) -> Result<Vec<String>> {
     refs.sort();
     refs.dedup();
     Ok(refs)
+}
+
+/// Extract objective `@id`s from `@scope(<id>, <id>, …)` markers on Ralph PLAN
+/// items (greenfield-kickoff Cycle B). The body is a comma-separated id list,
+/// reusing the `@id`/`@ref` marker idiom; whitespace is trimmed and empties
+/// dropped. Returns the sorted, de-duplicated union across all markers.
+fn extract_scope_ids(content: &str) -> Result<Vec<String>> {
+    let re = Regex::new(r"@scope\(([^)]*)\)")?;
+    let mut ids = Vec::new();
+    for capture in re.captures_iter(content) {
+        for raw in capture[1].split(',') {
+            let id = raw.trim();
+            if !id.is_empty() {
+                ids.push(id.to_string());
+            }
+        }
+    }
+    ids.sort();
+    ids.dedup();
+    Ok(ids)
 }
 
 fn extract_ui_route(content: &str) -> Option<String> {
@@ -5791,6 +5871,72 @@ mod tests {
             "out-of-scope guard must not block a scoped cycle"
         );
         assert!(scoped.matched);
+    }
+
+    #[test]
+    fn extract_scope_ids_parses_comma_list() {
+        let plan = "# Ralph plan\n- [ ] foo @scope(USE-A, SEQ-B)\n- [ ] bar\n- [x] baz @scope(DOM-C)\n";
+        let ids = extract_scope_ids(plan).unwrap();
+        assert_eq!(
+            ids,
+            vec!["DOM-C".to_string(), "SEQ-B".to_string(), "USE-A".to_string()]
+        );
+    }
+
+    #[test]
+    fn validate_warns_on_plan_scope_gaps_when_scope_present() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        // Objective gains USE-LOGIN (implementation-bearing); the PLAN names an
+        // unknown scope id and does not cover USE-LOGIN.
+        fs::write(
+            dir.path().join(".mdd/models/objective/use-cases/login.puml"),
+            "@startuml\n' @id(USE-LOGIN)\nusecase \"Log in\" as L\n@enduml\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join(".mdd/ralph/PLAN.md"),
+            "# Ralph plan\n- [ ] do a thing @scope(USE-NOPE)\n",
+        )
+        .unwrap();
+
+        let report = project.validate().unwrap();
+
+        assert!(report.ok, "scope rules are WARNING, never blocking");
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.contains("unknown objective @id USE-NOPE")),
+            "warnings: {:?}",
+            report.warnings
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.contains("does not cover objective @id USE-LOGIN")),
+            "warnings: {:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn validate_silent_on_plan_without_scope() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        // Seed PLAN with no @scope (the default): both kickoff rules are inert.
+        let report = project.validate().unwrap();
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| w.contains("@scope")),
+            "no @scope in PLAN must produce no scope warnings: {:?}",
+            report.warnings
+        );
     }
 
     /// Author the same use case on both sides, but only the objective side
