@@ -1,0 +1,62 @@
+@startuml
+' @id(SEQ-RENDER-DIFF-SVG)
+' @ref(USE-DIFF-DIAGRAM)
+' @ref(DOM-RENDER-ENGINE)
+'
+' Current-side flow as implemented: the `mdd render` mdd-cli subcommand
+' (Commands::Render) builds a RenderSelection and calls the single
+' mdd_render::render_selection engine, which enumerates the tree set via
+' mdd_core Project (RenderTree) and writes each Project::rendered_mirror_path.
+'
+' @desc(SEQ-RENDER-DIFF-SVG, "As-built: `mdd render` (Commands::Render) resolves RenderSelection (All / Trees(--only) / Paths) and calls render_selection, which pulls sources from Project::all_render_sources or render_sources (RenderTree::ALL — models, cycle diffs, OCL, whole-map, deploy, review-diff), synthesizes OCL first, pipes each through PlantUmlCommand, and writes Project::rendered_mirror_path; per-file failures become diagnostics (non-zero exit) instead of aborting. render_cycle_diffs/render_project/render_ocl_diagrams are thin wrappers. The /mdd-render skill adds only fuzzy subset intake + triage.")
+title Rasterize the renderable trees via `mdd render` (current)
+
+actor "Developer / CI" as Dev
+participant "/mdd-cycle close\nor /mdd-render skill\n(thin wrapper)" as Trigger
+participant "mdd render\n(mdd-cli Commands::Render)" as Cli
+participant "Project (RenderTree)\nall_render_sources / render_sources" as Core
+participant "render_selection\n(mdd-render engine)\n+ PlantUmlCommand" as Rend
+database ".mdd/{models,cycles,constraints,\nmap,deploy,rendered/review}/**" as Store
+database ".mdd/rendered/**\n(rendered_mirror_path)" as Out
+
+Dev -> Trigger : close cycle N  /  /mdd-render [fuzzy subset?]
+note right of Trigger
+  Skill judgment only: "just the deploy diagrams"
+  -> `mdd render --only deploy`. It shells to the
+  binary; no hand-run PlantUML.
+end note
+Trigger -> Cli : `mdd render` (or --only <trees> / paths)
+Cli -> Cli : build RenderSelection\n(All / Trees / Paths)
+Cli -> Rend : render_selection(project, &selection)
+Rend -> Core : all_render_sources() / render_sources(tree)
+Core --> Rend : sorted (tree, PathBuf) — single source
+opt no sources matched
+  Rend --> Cli : empty RenderReport (not an error)
+end
+loop each source file
+  Rend -> Store : read source
+  alt OCL source
+    Rend -> Rend : synthesize_ocl_puml first
+  end
+  Rend -> Rend : out = Project::rendered_mirror_path(src)\n(review diffs kept in place)
+  alt render ok
+    Rend -> Out : PlantUmlCommand -tsvg -pipe -> write mirror
+  else plantuml failure
+    Rend -> Rend : push diagnostic (continue)
+  end
+end
+Rend --> Cli : RenderReport { rendered, diagnostics }
+Cli --> Trigger : print rendered + diagnostics; exit 1 if any diagnostic
+opt diagnostics present
+  Trigger -> Dev : triage + fix suggestion (skill judgment)
+end
+Trigger --> Dev : cycle N closed / subset rendered; SVGs ready for the viewer
+
+note over Out
+  Every tree's output is Project::rendered_mirror_path
+  of its source (OCL-RENDER-PATH-MIRROR;
+  OCL-DIFF-SVG-PATH-DERIVED for the cycle case). The
+  tree set is RenderTree::ALL — one enumeration, no
+  skill-prose duplicate (OCL-RENDER-TREE-PARITY).
+end note
+@enduml

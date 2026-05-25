@@ -1,0 +1,20 @@
+number: 0024
+slug: test-profile-plan-green-gate
+entry: generate
+description: "Cycle B of diagram-driven tests: test-profile detect-then-confirm, deterministic mdd test-plan verb, and the close-time green gate (test.gate). Machinery only; this repo's layers stay empty."
+status: closed
+opened_at: "2026-05-25T17:00:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/test-profile.puml
+  - .mdd/models/objective/domain/test-profile.puml
+  - .mdd/models/objective/components/test-profile.puml
+  - .mdd/models/objective/sequences/test-profile.puml
+  - .mdd/models/current/use-cases/test-profile.puml
+  - .mdd/models/current/domain/test-profile.puml
+  - .mdd/models/current/components/test-profile.puml
+  - .mdd/models/current/sequences/test-profile.puml
+  - .mdd/constraints/test-assertion.ocl
+  - crates/mdd-core/src/lib.rs
+  - crates/mdd-cli/src/main.rs
+  - crates/mdd-core/src/templates.rs
+closed_at: "2026-05-25T17:45:00Z"

@@ -1,0 +1,35 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-TEST-PLAN-STEP) <<added>> this cycle (0024)
+' @id(DOM-TEST-DETECTION) <<added>> this cycle (0024)
+' Cycle 0024 diff (current side): the resolved plan step and the detection
+' recommendation. All added; none removed.
+title MDD diagram-driven tests — plan + detection · cycle 0024 diff (current)
+
+class TestPlanStep <<added>> {
+  + layer : String
+  + id : String
+  + model_id : String
+  + command : String
+  + cwd : Option<String>
+  + expect : TestExpect
+  + is_gap : bool
+}
+
+class DetectedLayer <<added>> {
+  + layer : String
+  + framework : String
+  + command : String
+  + cwd : Option<String>
+}
+
+class DetectedProfile <<added>> {
+  + recommendations : Vec<DetectedLayer>
+  + ambiguities : Vec<String>
+}
+
+DetectedProfile "1" o-- "*" DetectedLayer : recommends >
+@enduml

@@ -157,6 +157,56 @@ pub struct TestLayerConfig {
     pub command: String,
 }
 
+/// One resolved step of the deterministic test plan (DOM-TEST-PLAN-STEP).
+/// Pure data — `Project::test_plan` builds these but never runs `command`.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct TestPlanStep {
+    pub layer: String,
+    pub id: String,
+    pub model_id: String,
+    pub command: String,
+    pub cwd: Option<String>,
+    pub expect: TestExpect,
+    pub is_gap: bool,
+}
+
+/// One per-layer runner recommended by build-file detection (part of
+/// DOM-TEST-DETECTION). Recommends only; never written to config un-confirmed.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DetectedLayer {
+    pub layer: String,
+    pub framework: String,
+    pub command: String,
+    pub cwd: Option<String>,
+}
+
+/// The outcome of `Project::detect_test_profile` (DOM-TEST-DETECTION): the
+/// per-layer recommendations plus every undecidable choice, surfaced as a
+/// blocking question by the skill rather than guessed.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+pub struct DetectedProfile {
+    pub recommendations: Vec<DetectedLayer>,
+    pub ambiguities: Vec<String>,
+}
+
+/// The exit status of one executed plan step, fed to the green gate by the
+/// skill after it runs the plan via Bash.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestRunResult {
+    pub id: String,
+    pub exit_code: i32,
+}
+
+/// The green-gate verdict (CMP-TEST-GREEN-GATE). `blocking` is true only when
+/// a test is still red AND `test.gate = error`; under `warn` a still-red test
+/// is reported but does not block (the opt-down).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct GreenGateReport {
+    pub all_green: bool,
+    pub still_red: Vec<String>,
+    pub blocking: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct SecurityConfig {
     #[serde(default)]
@@ -873,6 +923,164 @@ impl Project {
 
     pub fn read_trace(&self) -> Result<Trace> {
         self.read_yaml(TRACE_FILE)
+    }
+
+    /// Build the deterministic, ordered test plan (CMP-TEST-PLAN): resolve
+    /// `config.test.layers` x the unified trace tests into one step per test
+    /// whose layer is configured, attaching the layer's command and flagging
+    /// the gap subset (`expect = red-until-implemented`). Ordered by layer
+    /// (taxonomy order) then test id. No execution — pure data.
+    pub fn test_plan(&self) -> Result<Vec<TestPlanStep>> {
+        let cfg = self.read_config()?.test;
+        let trace = self.read_trace()?;
+        let mut steps: Vec<TestPlanStep> = trace
+            .unified_tests()
+            .into_iter()
+            .filter_map(|t| {
+                let layer = t.layer.as_str();
+                cfg.layers.get(layer).map(|layer_cfg| TestPlanStep {
+                    layer: layer.to_string(),
+                    id: t.id,
+                    model_id: t.model_id,
+                    command: layer_cfg.command.clone(),
+                    cwd: None,
+                    expect: t.expect,
+                    is_gap: t.expect == TestExpect::RedUntilImplemented,
+                })
+            })
+            .collect();
+        // Stable order: taxonomy layer order, then id.
+        let layer_rank = |l: &str| match l {
+            "unit" => 0,
+            "integration" => 1,
+            "e2e" => 2,
+            "acceptance" => 3,
+            "ui" => 4,
+            "security" => 5,
+            _ => 6,
+        };
+        steps.sort_by(|a, b| {
+            layer_rank(&a.layer)
+                .cmp(&layer_rank(&b.layer))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        Ok(steps)
+    }
+
+    /// Recommend a per-layer test runner by inspecting the repo's build files
+    /// (CMP-TEST-DETECT). Read-only — recommends, never writes config. Genuine
+    /// ambiguity (e.g. two unit frameworks) is recorded in `ambiguities` for
+    /// the skill to surface as a blocking question, never auto-picked.
+    pub fn detect_test_profile(&self) -> Result<DetectedProfile> {
+        let exists = |rel: &str| self.root.join(rel).exists();
+        let mut recs: Vec<DetectedLayer> = Vec::new();
+        let mut ambiguities: Vec<String> = Vec::new();
+        let mut unit_frameworks: Vec<&str> = Vec::new();
+
+        if exists("Cargo.toml") {
+            recs.push(DetectedLayer {
+                layer: "unit".to_string(),
+                framework: "cargo-test".to_string(),
+                command: "cargo test --workspace --lib".to_string(),
+                cwd: None,
+            });
+            recs.push(DetectedLayer {
+                layer: "integration".to_string(),
+                framework: "cargo-test".to_string(),
+                command: "cargo test --workspace --test '*'".to_string(),
+                cwd: None,
+            });
+            unit_frameworks.push("cargo-test");
+        }
+        if exists("package.json") {
+            let pkg = fs::read_to_string(self.root.join("package.json")).unwrap_or_default();
+            if pkg.contains("\"vitest\"") {
+                recs.push(DetectedLayer {
+                    layer: "unit".to_string(),
+                    framework: "vitest".to_string(),
+                    command: "npm test".to_string(),
+                    cwd: None,
+                });
+                unit_frameworks.push("vitest");
+            } else if pkg.contains("\"jest\"") {
+                recs.push(DetectedLayer {
+                    layer: "unit".to_string(),
+                    framework: "jest".to_string(),
+                    command: "npm test".to_string(),
+                    cwd: None,
+                });
+                unit_frameworks.push("jest");
+            }
+            if pkg.contains("@playwright/test") || pkg.contains("\"playwright\"") {
+                recs.push(DetectedLayer {
+                    layer: "ui".to_string(),
+                    framework: "playwright".to_string(),
+                    command: "npx playwright test".to_string(),
+                    cwd: None,
+                });
+            } else if pkg.contains("\"cypress\"") {
+                recs.push(DetectedLayer {
+                    layer: "ui".to_string(),
+                    framework: "cypress".to_string(),
+                    command: "npx cypress run".to_string(),
+                    cwd: None,
+                });
+            }
+        }
+        if exists("pyproject.toml") || exists("setup.py") {
+            recs.push(DetectedLayer {
+                layer: "unit".to_string(),
+                framework: "pytest".to_string(),
+                command: "pytest".to_string(),
+                cwd: None,
+            });
+            unit_frameworks.push("pytest");
+        }
+        if exists("go.mod") {
+            recs.push(DetectedLayer {
+                layer: "unit".to_string(),
+                framework: "go-test".to_string(),
+                command: "go test ./...".to_string(),
+                cwd: None,
+            });
+            unit_frameworks.push("go-test");
+        }
+
+        if unit_frameworks.len() > 1 {
+            ambiguities.push(format!(
+                "multiple unit-test frameworks detected ({}); operator must confirm which to use",
+                unit_frameworks.join(", ")
+            ));
+        }
+        if recs.is_empty() {
+            ambiguities.push(
+                "no known build file found; the test profile must be configured manually"
+                    .to_string(),
+            );
+        }
+        Ok(DetectedProfile {
+            recommendations: recs,
+            ambiguities,
+        })
+    }
+
+    /// The deterministic green-gate verdict (CMP-TEST-GREEN-GATE). A test is
+    /// "still red" when its result is missing or its exit code is non-zero.
+    /// `blocking` is true only when something is still red AND
+    /// `config.test.gate = error`; under `warn` it is advisory (the opt-down).
+    pub fn evaluate_green_gate(&self, results: &[TestRunResult]) -> Result<GreenGateReport> {
+        let gate = self.read_config()?.test.gate;
+        let still_red: Vec<String> = results
+            .iter()
+            .filter(|r| r.exit_code != 0)
+            .map(|r| r.id.clone())
+            .collect();
+        let all_green = still_red.is_empty();
+        Ok(GreenGateReport {
+            all_green,
+            blocking: !all_green && gate == ParityMode::Error,
+            still_red,
+        })
     }
 
     /// Resolve the framework for an authored UI test from the test profile
@@ -6370,5 +6578,111 @@ mod tests {
         let yaml = "version: 2\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\ntest:\n  gate: error\n  layers:\n    ui:\n      framework: cypress\n";
         fs::write(dir.path().join(".mdd/config.yml"), yaml).unwrap();
         assert_eq!(project.resolve_ui_framework().unwrap(), "cypress");
+    }
+
+    #[test]
+    fn test_plan_resolves_configured_layers_and_flags_gaps() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        // Configure unit + integration with commands.
+        let yaml = "version: 2\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\ntest:\n  gate: error\n  layers:\n    unit:\n      framework: cargo-test\n      command: cargo test --lib\n    integration:\n      framework: cargo-test\n      command: cargo test --test '*'\n";
+        fs::write(dir.path().join(".mdd/config.yml"), yaml).unwrap();
+        // A unit test (gap) and an integration test (not gap); plus an unconfigured ui test.
+        fs::write(dir.path().join("u.rs"), "// t\n").unwrap();
+        fs::write(dir.path().join("i.rs"), "// t\n").unwrap();
+        fs::write(dir.path().join("x.spec.ts"), "// t\n").unwrap();
+        let mut trace = project.read_trace().unwrap();
+        trace.tests.push(TestLink {
+            id: "IT-SEQ-LOGIN".to_string(),
+            path: "i.rs".to_string(),
+            model_id: "SEQ-LOGIN".to_string(),
+            layer: TestLayer::Integration,
+            framework: Some("cargo-test".to_string()),
+            expect: TestExpect::Pass,
+        });
+        trace.tests.push(TestLink {
+            id: "UT-DOM-USER".to_string(),
+            path: "u.rs".to_string(),
+            model_id: "DOM-USER".to_string(),
+            layer: TestLayer::Unit,
+            framework: Some("cargo-test".to_string()),
+            expect: TestExpect::RedUntilImplemented,
+        });
+        trace.tests.push(TestLink {
+            id: "UIT-MCK-X".to_string(),
+            path: "x.spec.ts".to_string(),
+            model_id: "DOM-USER".to_string(),
+            layer: TestLayer::Ui,
+            framework: Some("playwright".to_string()),
+            expect: TestExpect::Pass,
+        });
+        project.write_trace(&trace).unwrap();
+
+        let plan = project.test_plan().unwrap();
+        // ui layer is not configured -> excluded; ordered unit before integration.
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].id, "UT-DOM-USER");
+        assert_eq!(plan[0].layer, "unit");
+        assert_eq!(plan[0].command, "cargo test --lib");
+        assert!(plan[0].is_gap, "red-until-implemented step is a gap");
+        assert_eq!(plan[1].id, "IT-SEQ-LOGIN");
+        assert!(!plan[1].is_gap);
+    }
+
+    #[test]
+    fn detect_test_profile_recommends_from_build_files_and_flags_ambiguity() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+        fs::write(dir.path().join("Cargo.toml"), "[package]\nname='x'\n").unwrap();
+        fs::write(
+            dir.path().join("package.json"),
+            "{\"devDependencies\":{\"vitest\":\"1\",\"@playwright/test\":\"1\"}}",
+        )
+        .unwrap();
+
+        let profile = project.detect_test_profile().unwrap();
+        assert!(profile
+            .recommendations
+            .iter()
+            .any(|r| r.layer == "unit" && r.framework == "cargo-test"));
+        assert!(profile
+            .recommendations
+            .iter()
+            .any(|r| r.layer == "ui" && r.framework == "playwright"));
+        // Two unit frameworks (cargo-test + vitest) => a blocking ambiguity.
+        assert!(profile
+            .ambiguities
+            .iter()
+            .any(|a| a.contains("multiple unit-test frameworks")));
+    }
+
+    #[test]
+    fn evaluate_green_gate_blocks_under_error_warns_under_warn() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+        let results = vec![
+            TestRunResult { id: "UT-A".to_string(), exit_code: 0 },
+            TestRunResult { id: "UT-B".to_string(), exit_code: 1 },
+        ];
+
+        // Default gate is error -> a red test blocks.
+        let rep = project.evaluate_green_gate(&results).unwrap();
+        assert!(!rep.all_green);
+        assert_eq!(rep.still_red, vec!["UT-B".to_string()]);
+        assert!(rep.blocking);
+
+        // gate=warn -> still red, but not blocking.
+        let yaml = "version: 2\nmodel_source: plantuml\nconstraint_source: ocl\nrendered_dir: .mdd/rendered\ntest:\n  gate: warn\n  layers: {}\n";
+        fs::write(dir.path().join(".mdd/config.yml"), yaml).unwrap();
+        let rep = project.evaluate_green_gate(&results).unwrap();
+        assert!(!rep.all_green);
+        assert!(!rep.blocking, "warn gate never blocks");
+
+        // all green -> not blocking regardless of gate.
+        let green = vec![TestRunResult { id: "UT-A".to_string(), exit_code: 0 }];
+        assert!(project.evaluate_green_gate(&green).unwrap().all_green);
     }
 }

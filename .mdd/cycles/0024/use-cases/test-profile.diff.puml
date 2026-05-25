@@ -1,0 +1,29 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-TEST-PROFILE-DETECT) <<added>> this cycle (0024)
+' @id(USE-TEST-PLAN) <<added>> this cycle (0024)
+' @id(USE-TEST-GREEN-GATE) <<added>> this cycle (0024)
+' Cycle 0024 diff (current side): new concept — test profile, plan, green
+' gate. All three use cases added; nothing removed.
+title MDD diagram-driven tests — profile/plan/green gate · cycle 0024 diff (current)
+
+left to right direction
+actor "Developer / Agent" as Dev
+
+rectangle "mdd test tooling" {
+  usecase "Detect the per-layer runner,\nthen confirm" as Detect <<added>>
+  usecase "Emit a deterministic\nordered test plan" as Plan <<added>>
+  usecase "Run the plan at close,\ngate on green" as Green <<added>>
+}
+
+Dev --> Detect
+Dev --> Plan
+Dev --> Green
+@enduml

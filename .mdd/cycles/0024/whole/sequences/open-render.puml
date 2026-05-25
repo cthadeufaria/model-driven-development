@@ -1,0 +1,44 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-OPEN-RENDER, 0019)
+' @id(SEQ-OPEN-RENDER)
+' @ref(USE-OPEN-RENDER)
+'
+' Current-side flow as built in crates/mdd-viewer/src/lib.rs. The view-tab
+' row adds an "Open render" button (ui.add_enabled in MddViewer::update),
+' enabled only when MddViewer::selected_render_slug() returns Some — the
+' selected file is a ModelKind::Mockup whose render mockups/src/mockups/
+' <slug>.tsx exists under project.root(). Click calls open_mockup_render,
+' which runs off the UI thread.
+'
+' @desc(SEQ-OPEN-RENDER, "As built (crates/mdd-viewer/src/lib.rs): the view-tab row shows an 'Open render' button enabled only when MddViewer::selected_render_slug() is Some (selection is a ModelKind::Mockup whose mockups/src/mockups/<slug>.tsx exists under project.root()). Clicking spawns a thread (open_mockup_render): mockup_server_up() probes localhost:4317; if down it spawns npm run dev with cwd <root>/mockups and polls until the port binds (bounded); then open_in_browser opens the OS browser at /mockup/<slug>.")
+title Open the React render of the selected mockup (current)
+
+actor "Developer" as Dev
+participant "MddViewer::update\n(view-tab row)" as Viewer
+participant "selected_render_slug()" as Slug
+participant "open_mockup_render\n(std::thread)" as Launch
+boundary "TCP 127.0.0.1:4317\n(mockup_server_up)" as Port
+participant "npm run dev\n(Vite, cwd mockups/)" as Vite
+control "open_in_browser\n(open / xdg-open / start)" as Browser
+
+Dev -> Viewer : select a mockup .puml in the rail
+Viewer -> Slug : selected_render_slug()
+alt Some(slug) — mockups/src/mockups/<slug>.tsx exists
+  Slug --> Viewer : Some(slug) — button enabled
+else None
+  Slug --> Viewer : None — button disabled
+end
+
+Dev -> Viewer : click "Open render"
+Viewer -> Launch : open_mockup_render(root, slug)
+Launch -> Port : mockup_server_up() probe :4317
+alt already serving
+  Port --> Launch : reachable — reuse
+else not reachable
+  Launch -> Vite : spawn npm run dev (cwd = mockups/)
+  Vite --> Launch : binds :4317 (polled, bounded ~15s)
+end
+Launch -> Browser : open http://localhost:4317/mockup/<slug>
+Browser --> Dev : React render of the mockup
+@enduml

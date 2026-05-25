@@ -532,6 +532,41 @@ links:
   - from: OCL-TEST-LAYER-IN-PROFILE
     to: DOM-TEST-LINK
     relation: constrains
+  # Cycle 0024 — diagram-driven tests (Cycle B): test-profile detect-confirm,
+  # deterministic test-plan, and the close-time green gate.
+  - from: USE-TEST-PROFILE-DETECT
+    to: SEQ-TEST-PROFILE
+    relation: realizes
+  - from: USE-TEST-PLAN
+    to: SEQ-TEST-PROFILE
+    relation: realizes
+  - from: USE-TEST-GREEN-GATE
+    to: SEQ-TEST-PROFILE
+    relation: realizes
+  - from: USE-TEST-PROFILE-DETECT
+    to: CMP-TEST-DETECT
+    relation: realized_by
+  - from: USE-TEST-PLAN
+    to: CMP-TEST-PLAN
+    relation: realized_by
+  - from: USE-TEST-GREEN-GATE
+    to: CMP-TEST-GREEN-GATE
+    relation: realized_by
+  - from: SEQ-TEST-PROFILE
+    to: DOM-TEST-PLAN-STEP
+    relation: depends_on
+  - from: CMP-TEST-DETECT
+    to: DOM-TEST-DETECTION
+    relation: depends_on
+  - from: CMP-TEST-PLAN
+    to: DOM-TEST-PLAN-STEP
+    relation: depends_on
+  - from: OCL-TEST-PROFILE-CONFIRMED
+    to: DOM-TEST-DETECTION
+    relation: constrains
+  - from: OCL-TEST-GREEN-GATE
+    to: DOM-TEST-PLAN-STEP
+    relation: constrains
   - from: USE-OPEN-RENDER
     to: SEQ-OPEN-RENDER
     relation: realizes
@@ -1117,3 +1152,34 @@ source_links:
   - model_id: CMP-TEST-TRACE-MODEL
     path: crates/mdd-core/src/lib.rs
     symbol: Trace::default
+  # Cycle 0024 — diagram-driven tests (Cycle B)
+  - model_id: DOM-TEST-PLAN-STEP
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestPlanStep
+  - model_id: DOM-TEST-DETECTION
+    path: crates/mdd-core/src/lib.rs
+    symbol: DetectedProfile
+  - model_id: DOM-TEST-DETECTION
+    path: crates/mdd-core/src/lib.rs
+    symbol: DetectedLayer
+  - model_id: CMP-TEST-DETECT
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::detect_test_profile
+  - model_id: CMP-TEST-PLAN
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::test_plan
+  - model_id: CMP-TEST-PLAN
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::TestPlan
+  - model_id: CMP-TEST-GREEN-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::evaluate_green_gate
+  - model_id: CMP-TEST-GREEN-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: GreenGateReport
+  - model_id: SEQ-TEST-PROFILE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::test_plan
+  - model_id: CMP-TEST-DETECT
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestRunResult

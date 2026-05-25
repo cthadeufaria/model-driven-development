@@ -58,6 +58,14 @@ After the cycle's `<diagram>.diff.puml` files are written and before the manifes
 
 The whole-map is an **inspection artifact, outside the parity gate**: `/mdd-validate`, `/mdd-review`, and this skill's own parity loop never read or gate on `.mdd/map/`. The `OCL-MAP-*` constraints in `.mdd/constraints/whole-map.ocl` describe its invariants but are not parity checks. Greenfield (no closed cycle) means no `.mdd/map/` tree at all.
 
+## Test profile and the green gate (diagram-driven tests, Cycle B)
+
+When the repo has adopted diagram-driven tests (`.mdd/config.yml` `test.layers` is non-empty), the cycle also runs the linked test suite and gates on green at close. Detection and the plan are deterministic `mdd` verbs; the confirmation and the run are this skill's job — the same plan-deterministic / execute-in-skill split as `/mdd-deploy`.
+
+- **Detect, then confirm (first run / new layer).** If `test.layers` is empty or a needed layer is missing, run `mdd test-detect --json`. It RECOMMENDS a per-layer framework+command from the build files and lists `ambiguities`. Present the recommendation; **surface every ambiguity as a blocking question — never auto-pick a runner**. Write the operator-confirmed profile to `config.test.layers`. No silent default.
+- **Green gate at close (after parity matches).** Run `mdd test-plan --json` for the ordered steps, execute each step's `command` via Bash, and collect exit codes. Feed them to `Project::evaluate_green_gate` (reads `test.gate`): a still-red test **blocks** close when `test.gate=error`, or is **reported and allows a user-accepted close** when `warn` (the opt-down, like `security.parity_check`). This is the GREEN side only; the non-negotiable red→green requirement is a separate gate (Cycle C).
+- **Inert by default.** With no configured layers the gate does nothing, so a repo that has not adopted diagram-driven tests closes exactly as before.
+
 ## Readiness
 
 Rendered SVGs, approvals, and acceptance-test gaps are readiness warnings — report and continue unless the user asks to pause. Structural validation errors block the loop until fixed.

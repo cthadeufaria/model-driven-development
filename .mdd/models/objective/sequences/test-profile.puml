@@ -1,0 +1,42 @@
+@startuml
+' @id(SEQ-TEST-PROFILE)
+' @ref(USE-TEST-PLAN)
+' @desc(SEQ-TEST-PROFILE, "Objective flow for Cycle B across a cycle's life. SETUP (first run): the skill calls Project::detect_test_profile; recommendations are shown and ambiguities surfaced as blocking questions; the operator confirms and the skill writes config.test.layers (no silent default). RUN: at close the skill calls Project::test_plan to get ordered steps, runs each step's command via Bash, and collects exit codes. GATE: it calls Project::evaluate_green_gate(results), which reads config.test.gate — a still-red test blocks close under error, warns under warn. Detection + plan + verdict are deterministic mdd-core; confirmation and execution are skill (Bucket C).")
+' Objective sequence for Cycle B: detect-then-confirm the profile, emit
+' the deterministic plan, run it at close, and gate on green.
+title test profile, plan, green gate (objective)
+
+actor "Developer / Agent" as Dev
+participant "/mdd-cycle skill" as Skill
+participant "Project::detect_test_profile" as Detect
+participant "config.yml\ntest.layers/gate" as Cfg
+participant "Project::test_plan" as Plan
+participant "runner (Bash)" as Bash
+participant "Project::evaluate_green_gate" as Gate
+
+== Setup (detect then confirm) ==
+Skill -> Detect : detect_test_profile()
+Detect --> Skill : recommendations + ambiguities
+alt ambiguity
+  Skill -> Dev : blocking question (which framework?)
+  Dev --> Skill : choice
+end
+Skill -> Cfg : write confirmed test.layers
+
+== Run + gate (at close, after parity) ==
+Skill -> Plan : test_plan()
+Plan -> Cfg : test.layers
+Plan --> Skill : ordered TestPlanStep[]
+loop each step
+  Skill -> Bash : run step.command
+  Bash --> Skill : exit code
+end
+Skill -> Gate : evaluate_green_gate(results)
+Gate -> Cfg : test.gate
+Gate --> Skill : { all_green, still_red, blocking }
+alt blocking (gate=error)
+  Skill -> Dev : close BLOCKED — tests still red
+else warn or all green
+  Skill -> Dev : close allowed
+end
+@enduml

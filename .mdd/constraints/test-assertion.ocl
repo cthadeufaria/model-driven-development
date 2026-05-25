@@ -27,3 +27,24 @@ inv LayerInProfile:
     (TestConfig.layers->exists(l | l.name = self.layer)
      and (self.framework->notEmpty() implies
           TestConfig.layers->exists(l | l.name = self.layer and l.framework = self.framework)))
+
+-- @id(OCL-TEST-PROFILE-CONFIRMED)
+-- @ref(DOM-TEST-DETECTION)
+-- A layer's framework must be operator-confirmed before its tests are
+-- authored — detection RECOMMENDS, it never silently writes config (the
+-- /mdd-deploy dialect rule). A detected layer with an unresolved ambiguity is
+-- surfaced as a blocking question, not auto-picked (USE-TEST-PROFILE-DETECT).
+context DetectedProfile
+inv ProfileConfirmedBeforeAuthoring:
+  self.ambiguities->notEmpty() implies self.requiresOperatorConfirmation = true
+
+-- @id(OCL-TEST-GREEN-GATE)
+-- @ref(DOM-TEST-PLAN-STEP)
+-- A still-red test at cycle close blocks closure when test.gate = error and
+-- merely warns (allowing a user-accepted close) when test.gate = warn — the
+-- opt-down mirroring security.parity_check (USE-TEST-GREEN-GATE). This governs
+-- the GREEN side only; the red->green requirement (Cycle C) is non-negotiable.
+context GreenGateReport
+inv StillRedBlocksUnderError:
+  (self.all_green = false and TestConfig.gate = ParityMode::Error)
+    implies self.blocking = true

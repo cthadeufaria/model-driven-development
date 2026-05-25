@@ -63,6 +63,24 @@ enum Commands {
     /// whole-map's recorded source_revision.
     #[command(name = "map-status")]
     MapStatus,
+    /// Emit the deterministic, ordered test plan: one step per configured-layer
+    /// test, with its runner command and the gap subset flagged. Pure data; no
+    /// execution. The /mdd-cycle loop runs these steps and gates on green.
+    #[command(name = "test-plan")]
+    TestPlan {
+        /// Emit the plan as a JSON array instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Recommend a per-layer test runner from the repo's build files. Read-only
+    /// — recommends; the operator confirms before it is written to config.
+    /// Genuine ambiguity is reported, never auto-resolved.
+    #[command(name = "test-detect")]
+    TestDetect {
+        /// Emit recommendations + ambiguities as JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the session brief: a compact whole-map table of contents plus the
     /// freshness verdict. Wired by `mdd init` as the Claude Code SessionStart
     /// hook; always exits 0 (a briefing, not a gate).
@@ -232,6 +250,36 @@ fn main() -> Result<()> {
             }
             if !report.fresh {
                 std::process::exit(1);
+            }
+        }
+        Commands::TestPlan { json } => {
+            let project = Project::discover(env::current_dir()?)?;
+            let steps = project.test_plan()?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&steps)?);
+            } else if steps.is_empty() {
+                println!(
+                    "test-plan: empty (no configured test.layers, or no linked tests in those layers)"
+                );
+            } else {
+                for s in &steps {
+                    let gap = if s.is_gap { " [gap]" } else { "" };
+                    println!("{:<12} {:<24} {}{}", s.layer, s.id, s.command, gap);
+                }
+            }
+        }
+        Commands::TestDetect { json } => {
+            let project = Project::discover(env::current_dir()?)?;
+            let profile = project.detect_test_profile()?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&profile)?);
+            } else {
+                for r in &profile.recommendations {
+                    println!("{:<12} {:<14} {}", r.layer, r.framework, r.command);
+                }
+                for a in &profile.ambiguities {
+                    println!("ambiguity (confirm required): {a}");
+                }
             }
         }
         Commands::Context => {

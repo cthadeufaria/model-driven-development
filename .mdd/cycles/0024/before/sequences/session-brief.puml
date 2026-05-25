@@ -1,0 +1,25 @@
+@startuml
+' @id(SEQ-SESSION-BRIEF)
+' @ref(USE-SESSION-BRIEF)
+' @desc(SEQ-SESSION-BRIEF, "Implemented as Project::session_context (crates/mdd-core/src/lib.rs), invoked by mdd-cli Commands::Context. map_toc walks .mdd/map, grouping .puml concept files by their kind directory and counting files + @ids into TocEntry rows (canonical order). map_status supplies the freshness half (fresh + drift + source_revision). The CLI helper print_session_context prints the TOC then the FRESH/STALE verdict and always exits 0.")
+' Current-side sequence: how `mdd context` builds the brief, as built.
+title mdd context — session brief (current)
+
+actor "Agent" as Agent
+participant "SessionStart hook\n(.claude/settings.json)" as Hook
+participant "mdd context\n(Commands::Context)" as Cli
+participant "Project::session_context" as Ctx
+participant "map_toc\n(.mdd/map)" as Map
+participant "Project::map_status\n(freshness)" as Status
+
+Agent -> Hook : session starts
+Hook -> Cli : run `mdd context`
+Cli -> Ctx : session_context()
+Ctx -> Map : count concept files + @ids by kind
+Map --> Ctx : Vec<TocEntry>
+Ctx -> Status : map_status() (baseline via read_map_source_revision)
+Status --> Ctx : fresh + drift + source_revision
+Ctx --> Cli : SessionContext { toc, fresh, source_revision, drift }
+Cli --> Hook : print_session_context -> stdout (exit 0)
+Hook --> Agent : injected as additionalContext
+@enduml

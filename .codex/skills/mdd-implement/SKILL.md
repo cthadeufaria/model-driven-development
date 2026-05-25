@@ -24,6 +24,7 @@ Use this skill to write code that brings the current state to the objective.
 3. Compute the gap: which objective `@id`s are not yet present in current. These are the new behaviors, classes, components, or UI elements the code must add. Current `@id`s not in objective represent code that may need removal or migration; default to leaving them alone unless the user asks for removal.
 4. Write code changes that close the gap. Do not touch the diagrams in this step — `/mdd-map` refreshes `.mdd/models/current/` after implementation finishes.
 5. Keep changes scoped to modeled behavior. Avoid drive-by refactors and feature creep beyond the objective.
-6. After code changes are complete, hand off to `/mdd-map` to refresh current, then `/mdd-validate`, then `/mdd-review`.
+6. **Keep the suite green (diagram-driven tests).** When `.mdd/config.yml` `test.layers` is configured, the code you write must leave the linked test suite green — run the relevant `mdd test-plan` steps as you go, not only at close. This is the GREEN phase; in Cycle C the failing test is written first (the `/mdd-test` red phase) and implement turns it green and records the green observation. With no configured layers this is a no-op.
+7. After code changes are complete, hand off to `/mdd-map` to refresh current, then `/mdd-validate`, then `/mdd-review`.
 
 Readiness warnings (rendered SVGs, approvals, acceptance tests) do not block this skill — report them and continue unless the user asks to pause.

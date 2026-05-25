@@ -21,8 +21,21 @@ It adds **structure**, not execution:
   per-kind coverage. With no layers configured (the default) these rules are
   **inert**, so a repo that has not adopted diagram-driven tests is unaffected.
 
-Detection/confirmation of the runner, `mdd test-plan`, the close-time green
-gate, and the non-negotiable red→green evidence gate are **later cycles**.
+The non-negotiable red→green evidence gate is a **later cycle** (Cycle C).
+
+## What Cycle B adds (profile + plan + green gate)
+
+- `mdd test-detect [--json]` — recommends a per-layer runner from the build
+  files (the table below) and lists `ambiguities`. Recommends only; the
+  operator confirms before it is written to `config.test.layers`.
+- `mdd test-plan [--json]` — the deterministic, ordered plan: one step per
+  configured-layer test, with its command and the gap subset flagged.
+- The close-time **green gate**: `/mdd-cycle` runs the plan and gates on green
+  per `test.gate` (`error` blocks a still-red close; `warn` reports + allows a
+  user-accepted close). Green side only — red→green is Cycle C.
+
+These engage only when `test.layers` is configured; an unconfigured repo is
+unaffected.
 
 ## The `test:` config block
 

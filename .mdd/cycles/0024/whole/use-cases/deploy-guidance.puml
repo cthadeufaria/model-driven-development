@@ -1,0 +1,90 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(USE-DEPLOY-GUIDANCE, 0007)
+' @cycle(USE-DEPLOY-INSPECT, 0007)
+' @cycle(USE-DEPLOY-PURPOSE, 0016)
+' @cycle(USE-DEPLOY-ACCESS-CHECK, 0016)
+' @cycle(USE-DEPLOY-EXECUTE, 0021)
+' @cycle(USE-DEPLOY-GOLIVE, 0021)
+' @id(USE-DEPLOY-GUIDANCE)
+' @id(USE-DEPLOY-INSPECT)
+' @id(USE-DEPLOY-PURPOSE)
+' @id(USE-DEPLOY-ACCESS-CHECK)
+' @id(USE-DEPLOY-EXECUTE)
+' @id(USE-DEPLOY-GOLIVE)
+'
+' Current-side use cases for /mdd-deploy, derived from the implemented
+' code: templates::MDD_DEPLOY_SKILL + its WORKFLOW_SKILLS entry, the
+' .claude/.codex/skills/mdd-deploy/SKILL.md mirrors materialized by
+' `mdd init`, the extended templates::MDD_RENDER_SKILL step, and
+' .mdd/docs/deploy-profile.md. The skill is a standalone utility,
+' a sibling of /mdd-render, and is NOT routed into any gate.
+'
+' @desc(USE-DEPLOY-GUIDANCE, "Implemented: /mdd-deploy is registered as a WORKFLOW_SKILLS entry and materialized into .claude/.codex/skills/mdd-deploy/SKILL.md. Its body instructs the agent to produce a deployment diagram + generated Bicep + a STOP-gated runbook for azure-container-apps, executing no deploy command.")
+' @desc(USE-DEPLOY-INSPECT, "Implemented: templates::MDD_RENDER_SKILL gained a step instructing /mdd-render to rasterize .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive, non-gating.")
+' @desc(USE-DEPLOY-PURPOSE, "Cycle 0016: before any purpose-driven default, /mdd-deploy confirms dev/staging/prod (no silent default) and surfaces purpose-appropriate sizing/posture options for the operator to confirm; secure-by-default preserved.")
+' @desc(USE-DEPLOY-ACCESS-CHECK, "Cycle 0016: before emitting, /mdd-deploy accounts for who reads AND writes every secured store, each with an admitted network path; a read-but-never-written store or a writer with no path is surfaced as a blocking question.")
+' @desc(USE-DEPLOY-EXECUTE, "Cycle 0021: after planning, /mdd-deploy EXECUTES the runbook to live traffic — manages auth, dry-runs before any apply, runs idempotent steps autonomously, BLOCKS only at irreversible steps (apply, secrets, migration, go-live), halts on first error, deploys the new revision at 0% traffic until verified. Constrained by OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY / -HALT-ON-ERROR / -PAUSE-IRREVERSIBLE.")
+' @desc(USE-DEPLOY-GOLIVE, "Cycle 0021: the one stop full-auto never skips — before the live-traffic cutover, /mdd-deploy surfaces the full production billing multi-factor gate state and BLOCKS for explicit operator confirmation; never auto-confirmed. Constrained by OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED.")
+title /mdd-deploy deployment guidance — use cases (current)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+  usecase "Confirm the deployment PURPOSE\n(dev/staging/prod) before any\npurpose-driven default — no silent default" as Purpose
+  usecase "Account for who READS and WRITES\nevery secured store (identity + admitted\npath) before emitting — surface holes" as AccessCheck
+  usecase "EXECUTE the runbook: manage auth,\ndry-run, apply, provision, migrate, route —\nautonomous except irreversible steps; halt on error" as Execute
+  usecase "CONFIRM go-live: surface the full\nproduction billing multi-factor gate\nbefore live-traffic cutover" as GoLive
+}
+
+Op --> Guide
+Op --> Inspect
+Op --> Purpose
+Op --> AccessCheck
+Op --> Execute
+Op --> GoLive
+
+Guide ..> Inspect : <<extend>>
+Guide ..> Purpose : <<include>>
+Guide ..> AccessCheck : <<include>>
+Guide ..> Execute : <<include>>
+Execute ..> GoLive : <<include>>
+
+note bottom of Guide
+  Implemented in templates::MDD_DEPLOY_SKILL:
+  v1 supports only azure-container-apps
+  (../atlas-ate-server); any other target is
+  rejected. Reads MDD models + the target repo
+  read-only, pauses on ambiguity, writes the
+  deployment diagram + runbook + generated infra,
+  then reports and STOPS. Never runs az/docker/
+  brew. The diagram stereotypes are documentation
+  only — NOT the gated security-marker parity
+  mechanism. Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Inspect
+  Not a gate. /mdd-validate, /mdd-review and the
+  /mdd-cycle parity loop never read .mdd/deploy/.
+  Realized by SEQ-DEPLOY-INSPECT.
+end note
+
+note bottom of Purpose
+  Cycle 0016: mandatory <<include>>; no purpose-driven
+  default until dev/staging/prod is confirmed (no silent
+  default). Surfaces sizing/posture options; operator
+  confirms; secure-by-default preserved.
+  Constrained by OCL-DEPLOY-IAC-PURPOSE.
+end note
+
+note bottom of AccessCheck
+  Cycle 0016: mandatory <<include>>; every secured store
+  needs a named reader AND writer with an admitted
+  network path, else surfaced as a blocking question.
+  Constrained by OCL-DEPLOY-IAC-ACCESS-COMPLETE.
+end note
+@enduml

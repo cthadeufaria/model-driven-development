@@ -1,0 +1,16 @@
+@startuml
+' @id(SEQ-TEST-PROFILE) <<added>> this cycle (0024)
+' Cycle 0024 diff (current side): the detect-confirm / plan / green-gate
+' flow. New sequence; nothing removed.
+title test profile, plan, green gate · cycle 0024 diff (current)
+
+participant "/mdd-cycle skill" as Skill
+participant "detect_test_profile" as Detect
+participant "test_plan" as Plan
+participant "evaluate_green_gate" as Gate
+
+note over Skill #90EE90: <<added>> 0024
+Skill -> Detect : recommend (confirm ambiguities)
+Skill -> Plan : ordered steps
+Skill -> Gate : results -> { all_green, blocking }
+@enduml
