@@ -1,0 +1,49 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(DOM-TEST-PLAN-STEP, 0024)
+' @cycle(DOM-TEST-DETECTION, 0024)
+' @id(DOM-TEST-PLAN-STEP)
+' @desc(DOM-TEST-PLAN-STEP, "One resolved step of the deterministic test plan (Project::test_plan), the test analog of a deploy runbook step. Fields: layer (the configured layer name), id (the test id), model_id (the diagram @id it verifies), command (the runner invocation from the layer's TestLayerConfig), cwd (Option<String>, a subdir a layer may target in a polyglot repo), expect (DOM-TEST-EXPECT), is_gap (true when expect=red-until-implemented). Steps are ordered by layer then id. Pure data — the plan carries everything the loop needs to run a layer reproducibly, but Project::test_plan never executes anything.")
+' @id(DOM-TEST-DETECTION)
+' @desc(DOM-TEST-DETECTION, "The outcome of build-file detection (Project::detect_test_profile): a DetectedProfile { recommendations: Vec<DetectedLayer{layer, framework, command, cwd}>, ambiguities: Vec<String> }. recommendations are the per-layer runners inferred from the §5.3 detection table (Cargo.toml -> cargo-test unit/integration; package.json devDeps -> vitest/jest unit, playwright/cypress ui; pyproject -> pytest; go.mod -> go test; etc.). ambiguities names every undecidable choice (two unit frameworks, no clear home) so the skill can surface it as a blocking question rather than guess. Detection RECOMMENDS; it never writes config — the operator confirms first.")
+' Current-side domain for Cycle B: the resolved plan step and the
+' detection recommendation. Both are pure data produced by deterministic
+' mdd-core functions; neither executes a runner or writes config.
+title MDD diagram-driven tests — plan + detection (current)
+
+class TestPlanStep {
+  + layer : String
+  + id : String
+  + model_id : String
+  + command : String
+  + cwd : Option<String>
+  + expect : TestExpect
+  + is_gap : bool
+}
+
+class DetectedLayer {
+  + layer : String
+  + framework : String
+  + command : String
+  + cwd : Option<String>
+}
+
+class DetectedProfile {
+  + recommendations : Vec<DetectedLayer>
+  + ambiguities : Vec<String>
+}
+
+DetectedProfile "1" o-- "*" DetectedLayer : recommends >
+TestPlanStep ..> TestExpect : carries >
+
+note bottom of DetectedProfile
+  DOM-TEST-DETECTION: detection RECOMMENDS per the build
+  files; ambiguities are surfaced as blocking questions.
+  The operator confirms before any config is written.
+end note
+
+note bottom of TestPlanStep
+  DOM-TEST-PLAN-STEP: ordered by layer then id; is_gap
+  flags expect=red-until-implemented. Pure data — no run.
+end note
+@enduml

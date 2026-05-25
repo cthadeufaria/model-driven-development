@@ -1,0 +1,14 @@
+@startuml
+' @id(SEQ-ARCH-TRACK) <<added>> this cycle (0028)
+' Cycle 0028 diff (current side): how an agent tracks an architectural change.
+' New sequence; nothing removed.
+title Tracking an architectural change · cycle 0028 diff (current)
+
+actor "Agent" as Agent
+participant ".mdd/architecture/*.yml" as Spec
+participant "git" as Git
+
+note over Agent #90EE90: <<added>> 0028
+Agent -> Spec : update yml; append + supersede decisions
+Agent -> Git : commit (structured diff = interim history)
+@enduml

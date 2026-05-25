@@ -1,0 +1,17 @@
+number: 28
+slug: architecture-sot
+entry: generate
+description: "Cycle C of greenfield-kickoff: a structured, machine-readable architectural source of truth under .mdd/architecture/ (components.yml, decisions.yml, constraints.yml) — scaffolded SeededOnce by mdd init, authored by /mdd-kickoff, and explained to agents by .mdd/docs/architecture-tracking.md. The spec is the authoritative what+why beside the diagrams; interim diff history is git. The structured `mdd arch diff`/`status` verb + snapshot/whole-map integration are deferred to a follow-up cycle."
+status: closed
+opened_at: "2026-05-25T18:02:56Z"
+closed_at: "2026-05-25T18:10:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/architecture.puml
+  - .mdd/models/objective/sequences/architecture.puml
+  - .mdd/models/objective/components/architecture.puml
+  - .mdd/models/objective/domain/architecture.puml
+  - .mdd/models/current/use-cases/architecture.puml
+  - .mdd/models/current/sequences/architecture.puml
+  - .mdd/models/current/components/architecture.puml
+  - .mdd/models/current/domain/architecture.puml
+  - .mdd/constraints/architecture.ocl

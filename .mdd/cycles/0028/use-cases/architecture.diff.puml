@@ -1,0 +1,15 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-TRACK-ARCH) <<added>> this cycle (0028)
+' Cycle 0028 diff (current side): define + track the architectural source of
+' truth. New use case; nothing removed.
+title Track the architectural source of truth · cycle 0028 diff (current)
+
+left to right direction
+actor "Developer / Agent" as Agent
+usecase "Define + track the architectural\nsource of truth (.mdd/architecture/)" as Track <<added>>
+Agent --> Track
+@enduml

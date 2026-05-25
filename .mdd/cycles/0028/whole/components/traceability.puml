@@ -1,0 +1,40 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-TRACE-ENGINE, 0013)
+' @cycle(CMP-TRACE-GATE, 0013)
+' @cycle(CMP-TRACE-CLI, 0013)
+' @id(CMP-TRACE-ENGINE)
+' @desc(CMP-TRACE-ENGINE, "Built as crates/mdd-core/src/traceability.rs: extract_symbols (syn::parse_file + proc-macro2 span-locations -> SymbolSpan, skipping #[test]/#[cfg(test)] items and indexing enum variants as Enum::Variant), git_changed_lines/parse_unified_diff (git diff --unified=0 base..worktree, .rs-under-/src/ only), and changed_code (maps hunks to innermost enclosing symbols + glue). symbol_matches tolerates bare and Type::method forms. Pure: degrades to empty when git is absent so review never hard-fails outside a cycle.")
+' @id(CMP-TRACE-GATE)
+' @desc(CMP-TRACE-GATE, "Built in crates/mdd-core/src/lib.rs: Project::review_traceability (forward + reverse) folded into Project::review as pass 3, Project::resolve_source_link shared with the validate_inner existence check, and MddConfig.traceability.parity_check (TraceabilityConfig, default error). Calls CMP-TRACE-ENGINE for symbol resolution and the changeset.")
+' @id(CMP-TRACE-CLI)
+' @desc(CMP-TRACE-CLI, "Built as the mdd-cli Commands::Review and Commands::MapStatus subcommands in crates/mdd-cli/src/main.rs: `mdd review` prints ID/security/traceability and exits non-zero on a blocking mismatch; `mdd map-status` prints FRESH/STALE + drift and exits non-zero on stale. These are the deterministic gate + freshness entry points review previously lacked.")
+' Current-side ownership for the traceability + freshness engine, as built.
+title MDD traceability + freshness — ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd review / mdd map-status\n(CMP-TRACE-CLI)" as Cli
+component "Project::review pass 3\n+ validate existence\n(CMP-TRACE-GATE)" as Gate
+component "traceability.rs\n(CMP-TRACE-ENGINE)" as Engine
+component "MddConfig\ntraceability.parity_check" as Config
+component "trace.yml\nsource_links" as Trace
+folder ".mdd/map/manifest.yml\nsource_revision" as Manifest
+component "git" as Git
+component "syn + proc-macro2\n(span-locations)" as Syn
+
+Dev --> Cli : mdd review / mdd map-status
+Cli --> Gate : review()
+Cli --> Engine : map_status() (freshness)
+Gate --> Engine : forward resolve + reverse changeset
+Gate --> Config : parity_check (error | warn)
+Gate --> Trace : source_links
+Engine --> Git : diff --unified=0 base..worktree
+Engine --> Syn : parse_file -> symbol spans
+Engine --> Manifest : read source_revision (map-status)
+
+note bottom of Engine
+  Single language (Rust): syn, not a full LSP client.
+  Realized by SEQ-TRACE-REVIEW + SEQ-MAP-STATUS.
+end note
+@enduml

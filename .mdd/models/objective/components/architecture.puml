@@ -1,0 +1,22 @@
+@startuml
+' @id(CMP-ARCH-TRACKING)
+' @desc(CMP-ARCH-TRACKING, "The architecture-tracking capability: the .mdd/architecture/ structured spec (components/decisions/constraints.yml), the SeededOnce templates mdd init scaffolds for it, and the agent-facing .mdd/docs/architecture-tracking.md that puts the tracking workflow into every agent's context. The structured diff/history verb (mdd arch) is a planned follow-up; git is the interim diff mechanism.")
+' Objective-side component for the architecture-tracking capability (cycle 0028).
+title Architecture-tracking component (objective)
+
+component "mdd init\n(scaffolds templates)" as Init
+artifact ".mdd/architecture/components.yml" as Comp
+artifact ".mdd/architecture/decisions.yml" as Dec
+artifact ".mdd/architecture/constraints.yml" as Con
+artifact ".mdd/docs/architecture-tracking.md" as Doc
+component "/mdd-kickoff" as Kick
+component "any agent" as Agent
+
+Init --> Comp : create-if-missing
+Init --> Dec : create-if-missing
+Init --> Con : create-if-missing
+Init --> Doc : regenerable
+Kick --> Comp : authors initial spec
+Agent --> Dec : append + supersede on change
+Agent --> Doc : reads how-to
+@enduml

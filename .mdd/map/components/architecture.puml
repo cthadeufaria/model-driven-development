@@ -1,0 +1,24 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(CMP-ARCH-TRACKING, 0028)
+' @id(CMP-ARCH-TRACKING)
+' @desc(CMP-ARCH-TRACKING, "Implemented across mdd-core + the workspace: mdd init scaffolds .mdd/architecture/ + the three yml templates (templates::arch_*_template, create-if-missing) and the regenerable .mdd/docs/architecture-tracking.md (templates::architecture_tracking_doc); /mdd-kickoff authors the initial spec; the entrypoint pointer puts it in every agent's context. The structured diff/history verb (mdd arch) is a planned follow-up; git is the interim diff mechanism.")
+' Current-side component for the architecture-tracking capability (cycle 0028).
+title Architecture-tracking component (current)
+
+component "mdd init\n(scaffolds templates)" as Init
+artifact ".mdd/architecture/components.yml" as Comp
+artifact ".mdd/architecture/decisions.yml" as Dec
+artifact ".mdd/architecture/constraints.yml" as Con
+artifact ".mdd/docs/architecture-tracking.md" as Doc
+component "/mdd-kickoff" as Kick
+component "any agent" as Agent
+
+Init --> Comp : create-if-missing
+Init --> Dec : create-if-missing
+Init --> Con : create-if-missing
+Init --> Doc : regenerable
+Kick --> Comp : authors initial spec
+Agent --> Dec : append + supersede on change
+Agent --> Doc : reads how-to
+@enduml

@@ -1,0 +1,68 @@
+@startuml
+' @id(DOM-ARCH-SPEC)
+' @desc(DOM-ARCH-SPEC, "The structured, machine-readable architectural source of truth under .mdd/architecture/: components.yml (logical/deployable components — kind, ownership of domain @ids, dependencies, tech), decisions.yml (architecture decisions as data — status, context, decision, consequences, supersedes chain; append-only so the list is the decision history), and constraints.yml (cross-cutting architectural rules with rationale + applies_to). The authoritative what+why beside the diagrams; scaffolded SeededOnce by mdd init, authored by /mdd-kickoff, diffed via git today (a structured mdd arch verb is a planned follow-up).")
+' Objective-side domain for the architectural source of truth (cycle 0028).
+title Architecture source of truth (objective)
+
+class ArchitectureSpec {
+  + dir : Path
+}
+class Component {
+  + id : String
+  + name : String
+  + kind : ComponentKind
+  + owns : List<Id>
+  + dependsOn : List<Id>
+  + tech : String
+}
+enum ComponentKind {
+  service
+  library
+  datastore
+  adapter
+  ui
+  external
+}
+class Decision {
+  + id : String
+  + title : String
+  + status : DecisionStatus
+  + date : Date
+  + context : String
+  + decision : String
+  + consequences : String
+  + supersedes : String?
+  + supersededBy : String?
+}
+enum DecisionStatus {
+  proposed
+  accepted
+  superseded
+  deprecated
+}
+class Constraint {
+  + id : String
+  + rule : String
+  + appliesTo : List<Id>
+  + rationale : String
+}
+
+ArchitectureSpec "1" o-- "*" Component : components.yml >
+ArchitectureSpec "1" o-- "*" Decision : decisions.yml >
+ArchitectureSpec "1" o-- "*" Constraint : constraints.yml >
+Component --> ComponentKind
+Decision --> DecisionStatus
+
+note bottom of Decision
+  Append-only: a change supersedes a prior decision
+  (supersedes / supersededBy) rather than rewriting
+  it, so decisions.yml IS the decision history
+  (OCL-ARCH-DECISION-HAS-STATUS,
+  OCL-ARCH-SUPERSEDE-LINKED).
+end note
+note bottom of Component
+  owns / dependsOn reference diagram @ids (DOM-/CMP-);
+  components.yml stays in sync with the component
+  diagrams (OCL-ARCH-COMPONENTS-IN-SYNC).
+end note
+@enduml

@@ -1,0 +1,12 @@
+# Architecture source of truth — cross-cutting constraints
+#
+# Rules the architecture must uphold across components (security, data, perf,
+# layering). See .mdd/docs/architecture-tracking.md.
+version: 1
+constraints: []
+# Example (uncomment and fill in):
+# constraints:
+#   - id: AC-0001
+#     rule: All external input is validated at the API boundary.
+#     applies_to: [CMP-API]
+#     rationale: Defense in depth; keep the domain layer trusting.

@@ -796,6 +796,7 @@ impl Project {
             ".mdd/tests/ui",
             ".mdd/docs",
             ".mdd/ralph",
+            ".mdd/architecture",
             ".claude/skills",
             ".codex/skills",
         ];
@@ -882,6 +883,39 @@ impl Project {
         self.write_text_create_if_missing(
             ".mdd/docs/brief.md",
             templates::brief(),
+            &mut created,
+            &mut skipped,
+        )?;
+        // Architecture-tracking how-to (USE-TRACK-ARCH) — Regenerable, like the
+        // other docs: it puts the architecture-SoT workflow into any agent's
+        // context.
+        self.write_text_if_missing(
+            ".mdd/docs/architecture-tracking.md",
+            templates::architecture_tracking_doc(),
+            &mut created,
+            &mut overwritten,
+            &mut skipped,
+            &mut on_conflict,
+        )?;
+        // Architecture source of truth (DOM-ARCH-SPEC / CMP-ARCH-TRACKING) —
+        // SeededOnce like brief.md / PLAN.md: mdd init writes the
+        // documented-but-empty templates once, then /mdd-kickoff and agents own
+        // the content, so --force never clobbers a real architecture spec.
+        self.write_text_create_if_missing(
+            ".mdd/architecture/components.yml",
+            templates::arch_components_template(),
+            &mut created,
+            &mut skipped,
+        )?;
+        self.write_text_create_if_missing(
+            ".mdd/architecture/decisions.yml",
+            templates::arch_decisions_template(),
+            &mut created,
+            &mut skipped,
+        )?;
+        self.write_text_create_if_missing(
+            ".mdd/architecture/constraints.yml",
+            templates::arch_constraints_template(),
             &mut created,
             &mut skipped,
         )?;

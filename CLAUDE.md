@@ -1,5 +1,5 @@
 <!-- mdd:begin -->
-<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"claude-entrypoint","content_sha256":"17b0d2ad1219129d3be64474eabdfa6ca0d27bfe718bdd8bc9ef0f04382cf0fc"} -->
+<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"claude-entrypoint","content_sha256":"236bb7b9e3b2785ea3fc5ea683cbc295b1a96b4b403f855a2b891d0e0ef2e871"} -->
 # Claude Code MDD Entry Point
 
 This repository uses agent-first MDD. Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md`.
@@ -31,4 +31,6 @@ At the start of a session, run `mdd context` — a Claude Code SessionStart hook
 - **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
+
+The **architectural source of truth** is the structured spec under `.mdd/architecture/` (`components.yml` / `decisions.yml` / `constraints.yml`, versioned). When you change the architecture, update it and append a decision (supersede, don't rewrite — the file is the history) — see `.mdd/docs/architecture-tracking.md`.
 <!-- mdd:end -->

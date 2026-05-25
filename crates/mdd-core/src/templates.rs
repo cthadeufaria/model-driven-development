@@ -101,6 +101,22 @@ pub fn brief() -> &'static str {
     MDD_BRIEF_TEMPLATE
 }
 
+pub fn arch_components_template() -> &'static str {
+    ARCH_COMPONENTS_TEMPLATE
+}
+
+pub fn arch_decisions_template() -> &'static str {
+    ARCH_DECISIONS_TEMPLATE
+}
+
+pub fn arch_constraints_template() -> &'static str {
+    ARCH_CONSTRAINTS_TEMPLATE
+}
+
+pub fn architecture_tracking_doc() -> &'static str {
+    ARCHITECTURE_TRACKING_DOC
+}
+
 pub fn claude_entrypoint() -> &'static str {
     CLAUDE_ENTRYPOINT
 }
@@ -571,6 +587,10 @@ Implement cycle:
 
 `/mdd-kickoff` is the front door for a **new** project (a utility skill, outside the parity gate — it opens no cycle). It interviews the developer to objective + architecture alignment, writes a signed-off `.mdd/docs/brief.md`, runs `/mdd-generate` for the full objective model, then decomposes it into a Ralph-ready `.mdd/ralph/PLAN.md` and stops — a human launches `/mdd-ralph`. Model-bearing PLAN items carry an inline `@scope(<id>, …)` of the objective `@id`s they realize; Ralph routes each to a `/mdd-cycle` realize-slice (which closes against just that scope), and infra/tooling items (no `@scope`) run with general tools. `mdd validate` checks (as warnings) that every PLAN `@scope` id resolves to an objective id and that the `@scope` union covers every implementation-bearing objective id, so exhausting the PLAN coincides with whole-model parity. Incremental change on an existing repo still goes through `/mdd-cycle`.
 
+## Architecture source of truth
+
+Beside the diagrams, the **structured architectural source of truth** lives under `.mdd/architecture/`: `components.yml` (logical/deployable components, the domain `@id`s they own, dependencies, tech), `decisions.yml` (architecture decisions as data — append-only, supersede don't rewrite, so the file is the decision history), and `constraints.yml` (cross-cutting rules). `mdd init` scaffolds documented-but-empty templates (SeededOnce, never clobbered); `/mdd-kickoff` authors the initial spec from the agreed brief; thereafter any agent keeps it current when the architecture changes. The diagrams remain the visual model (with whole-map history); the spec is the authoritative *what + why* and references diagram `@id`s to stay in sync. Interim change history is git; a structured `mdd arch diff`/`status` verb (reusing the snapshot/diff machinery, runnable detached from a cycle) is a planned follow-up. The agent how-to is `.mdd/docs/architecture-tracking.md` (`OCL-ARCH-*` invariants in `.mdd/constraints/architecture.ocl`).
+
 ## Whole-map baseline
 
 `/mdd-cycle` keeps a project-wide **whole-map** under `.mdd/map/` — a per-concept picture of the whole system that grows cycle by cycle. It is maintained only by the cycle **Close** step: after the cycle's `<diagram>.diff.puml` files are written, that cycle's `CycleDiff` is folded into `.mdd/map/<kind>/<name>.puml` (added `@id`s copied in from `after/` and tagged with a `' @cycle(<ID>, <N>)` provenance line, removed `@id`s deleted, unchanged ones keeping their earlier provenance). It is never re-derived from code and there is no `/mdd-map` "whole" mode; accumulation is one cheap diff application per cycle, so an element added by one cycle and removed by a later one nets to **neither** (no `<<removed>>` ghost, unlike a single cycle's `.diff.puml`). `.mdd/map/manifest.yml` records `version`, `last_cycle`, `generated_at`, and `files`. The whole `.mdd/map/` tree is snapshotted into `.mdd/cycles/<N>/whole/` at close so the picture *as of cycle N* is recoverable, and `/mdd-render` rasterizes `.mdd/map/**.puml` to `.mdd/rendered/map/**.svg`.
@@ -1016,6 +1036,8 @@ At the start of a session, run `mdd context` — a Claude Code SessionStart hook
 - **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
+
+The **architectural source of truth** is the structured spec under `.mdd/architecture/` (`components.yml` / `decisions.yml` / `constraints.yml`, versioned). When you change the architecture, update it and append a decision (supersede, don't rewrite — the file is the history) — see `.mdd/docs/architecture-tracking.md`.
 "#;
 
 const AGENTS_ENTRYPOINT: &str = r#"# Agent MDD Entry Point
@@ -1043,6 +1065,8 @@ At the start of a session, run `mdd context`. It prints a compact whole-map tabl
 - **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
+
+The **architectural source of truth** is the structured spec under `.mdd/architecture/` (`components.yml` / `decisions.yml` / `constraints.yml`, versioned). When you change the architecture, update it and append a decision (supersede, don't rewrite — the file is the history) — see `.mdd/docs/architecture-tracking.md`.
 "#;
 
 const MDD_KICKOFF_SKILL: &str = r#"# MDD Kickoff
@@ -1061,7 +1085,7 @@ Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md
 
 2. **Brief + SIGN-OFF GATE.** Write `.mdd/docs/brief.md`: objective/outcome, in-scope, out-of-scope/non-goals, ADR-lite architecture decisions (context, decision, rationale, alternatives), tooling choices, NFRs. Present it and **stop until the developer signs it off.** Generate no model before sign-off.
 
-3. **Generate the full objective.** Run `/mdd-generate` with the agreed brief as the description to produce the **complete** objective model under `.mdd/models/objective/` (every diagram kind, security markers, OCL constraints, test intent).
+3. **Generate the full objective + author the architecture SoT.** Run `/mdd-generate` with the agreed brief as the description to produce the **complete** objective model under `.mdd/models/objective/` (every diagram kind, security markers, OCL constraints, test intent). Then author the **architectural source of truth** from the agreed brief: populate `.mdd/architecture/components.yml` (components + the domain `@id`s they own + dependencies + tech), `.mdd/architecture/decisions.yml` (the founding architecture decisions as `accepted` ADR-as-data entries — append-only thereafter), and `.mdd/architecture/constraints.yml` (cross-cutting rules). See `.mdd/docs/architecture-tracking.md`.
 
 4. **Validate.** Run `/mdd-validate`; fix structural errors until clean.
 
@@ -1122,6 +1146,115 @@ const MDD_BRIEF_TEMPLATE: &str = r#"# Project Brief
 <!-- The developer confirms this brief before /mdd-kickoff generates the objective model. -->
 
 - [ ] Signed off
+"#;
+
+const ARCH_COMPONENTS_TEMPLATE: &str = r#"# Architecture source of truth — components
+#
+# The logical / deployable components of the system and how they fit together.
+# Authored by /mdd-kickoff and kept in sync with the component diagrams under
+# .mdd/models/*/components/ by any agent that changes the architecture.
+# See .mdd/docs/architecture-tracking.md.
+version: 1
+components: []
+# Example (uncomment and fill in):
+# components:
+#   - id: CMP-API              # stable id; align with a component-diagram @id where one exists
+#     name: HTTP API
+#     kind: service            # service | library | datastore | adapter | ui | external
+#     description: Public REST surface.
+#     owns: [DOM-TASK]         # domain @ids this component owns
+#     depends_on: [CMP-DB]
+#     tech: axum
+"#;
+
+const ARCH_DECISIONS_TEMPLATE: &str = r#"# Architecture source of truth — decisions (ADR-as-data)
+#
+# Architecture decisions, APPEND-ONLY: to change a decision, ADD a new entry and
+# mark the old one `status: superseded` with `superseded_by`, rather than
+# rewriting it — so this file is the durable decision history.
+# See .mdd/docs/architecture-tracking.md.
+version: 1
+decisions: []
+# Example (uncomment and fill in):
+# decisions:
+#   - id: AD-0001
+#     title: Use axum for the HTTP layer
+#     status: accepted         # proposed | accepted | superseded | deprecated
+#     date: 2026-01-01
+#     context: Why the decision was needed.
+#     decision: What was decided.
+#     consequences: Resulting trade-offs.
+#     supersedes: null         # AD-id this replaces, if any
+#     superseded_by: null      # AD-id that replaced this, once superseded
+"#;
+
+const ARCH_CONSTRAINTS_TEMPLATE: &str = r#"# Architecture source of truth — cross-cutting constraints
+#
+# Rules the architecture must uphold across components (security, data, perf,
+# layering). See .mdd/docs/architecture-tracking.md.
+version: 1
+constraints: []
+# Example (uncomment and fill in):
+# constraints:
+#   - id: AC-0001
+#     rule: All external input is validated at the API boundary.
+#     applies_to: [CMP-API]
+#     rationale: Defense in depth; keep the domain layer trusting.
+"#;
+
+const ARCHITECTURE_TRACKING_DOC: &str = r#"# Architecture Source of Truth & Change Tracking
+
+The **architectural source of truth (SoT)** for this project is the structured,
+machine-readable spec under `.mdd/architecture/`. It is the authoritative record
+of *what* the architecture is and *why* — beside the diagrams, which are the
+visual model.
+
+## What lives where
+
+- `.mdd/architecture/components.yml` — the logical / deployable components: kind,
+  the domain `@id`s each owns, dependencies, and tech.
+- `.mdd/architecture/decisions.yml` — architecture decisions as data
+  (ADR-as-data): id, title, status, context, decision, consequences, and the
+  supersession chain. **Append-only** — the list is the decision *history*.
+- `.mdd/architecture/constraints.yml` — cross-cutting rules the architecture
+  must uphold, with rationale and `applies_to`.
+
+These are **SeededOnce**: `mdd init` writes documented-but-empty templates;
+`/mdd-kickoff` authors the initial spec from the agreed brief; thereafter the
+content is owned by the project (`mdd init --force` never clobbers it).
+
+## How it relates to the rest of `.mdd/`
+
+- **Diagrams** (`.mdd/models/`) are the *visual* model and carry their own
+  history via the whole-map (`.mdd/map/`, grown per cycle) and cycle diffs.
+- **The brief** (`.mdd/docs/brief.md`) is the narrative kickoff alignment; the
+  architecture SoT is its durable, structured continuation.
+- `components.yml` references diagram `@id`s (`CMP-`/`DOM-`) so the structured
+  spec and the diagrams stay in sync.
+
+## How any agent tracks an architectural change
+
+When you change the architecture (add/restructure a component, pick a new
+technology, add a cross-cutting rule):
+
+1. **Update the spec.** Edit the relevant `.mdd/architecture/*.yml`.
+2. **Record the decision — append, don't rewrite.** Add a new entry to
+   `decisions.yml`. If it changes a prior decision, set the old one's
+   `status: superseded` and `superseded_by: <new id>`, and the new one's
+   `supersedes: <old id>`. Never delete or edit an accepted decision — the file
+   is the history.
+3. **Keep `components.yml` in sync** with the component diagrams you touched.
+4. **Commit.** The structured diff is captured in git (the interim history
+   mechanism). A dedicated `mdd arch diff` / `mdd arch status` verb — folding
+   SoT changes into the MDD snapshot/diff machinery and runnable detached from a
+   cycle — is the planned follow-up.
+
+## Invariants (see `.mdd/constraints/architecture.ocl`)
+
+- Every decision has a `status` (`OCL-ARCH-DECISION-HAS-STATUS`).
+- A `superseded` decision names its successor (`OCL-ARCH-SUPERSEDE-LINKED`).
+- A component's `owns` / `depends_on` `@id`s resolve to real model ids
+  (`OCL-ARCH-COMPONENTS-IN-SYNC`).
 "#;
 
 const MDD_SECURITY_PROFILE_DOC: &str = include_str!("../../../.mdd/docs/security-profile.md");

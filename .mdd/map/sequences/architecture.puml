@@ -1,0 +1,22 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(SEQ-ARCH-TRACK, 0028)
+' @id(SEQ-ARCH-TRACK)
+' @ref(USE-TRACK-ARCH)
+' @desc(SEQ-ARCH-TRACK, "Implemented as the workflow documented in .mdd/docs/architecture-tracking.md (shipped by mdd init): read the how-to; update the relevant .mdd/architecture/*.yml; for a decision APPEND a new entry and mark the prior one superseded (superseded_by) rather than rewriting; keep components.yml in sync with the component diagrams; commit (git is the interim structured-diff history; a structured mdd arch diff/status verb is the planned follow-up).")
+' Current-side sequence for tracking an architectural change (cycle 0028).
+title Tracking an architectural change (current)
+
+actor "Agent" as Agent
+participant ".mdd/docs/architecture-tracking.md" as Doc
+participant ".mdd/architecture/*.yml" as Spec
+participant "git" as Git
+
+Agent -> Doc : read the tracking workflow
+Agent -> Spec : update components / constraints
+alt a decision changes
+  Agent -> Spec : append new Decision; mark prior superseded
+end
+Agent -> Git : commit (structured diff is the interim history)
+note right of Git: a structured `mdd arch diff` / `status` verb is a follow-up
+@enduml

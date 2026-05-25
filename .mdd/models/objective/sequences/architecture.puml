@@ -1,0 +1,20 @@
+@startuml
+' @id(SEQ-ARCH-TRACK)
+' @ref(USE-TRACK-ARCH)
+' @desc(SEQ-ARCH-TRACK, "How an agent tracks an architectural change: read .mdd/docs/architecture-tracking.md; update the relevant .mdd/architecture/*.yml; for a decision, APPEND a new entry and mark the prior one superseded (supersededBy) rather than rewriting it; keep components.yml in sync with the component diagrams; the structured change is captured in git (interim) and, in a follow-up cycle, by a structured mdd arch diff/status verb.")
+' Objective-side sequence for tracking an architectural change (cycle 0028).
+title Tracking an architectural change (objective)
+
+actor "Agent" as Agent
+participant ".mdd/docs/architecture-tracking.md" as Doc
+participant ".mdd/architecture/*.yml" as Spec
+participant "git" as Git
+
+Agent -> Doc : read the tracking workflow
+Agent -> Spec : update components / constraints
+alt a decision changes
+  Agent -> Spec : append new Decision; mark prior superseded
+end
+Agent -> Git : commit (structured diff is the interim history)
+note right of Git: a structured `mdd arch diff` / `status` verb is a follow-up
+@enduml

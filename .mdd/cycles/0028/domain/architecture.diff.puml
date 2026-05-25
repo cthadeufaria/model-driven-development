@@ -1,0 +1,23 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-ARCH-SPEC) <<added>> this cycle (0028)
+' Cycle 0028 diff (current side): the structured architecture SoT
+' (components / decisions / constraints). New; nothing removed.
+title Architecture source of truth · cycle 0028 diff (current)
+
+class ArchitectureSpec <<added>>
+class Component <<added>> {
+  + kind : ComponentKind
+  + owns : List<Id>
+}
+class Decision <<added>> {
+  + status : DecisionStatus
+  + supersededBy : String?
+}
+class Constraint <<added>> {
+  + rule : String
+}
+@enduml

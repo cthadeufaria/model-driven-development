@@ -1,0 +1,12 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-ARCH-TRACKING) <<added>> this cycle (0028)
+' Cycle 0028 diff (current side): the .mdd/architecture/ spec + its init
+' templates + the agent-tracking doc. New component; nothing removed.
+title Architecture-tracking component · cycle 0028 diff (current)
+
+component "mdd init scaffold +\n.mdd/architecture/ spec +\narchitecture-tracking.md" as Arch <<added>>
+@enduml

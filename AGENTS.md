@@ -1,5 +1,5 @@
 <!-- mdd:begin -->
-<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"agents-entrypoint","content_sha256":"add830609829b85a3de5b53304f563fbe72f41cd4c55321ac32f43e5a81d662a"} -->
+<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"agents-entrypoint","content_sha256":"8d771e767b731fc712047c5f68d19da7ca2b7ddef3519078aeb5b171bb72f94c"} -->
 # Agent MDD Entry Point
 
 This repository uses agent-first MDD. Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md`.
@@ -25,4 +25,6 @@ At the start of a session, run `mdd context`. It prints a compact whole-map tabl
 - **STALE** → the code drifted from the diagrams: run `/mdd-map` on the drifted area FIRST to re-derive `current/`, then read the refreshed diagrams.
 
 Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative planning context. Validate IDs, refs, and trace links before implementation; report missing rendering, approval, or acceptance-test readiness as warnings instead of blocking implementation.
+
+The **architectural source of truth** is the structured spec under `.mdd/architecture/` (`components.yml` / `decisions.yml` / `constraints.yml`, versioned). When you change the architecture, update it and append a decision (supersede, don't rewrite — the file is the history) — see `.mdd/docs/architecture-tracking.md`.
 <!-- mdd:end -->

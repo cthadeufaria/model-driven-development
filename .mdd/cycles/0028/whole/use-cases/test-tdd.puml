@@ -1,0 +1,51 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(USE-TEST-RED-PHASE, 0025)
+' @cycle(USE-TEST-RED-GREEN-GATE, 0025)
+' @cycle(USE-MAP-TEST-DISCOVERY, 0025)
+' @cycle(USE-TEST-ACCEPTANCE-E2E, 0025)
+' @id(USE-TEST-RED-PHASE)
+' @desc(USE-TEST-RED-PHASE, "The dedicated /mdd-test skill owns the RED phase of the TDD loop. For each gap @id (an objective element absent from current at cycle open — DOM-TEST-GAP-SET), it realizes the linked test as a runnable native test in the confirmed framework, RUNS it against the pre-implement code, and RECORDS the observed failure to .mdd/cycles/<N>/test-evidence.yml (command, exit_code, result=fail, excerpt, at) BEFORE /mdd-implement runs. A gap test that PASSES here BLOCKS (vacuous, or the behaviour already exists). The evidence is the runner's own output (not a bare boolean), so 'failed before the code existed' is verifiable, not self-attested. Realized by SEQ-TEST-TDD-LOOP; owned by CMP-TEST-SKILL + CMP-TEST-EVIDENCE.")
+' @id(USE-TEST-RED-GREEN-GATE)
+' @desc(USE-TEST-RED-GREEN-GATE, "The NON-NEGOTIABLE close gate: a cycle closes only when every gap @id shows red->green in .mdd/cycles/<N>/test-evidence.yml — red.exit_code != 0 (observed before code) THEN green.exit_code == 0 (observed after implement + map). This has NO config off-switch (distinct from test.gate, which governs only the green side). A gap test recorded red.result=pass is surfaced as a blocking question (vacuous / behaviour already exists), never silently accepted. A no-gap cycle (pure refactor, empty gap set) has an empty gap_tests and closes with only the green gate — that IS TDD, so 'non-negotiable' means every NEW behaviour proves red->green, not that every cycle invents a failure. Realized by SEQ-TEST-CLOSE-GATE via SEQ-TEST-TDD-LOOP; owned by CMP-TEST-RED-GATE.")
+' @id(USE-MAP-TEST-DISCOVERY)
+' @desc(USE-MAP-TEST-DISCOVERY, "When /mdd-map maps existing code it also DISCOVERS native tests (e.g. #[cfg(test)], tests/, __tests__, test_*.py) and refreshes the unified trace `tests` links, so a brownfield repo starts with real coverage mapped rather than empty. Discovery is additive and structural — it links tests it finds to the model @ids they exercise; it never authors or runs them. Realized by SEQ-TEST-TDD-LOOP; owned by CMP-TEST-EVIDENCE.")
+' @id(USE-TEST-ACCEPTANCE-E2E)
+' @desc(USE-TEST-ACCEPTANCE-E2E, "Use-case (acceptance) tests EXECUTE as Playwright e2e specs keyed to the USE- id, reusing the already-working UI/e2e runner path — there is no separate Gherkin runner. The canonical DOCUMENTATION of what a use case does is DERIVED FROM THE DIAGRAM (the use-case model + its @desc + the sequence it realizes), NOT a .feature file: Gherkin-as-documentation is retired. /mdd-generate authors an executable e2e acceptance spec from the use-case + sequence diagrams and links it at layer e2e/acceptance; any human-readable acceptance description is generated from the diagram, keeping the diagram the single source of truth. Realized by SEQ-TEST-TDD-LOOP; owned by CMP-TEST-SKILL.")
+' Current use cases for Cycle C of diagram-driven tests
+' (docs/proposals/tdd-and-test-assertion.md §9): the non-negotiable
+' red-first TDD loop, brownfield test discovery, and diagram-derived
+' acceptance via Playwright e2e (Gherkin-as-doc retired).
+title MDD diagram-driven tests — red-first TDD (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "TDD cycle" {
+  usecase "Write the failing test\nfrom the diagrams,\nrecord RED\n(/mdd-test)" as Red
+  usecase "Close only on\nred->green evidence\n(non-negotiable)" as Gate
+  usecase "Map discovers native\ntests (brownfield)" as Discover
+  usecase "Acceptance = Playwright e2e;\ndocs derived from diagrams" as Accept
+}
+
+Dev --> Red
+Dev --> Gate
+Dev --> Discover
+Dev --> Accept
+
+Red ..> Gate : <<precedes>>
+
+note bottom of Gate
+  USE-TEST-RED-GREEN-GATE: every gap @id must show
+  fail-then-pass in test-evidence.yml to close. NO
+  off-switch. Empty gap set (refactor) closes on the
+  green gate alone.
+end note
+
+note bottom of Accept
+  USE-TEST-ACCEPTANCE-E2E: use-case tests run as
+  Playwright e2e keyed to USE-; the diagram (+@desc) is
+  the canonical doc. Gherkin-as-documentation retired.
+end note
+@enduml

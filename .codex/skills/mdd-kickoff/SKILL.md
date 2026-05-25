@@ -19,7 +19,7 @@ Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md
 
 2. **Brief + SIGN-OFF GATE.** Write `.mdd/docs/brief.md`: objective/outcome, in-scope, out-of-scope/non-goals, ADR-lite architecture decisions (context, decision, rationale, alternatives), tooling choices, NFRs. Present it and **stop until the developer signs it off.** Generate no model before sign-off.
 
-3. **Generate the full objective.** Run `/mdd-generate` with the agreed brief as the description to produce the **complete** objective model under `.mdd/models/objective/` (every diagram kind, security markers, OCL constraints, test intent).
+3. **Generate the full objective + author the architecture SoT.** Run `/mdd-generate` with the agreed brief as the description to produce the **complete** objective model under `.mdd/models/objective/` (every diagram kind, security markers, OCL constraints, test intent). Then author the **architectural source of truth** from the agreed brief: populate `.mdd/architecture/components.yml` (components + the domain `@id`s they own + dependencies + tech), `.mdd/architecture/decisions.yml` (the founding architecture decisions as `accepted` ADR-as-data entries — append-only thereafter), and `.mdd/architecture/constraints.yml` (cross-cutting rules). See `.mdd/docs/architecture-tracking.md`.
 
 4. **Validate.** Run `/mdd-validate`; fix structural errors until clean.
 

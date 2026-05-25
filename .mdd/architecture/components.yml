@@ -1,0 +1,17 @@
+# Architecture source of truth — components
+#
+# The logical / deployable components of the system and how they fit together.
+# Authored by /mdd-kickoff and kept in sync with the component diagrams under
+# .mdd/models/*/components/ by any agent that changes the architecture.
+# See .mdd/docs/architecture-tracking.md.
+version: 1
+components: []
+# Example (uncomment and fill in):
+# components:
+#   - id: CMP-API              # stable id; align with a component-diagram @id where one exists
+#     name: HTTP API
+#     kind: service            # service | library | datastore | adapter | ui | external
+#     description: Public REST surface.
+#     owns: [DOM-TASK]         # domain @ids this component owns
+#     depends_on: [CMP-DB]
+#     tech: axum

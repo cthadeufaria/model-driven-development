@@ -1,0 +1,19 @@
+# Architecture source of truth — decisions (ADR-as-data)
+#
+# Architecture decisions, APPEND-ONLY: to change a decision, ADD a new entry and
+# mark the old one `status: superseded` with `superseded_by`, rather than
+# rewriting it — so this file is the durable decision history.
+# See .mdd/docs/architecture-tracking.md.
+version: 1
+decisions: []
+# Example (uncomment and fill in):
+# decisions:
+#   - id: AD-0001
+#     title: Use axum for the HTTP layer
+#     status: accepted         # proposed | accepted | superseded | deprecated
+#     date: 2026-01-01
+#     context: Why the decision was needed.
+#     decision: What was decided.
+#     consequences: Resulting trade-offs.
+#     supersedes: null         # AD-id this replaces, if any
+#     superseded_by: null      # AD-id that replaced this, once superseded

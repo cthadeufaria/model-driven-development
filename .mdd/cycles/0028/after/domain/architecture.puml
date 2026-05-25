@@ -1,0 +1,69 @@
+@startuml
+' @id(DOM-ARCH-SPEC)
+' @desc(DOM-ARCH-SPEC, "Implemented as the .mdd/architecture/ yml templates (templates::arch_components_template / arch_decisions_template / arch_constraints_template), scaffolded SeededOnce by mdd init (write_text_create_if_missing) and authored by /mdd-kickoff. components.yml / decisions.yml / constraints.yml are the structured what+why beside the diagrams; decisions are append-only (the file is the history); diffs are git today, a structured mdd arch verb is a follow-up.")
+' Current-side domain for the architectural source of truth (cycle 0028),
+' derived from the implemented .mdd/architecture/ templates + mdd init scaffold.
+title Architecture source of truth (current)
+
+class ArchitectureSpec {
+  + dir : Path
+}
+class Component {
+  + id : String
+  + name : String
+  + kind : ComponentKind
+  + owns : List<Id>
+  + dependsOn : List<Id>
+  + tech : String
+}
+enum ComponentKind {
+  service
+  library
+  datastore
+  adapter
+  ui
+  external
+}
+class Decision {
+  + id : String
+  + title : String
+  + status : DecisionStatus
+  + date : Date
+  + context : String
+  + decision : String
+  + consequences : String
+  + supersedes : String?
+  + supersededBy : String?
+}
+enum DecisionStatus {
+  proposed
+  accepted
+  superseded
+  deprecated
+}
+class Constraint {
+  + id : String
+  + rule : String
+  + appliesTo : List<Id>
+  + rationale : String
+}
+
+ArchitectureSpec "1" o-- "*" Component : components.yml >
+ArchitectureSpec "1" o-- "*" Decision : decisions.yml >
+ArchitectureSpec "1" o-- "*" Constraint : constraints.yml >
+Component --> ComponentKind
+Decision --> DecisionStatus
+
+note bottom of Decision
+  Append-only: a change supersedes a prior decision
+  (supersedes / supersededBy) rather than rewriting
+  it, so decisions.yml IS the decision history
+  (OCL-ARCH-DECISION-HAS-STATUS,
+  OCL-ARCH-SUPERSEDE-LINKED).
+end note
+note bottom of Component
+  owns / dependsOn reference diagram @ids (DOM-/CMP-);
+  components.yml stays in sync with the component
+  diagrams (OCL-ARCH-COMPONENTS-IN-SYNC).
+end note
+@enduml

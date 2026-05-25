@@ -1,0 +1,21 @@
+@startuml
+' @id(USE-TRACK-ARCH)
+' @desc(USE-TRACK-ARCH, "Define and track the architectural source of truth: /mdd-kickoff authors the initial .mdd/architecture/ spec from the agreed brief, and thereafter ANY agent keeps it current — updating components.yml, appending+superseding decisions (never rewriting), and recording cross-cutting constraints — whenever the architecture changes. History is structured + versioned (git today; a structured mdd arch diff/status verb is the planned follow-up). The workflow is documented for agents in .mdd/docs/architecture-tracking.md.")
+' Objective-side use case for tracking the architectural source of truth (cycle 0028).
+title Track the architectural source of truth (objective)
+
+left to right direction
+actor "Developer / Agent" as Agent
+usecase "Define + track the architectural\nsource of truth (.mdd/architecture/)" as Track
+Agent --> Track
+
+note bottom of Track
+  Initially authored by /mdd-kickoff (USE-KICKOFF);
+  thereafter any agent updates the spec on an
+  architectural change. Decisions are append-only
+  (supersede, don't rewrite) so history is durable.
+  Diffs: git today; a structured mdd arch verb next.
+  How-to lives in .mdd/docs/architecture-tracking.md.
+  Realized by SEQ-ARCH-TRACK.
+end note
+@enduml

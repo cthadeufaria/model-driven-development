@@ -111,6 +111,28 @@ links:
   - from: OCL-KICKOFF-BRIEF-SIGNED-OFF
     to: DOM-BRIEF
     relation: constrains
+  # cycle 0028 — architectural source of truth (greenfield-kickoff Cycle C)
+  - from: USE-TRACK-ARCH
+    to: SEQ-ARCH-TRACK
+    relation: realizes
+  - from: USE-TRACK-ARCH
+    to: CMP-ARCH-TRACKING
+    relation: realized_by
+  - from: SEQ-ARCH-TRACK
+    to: DOM-ARCH-SPEC
+    relation: depends_on
+  - from: CMP-ARCH-TRACKING
+    to: DOM-ARCH-SPEC
+    relation: depends_on
+  - from: OCL-ARCH-DECISION-HAS-STATUS
+    to: DOM-ARCH-SPEC
+    relation: constrains
+  - from: OCL-ARCH-SUPERSEDE-LINKED
+    to: DOM-ARCH-SPEC
+    relation: constrains
+  - from: OCL-ARCH-COMPONENTS-IN-SYNC
+    to: DOM-ARCH-SPEC
+    relation: constrains
   - from: SEQ-RENDER-CYCLE-DIFF
     to: DOM-CYCLE-DIFF
     relation: depends_on
@@ -1085,6 +1107,23 @@ source_links:
   - model_id: DOM-BRIEF
     path: crates/mdd-core/src/templates.rs
     symbol: brief
+  # cycle 0028 — architectural source of truth (greenfield-kickoff Cycle C)
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/templates.rs
+    symbol: arch_components_template
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/templates.rs
+    symbol: arch_decisions_template
+  - model_id: DOM-ARCH-SPEC
+    path: crates/mdd-core/src/templates.rs
+    symbol: arch_constraints_template
+  - model_id: CMP-ARCH-TRACKING
+    path: crates/mdd-core/src/templates.rs
+    symbol: architecture_tracking_doc
+  - model_id: CMP-ARCH-TRACKING
+    path: .mdd/docs/architecture-tracking.md
+  - model_id: SEQ-ARCH-TRACK
+    path: .mdd/docs/architecture-tracking.md
   - model_id: CMP-TRACE-GATE
     path: crates/mdd-core/src/lib.rs
     symbol: Project::validate_inner

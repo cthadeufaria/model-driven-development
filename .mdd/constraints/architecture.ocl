@@ -1,0 +1,29 @@
+-- @id(OCL-ARCH-DECISION-HAS-STATUS)
+-- @ref(DOM-ARCH-SPEC)
+-- Every architecture decision in decisions.yml carries one of the four
+-- lifecycle states, so the record is unambiguous and the supersession chain
+-- is well-formed. (Enforcement lands with the architecture tooling cycle;
+-- here it documents the spec's intended shape.)
+context Decision
+inv HasStatus:
+  Set{DecisionStatus::proposed, DecisionStatus::accepted,
+      DecisionStatus::superseded, DecisionStatus::deprecated}
+    ->includes(self.status)
+
+-- @id(OCL-ARCH-SUPERSEDE-LINKED)
+-- @ref(DOM-ARCH-SPEC)
+-- Decisions are append-only: a superseded decision names the decision that
+-- replaced it (and is never deleted or rewritten), so decisions.yml is a
+-- durable history rather than a mutable current-state file.
+context Decision
+inv SupersededNamesSuccessor:
+  self.status = DecisionStatus::superseded implies self.supersededBy->notEmpty()
+
+-- @id(OCL-ARCH-COMPONENTS-IN-SYNC)
+-- @ref(DOM-ARCH-SPEC)
+-- Every diagram @id a component claims to own or depend on resolves to a real
+-- model @id, so components.yml stays in sync with the component/domain
+-- diagrams (the visual view) instead of drifting from them.
+context Component
+inv OwnedIdsResolve:
+  self.owns->union(self.dependsOn)->forAll(id | DiagramModel.ids->includes(id))
