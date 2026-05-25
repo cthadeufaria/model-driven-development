@@ -1,6 +1,6 @@
 version: 1
-last_cycle: 20
-generated_at: "2026-05-25T10:00:00Z"
+last_cycle: 22
+generated_at: "2026-05-25T11:55:00Z"
 files:
   - components/agent-prepare.puml
   - components/cycle-tracking.puml

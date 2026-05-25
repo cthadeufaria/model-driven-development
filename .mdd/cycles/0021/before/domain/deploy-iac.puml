@@ -1,0 +1,172 @@
+@startuml
+' @id(DOM-DEPLOY-IAC)
+' @ref(USE-DEPLOY-GUIDANCE)
+'
+' Current-side domain model of the IaC artifact /mdd-deploy generates, as
+' implemented. Canonical source: crates/mdd-core/src/templates.rs
+' ::MDD_DEPLOY_SKILL (steps 4/5/6/7/8) + .mdd/docs/deploy-profile.md,
+' materialized into .claude/.codex/skills/mdd-deploy/SKILL.md by `mdd init`.
+'
+' CHANGE (cycle 0016): the implemented skill gains a DeploymentPurpose gate
+' and a ResourceAccess completeness gate, and models the previously-missing
+' Deployer (provisioning writer). All gates SURFACE options; none bakes in
+' an answer. Stereotypes are documentation-only; no security-parity markers.
+' Package label is slash-free (PlantUML treats / and .. as separators).
+'
+' @desc(DOM-DEPLOY-IAC, "Implemented in templates::MDD_DEPLOY_SKILL + deploy-profile.md: /mdd-deploy generates IaC under two confirmed gates plus one completeness gate. A DialectChoice (bicep|terraform, confirmed; step 4) and a DeploymentPurpose (dev|staging|prod, confirmed; step 5) BOTH gate artifact creation with no silent default (OCL-DEPLOY-IAC-DIALECT, -CONFIRM-BEFORE-ARTIFACT, -PURPOSE). DeploymentPurpose drives DB tier/redundancy, backup retention and the RECOMMENDED doorway posture but only recommends; the operator confirms and secure-by-default is preserved (OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE). A ResourceAccess gate (step 6) requires every secured store to name a READER and a WRITER, each with an identity and an admitted network path, before the diagram is done; a store read-but-never-written, or a writer with no admitted path, is surfaced as a blocking question (OCL-DEPLOY-IAC-ACCESS-COMPLETE). The previously-missing Deployer principal carries the data-plane write role (Secrets Officer) reaching Key Vault over an admitted path, alongside the app's read-only Secrets User. BicepIaC and TerraformIaC compose the identical secured topology and satisfy the same secure-by-default + migration-order invariants. The skill writes files and STOPS; it never deploys.")
+title /mdd-deploy generated IaC structure (current — adaptive gates)
+
+class DialectChoice <<gate>> {
+  value : {bicep | terraform}
+  confirmed : Boolean
+  rule = exactly one dialect per run
+  rule = no artifact written until confirmed
+  rule = no silent default
+}
+
+class DeploymentPurpose <<gate>> {
+  value : {dev | staging | prod}
+  confirmed : Boolean
+  rule = no silent default (never assume dev- or prod-grade)
+  rule = confirmed before any purpose-driven default
+  drives = DB tier/redundancy, backup retention,
+           RECOMMENDED network/doorway posture
+  rule = RECOMMENDS only; operator confirms;
+         secure-by-default vault posture preserved
+}
+
+class ResourceAccess <<gate>> {
+  scope = every secured store (Key Vault, DB, ACR, remote state)
+  reader = principal + identity + admitted path (runtime)
+  writer = principal + identity + admitted path (provisioning)
+  rule = read AND write both accounted for before "diagram done"
+  rule = read-but-never-written => SURFACE blocking question
+  rule = writer with no admitted path => SURFACE blocking question
+  rule = surface the option (allowlist|in-VNet|tunnel); never bake one in
+}
+
+class Deployer <<principal>> {
+  identity = operator or CI (whoever runs apply)
+  role = Key Vault Secrets Officer (data-plane WRITE)
+  reaches = vault over a network path the posture admits
+}
+
+abstract class IaCArtifact <<artifact>> {
+  target = azure-container-apps (v1, only)
+  generatedBy = /mdd-deploy (writes files, never deploys)
+  appliedBy = operator
+}
+class BicepIaC <<artifact>> {
+  language = Bicep (Azure-native ARM DSL)
+  entrypoint = main.bicep
+  structure = main.bicep + Bicep modules
+  transpilesTo = ARM (Azure Resource Manager) JSON
+  appliedVia = az deployment
+}
+class TerraformIaC <<artifact>> {
+  language = Terraform HCL
+  entrypoint = main.tf
+  structure = main.tf + modules
+  provider = azurerm
+  stateBackend = remote (azurerm backend)
+  appliedVia = terraform plan + apply
+}
+
+class ContainerRegistry <<Azure ACR>>
+class ContainerAppsEnv <<Azure Container Apps>>
+class AppRevision <<Azure Container Apps>> {
+  ingress = 8080 external
+  user = non-root
+  env = NODE_ENV=production
+}
+class PostgresFlexibleServer <<Azure DB for PostgreSQL>> {
+  transport = sslmode=require
+  encryption = at-rest
+  tier = set by DeploymentPurpose (dev: burstable;
+         prod: general-purpose/HA) — surfaced, not assumed
+}
+class KeyVault <<Azure Key Vault>> {
+  holds = every secret (Container Apps secret refs)
+  networkDefaultAction = Deny
+  bypass = AzureServices
+}
+class AzureOpenAI <<Azure OpenAI>>
+class MigrationJob <<Azure Container Apps Job>> {
+  order = before any revision traffic routing
+}
+
+DialectChoice "1" --> "1" IaCArtifact : selects & gates
+DeploymentPurpose "1" --> "1" IaCArtifact : sizes & postures (recommends)
+IaCArtifact <|-- BicepIaC
+IaCArtifact <|-- TerraformIaC
+
+IaCArtifact "1" *-- "1" ContainerRegistry
+IaCArtifact "1" *-- "1" ContainerAppsEnv
+IaCArtifact "1" *-- "1" KeyVault
+IaCArtifact "1" *-- "1" PostgresFlexibleServer
+IaCArtifact "1" *-- "1" AzureOpenAI
+IaCArtifact "1" *-- "1" MigrationJob
+ContainerAppsEnv "1" *-- "1..*" AppRevision
+AppRevision ..> ContainerRegistry : pull image
+AppRevision ..> KeyVault : secret refs <<Secrets User>> (runtime READ)
+AppRevision ..> PostgresFlexibleServer : <<Encrypt>> TLS (sslmode=require)
+AppRevision ..> AzureOpenAI : API key (landmine: NOT managed identity)
+MigrationJob ..> PostgresFlexibleServer : <<Encrypt>> schema migrate
+MigrationJob "1" --> "1" AppRevision : completes BEFORE\ntraffic routing
+
+Deployer ..> KeyVault : set secrets <<Secrets Officer>> (provisioning WRITE)
+ResourceAccess "1" --> "1" KeyVault : completeness check (exemplar)
+
+note bottom of DialectChoice
+  Implemented step 4: mandatory blocking confirmation
+  BEFORE any deploy artifact. Invariants:
+  OCL-DEPLOY-IAC-DIALECT and
+  OCL-DEPLOY-IAC-CONFIRM-BEFORE-ARTIFACT.
+end note
+
+note bottom of DeploymentPurpose
+  Implemented step 5: mandatory blocking confirmation
+  BEFORE any purpose-driven default (DB tier/redundancy,
+  backup retention, recommended doorway). No silent
+  default; never assume prod- or dev-grade. RECOMMENDS
+  only — operator confirms; secure-by-default preserved.
+  Invariants: OCL-DEPLOY-IAC-PURPOSE,
+  OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE.
+end note
+
+note bottom of ResourceAccess
+  Implemented step 6: same read+write+admitted-path
+  completeness applies to EVERY secured store — DB, ACR,
+  remote state — not only Key Vault (the exemplar). A
+  store read but never written, or a writer with no
+  admitted path, is SURFACED as a blocking question, not
+  shipped. Invariant: OCL-DEPLOY-IAC-ACCESS-COMPLETE.
+end note
+
+note bottom of Deployer
+  The previously-missing provisioning WRITER: who puts
+  secrets INTO the vault at deploy time. Holds the
+  data-plane Secrets Officer role and reaches the vault
+  over a path the posture admits — alongside the app's
+  read-only Secrets User. Modeling both is what step 6's
+  ResourceAccess completeness gate enforces.
+end note
+
+note bottom of KeyVault
+  Secure-by-default, identical for BOTH dialects (step 8):
+  when Postgres + Azure OpenAI are private, Key Vault is
+  generated with networkAcls.defaultAction='Deny' +
+  bypass='AzureServices' (or a private endpoint). Any
+  relaxation to admit the writer is an explicit, surfaced
+  decision. Invariant: OCL-DEPLOY-IAC-SECURE-BY-DEFAULT.
+end note
+
+note bottom of IaCArtifact
+  FULL PARITY: BicepIaC and TerraformIaC compose the
+  same secured topology and satisfy the same invariant
+  checklist; only language/structure/state differ.
+  Produced by SEQ-DEPLOY-GUIDANCE; written into
+  CMP-DEPLOY-TARGET. Constrained by
+  OCL-DEPLOY-IAC-SECURE-BY-DEFAULT / -MIGRATION-ORDER.
+end note
+@enduml

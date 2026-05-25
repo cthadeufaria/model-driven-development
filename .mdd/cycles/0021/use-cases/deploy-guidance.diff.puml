@@ -1,0 +1,52 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-DEPLOY-EXECUTE) <<added>> this cycle (0021)
+' @id(USE-DEPLOY-GOLIVE) <<added>> this cycle (0021)
+' Cycle 0021 diff (current side): /mdd-deploy is inverted from
+' guidance-only into a full EXECUTOR. Two gates are added — USE-DEPLOY-
+' EXECUTE (walk the runbook to live traffic, pause only at irreversible
+' steps, halt on error) and USE-DEPLOY-GOLIVE (surface the full billing
+' multi-factor gate before the live cutover). Nothing removed; Guide /
+' Dialect / Purpose / AccessCheck / Inspect are reused.
+title /mdd-deploy becomes an executor · cycle 0021 diff (current)
+
+left to right direction
+
+actor "Operator" as Op
+
+rectangle "mdd toolchain (utility, outside the parity gate)" {
+  usecase "PLAN then EXECUTE an Azure Container\nApps deployment: diagram + IaC +\nrunbook, then run it to live traffic" as Guide
+  usecase "Choose & CONFIRM the IaC dialect\n(Bicep XOR Terraform)" as Dialect
+  usecase "Confirm the deployment PURPOSE\n(dev/staging/prod)" as Purpose
+  usecase "Account for who READS and WRITES\nevery secured store" as AccessCheck
+  usecase "EXECUTE the runbook: manage auth,\ndry-run, apply, provision, migrate, route —\nautonomous except irreversible steps; halt on error" as Execute <<added>>
+  usecase "CONFIRM go-live: surface the full\nproduction billing multi-factor gate\nbefore live-traffic cutover" as GoLive <<added>>
+  usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
+}
+
+Op --> Guide
+Op --> Dialect
+Op --> Purpose
+Op --> AccessCheck
+Op --> Execute
+Op --> GoLive
+Op --> Inspect
+
+Guide ..> Dialect : <<include>>
+Guide ..> Purpose : <<include>>
+Guide ..> AccessCheck : <<include>>
+Guide ..> Execute : <<include>>
+Execute ..> GoLive : <<include>>
+Guide ..> Inspect : <<extend>>
+@enduml

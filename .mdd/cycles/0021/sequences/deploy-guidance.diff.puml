@@ -1,0 +1,43 @@
+@startuml
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-DEPLOY-EXECUTE) <<added>> this cycle (0021) — new sequence block
+' @ref(USE-DEPLOY-EXECUTE)
+' @ref(USE-DEPLOY-GOLIVE)
+' Cycle 0021 diff (current side): SEQ-DEPLOY-GUIDANCE (the plan phase) now
+' hands off to a new SEQ-DEPLOY-EXECUTE block that manages auth, dry-runs,
+' applies, provisions, migrates, and routes traffic — pausing only at
+' irreversible steps and halting on first error. The CLI + LIVE Azure
+' participants are new. Nothing removed.
+title /mdd-deploy execution phase added · cycle 0021 diff (current)
+
+actor "Operator" as Op
+participant "/mdd-deploy\n(skill: plan + executor)" as Dep
+participant "Bash: az, terraform, docker" as CLI <<added>>
+participant "Azure subscription\n(LIVE)" as Az <<added>>
+
+== SEQ-DEPLOY-EXECUTE (RUN) — added cycle 0021 ==
+Dep -> CLI : step 12 — az login + az account set (manage auth)
+opt wrong/ambiguous subscription
+  Dep -> Op : BLOCKING: surface mismatch; STOP
+end
+Dep -> CLI : step 13 — DRY-RUN (terraform plan / az what-if); show diff
+Dep -> Op : step 14 — BLOCKING confirm "apply this plan?"\n(infra apply + secret writes + migration job)
+Op --> Dep : approve
+Dep -> CLI : apply; provision secrets; migrate; deploy revision at 0% traffic
+CLI -> Az : provision + write secrets + schema migrate
+opt any step failed
+  Dep -> Op : HALT — report failing step; run NO further step
+end
+Dep -> Op : step 15 — GO-LIVE: surface full billing multi-factor gate; BLOCKING confirm
+Op --> Dep : confirm go-live
+Dep -> CLI : route 100% traffic (GO LIVE)
+CLI -> Az : live-traffic cutover
+Dep --> Op : step 16 — verify + report (LIVE, or HALTED)
+@enduml

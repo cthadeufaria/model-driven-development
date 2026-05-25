@@ -4,43 +4,49 @@
 ' @id(USE-DEPLOY-DIALECT)
 ' @id(USE-DEPLOY-PURPOSE)
 ' @id(USE-DEPLOY-ACCESS-CHECK)
+' @id(USE-DEPLOY-EXECUTE)
+' @id(USE-DEPLOY-GOLIVE)
 '
 ' Objective-side use cases for the /mdd-deploy utility skill. STANDALONE,
 ' a sibling of /mdd-render: NOT wired into /mdd-cycle, /mdd-map,
-' /mdd-validate, or /mdd-review; never executes a deploy command.
+' /mdd-validate, or /mdd-review (it stays outside the parity gate).
 '
-' CHANGE (cycle 0016): /mdd-deploy is made ADAPTIVE to the class of
-' ambiguity that produced the Key Vault provisioning failure and the
-' dev-vs-prod DB-SKU mismatch. Two new operator-facing gates join the
-' dialect gate, and the existing landmine pause is GENERALIZED:
-'   - USE-DEPLOY-PURPOSE: confirm the deployment purpose (dev/staging/
-'     prod) BEFORE any purpose-driven default (DB tier, redundancy, the
-'     recommended network/doorway posture). No silent default; the skill
-'     SURFACES purpose-appropriate options for the operator to confirm.
-'   - USE-DEPLOY-ACCESS-CHECK: before emitting, account for who READS and
-'     who WRITES every secured store, each with an identity and a network
-'     path the chosen posture actually admits; a store read-but-never-
-'     written, or a writer with no admitted path, is SURFACED as a
-'     blocking question rather than shipped as a complete-looking diagram.
-' Both gates SURFACE the choice; they never bake in an answer (no default
-' allowlist, no default DB tier). The skill still executes nothing.
+' CHANGE (cycle 0021): /mdd-deploy is inverted from guidance-only into a
+' FULL EXECUTOR. It still PLANS first (the dialect/purpose/access gates and
+' the diagram + IaC + runbook are unchanged), then it EXECUTES the runbook
+' end to end — managing cloud auth itself, dry-running, applying,
+' provisioning, migrating, and routing traffic all the way to LIVE. It
+' pauses for confirmation ONLY at irreversible steps and HALTS on the first
+' failed step. Two new gates join the plan-phase gates:
+'   - USE-DEPLOY-EXECUTE: walk the runbook autonomously, blocking only at
+'     irreversible steps (first infra apply, secret writes, migration job,
+'     go-live); halt on first error; new revision at 0% traffic until
+'     health-verified.
+'   - USE-DEPLOY-GOLIVE: before the production billing multi-factor cutover
+'     and traffic routing, surface the FULL gate state and BLOCK for an
+'     explicit operator confirmation — never auto-confirmed.
+' The old "executes nothing / never runs az" non-goal is RETIRED.
 '
-' @desc(USE-DEPLOY-GUIDANCE, "Operator runs /mdd-deploy with a one-line deployment description; the skill produces a UML deployment diagram, secure-by-default generated IaC in the CONFIRMED dialect, and an explicit runbook that preserves the target's security invariants. It pauses with a BLOCKING clarification on ambiguity and on any GENERALIZED landmine — any choice whose correctness depends on a fact not grounded in the inputs it read (now covering the access-path axis: who reaches a secured store; and the purpose axis: dev vs prod — not just the original app-config axis). It SURFACES such gaps and hardened-default trade-offs for the operator to decide instead of jumping to a solution. The skill executes nothing — the human runs the commands.")
+' @desc(USE-DEPLOY-GUIDANCE, "Operator runs /mdd-deploy with a one-line deployment description; the skill PLANS (UML deployment diagram, secure-by-default generated IaC in the CONFIRMED dialect, and an explicit runbook that preserves the target's security invariants) and then EXECUTES that runbook end to end to live traffic — managing cloud auth, dry-running, applying, provisioning secrets, running the pre-traffic migration job, deploying the revision, and routing traffic. It pauses with a BLOCKING clarification on ambiguity and on any GENERALIZED landmine — any choice whose correctness depends on a fact not grounded in the inputs it read (app-config, purpose, access-path axes) — and during execution it pauses ONLY at irreversible steps, halting on the first failed step. It surfaces gaps and hardened-default trade-offs for the operator to decide instead of guessing.")
 ' @desc(USE-DEPLOY-INSPECT, "Operator inspects the generated deployment diagram visually: /mdd-render also rasterizes .mdd/deploy/**/*.puml to .mdd/rendered/deploy/**/*.svg. Additive and non-gating.")
 ' @desc(USE-DEPLOY-DIALECT, "Before any deploy artifact is created, /mdd-deploy resolves the requested IaC dialect (Bicep or Terraform), presents it back, and BLOCKS for an explicit operator confirmation. No silent default; exactly one dialect per run; Terraform enforces the same invariants + secure-by-default posture as Bicep, differing only in structure (main.tf + modules + azurerm provider + remote state backend).")
 ' @desc(USE-DEPLOY-PURPOSE, "Before any purpose-driven default is generated, /mdd-deploy establishes the deployment purpose — dev, staging, or prod — and BLOCKS for explicit operator confirmation, the same discipline as the dialect gate. No silent default: the skill never assumes prod-grade or dev-grade. The confirmed purpose then drives the defaults that hang on it — Azure DB for PostgreSQL tier/redundancy, backup retention, and which network/doorway posture is RECOMMENDED — but the skill surfaces purpose-appropriate options for the operator to confirm; the vault stays most-restrictive by default and any relaxation remains an explicit, surfaced decision (secure-by-default is preserved, not overridden).")
-' @desc(USE-DEPLOY-ACCESS-CHECK, "Before writing the deployment diagram and IaC, /mdd-deploy runs an access-completeness pass over every secured store (Key Vault, the database, the registry, remote state): for each it must name who READS it and who WRITES/provisions it, each with an identity and a network path the chosen posture actually admits. A store that is read but never written (e.g. secrets nobody is shown provisioning), or a writer with no admitted path through a door the skill just locked, is a hole the skill SURFACES as a BLOCKING question — it never ships a diagram that only looks complete. It surfaces the connectivity options (e.g. allowlist / in-VNet / tunnel) framed by the deployment purpose; the operator chooses.")
-title /mdd-deploy deployment guidance — use cases (objective)
+' @desc(USE-DEPLOY-ACCESS-CHECK, "Before writing the deployment diagram and IaC, /mdd-deploy runs an access-completeness pass over every secured store (Key Vault, the database, the registry, remote state): for each it must name who READS it and who WRITES/provisions it, each with an identity and a network path the chosen posture actually admits. A store that is read but never written, or a writer with no admitted path through a door the skill just locked, is a hole the skill SURFACES as a BLOCKING question — it never ships a diagram that only looks complete. It surfaces the connectivity options (e.g. allowlist / in-VNet / tunnel) framed by the deployment purpose; the operator chooses.")
+' @desc(USE-DEPLOY-EXECUTE, "After planning, /mdd-deploy EXECUTES the generated runbook itself: it manages cloud auth (runs az login + selects/verifies the subscription, stopping if it is the wrong one), validates the IaC, runs a dry-run (terraform plan / az what-if) and shows the diff, then walks the runbook steps via Bash (az / terraform / docker). Idempotent and reversible steps (resource-group / ACR create, image build & push, plan/what-if, health checks) run AUTONOMOUSLY; the executor BLOCKS for an explicit operator confirmation only at IRREVERSIBLE steps — the first infra apply, secret writes into Key Vault, the migration job, and go-live. It HALTS on the first failed step (never barrels ahead), and deploys the new revision at 0% traffic until health checks pass so a bad rollout cannot take down the running revision. Constrained by OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY, -HALT-ON-ERROR, -PAUSE-IRREVERSIBLE.")
+' @desc(USE-DEPLOY-GOLIVE, "The single mandatory stop even in full-auto: before routing live traffic and crossing the production billing multi-factor gate, /mdd-deploy surfaces the FULL gate state — ENABLE_PRODUCTION_BILLING, APP_ENV, DATABASE_MARKER, PUBLIC_HOST, APPLE_ENVIRONMENT, App Attest prod identity — and BLOCKS for an explicit operator confirmation. The go-live cutover is NEVER auto-confirmed; the operator confirms a live-money cutover with eyes open. Constrained by OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED.")
+title /mdd-deploy deployment guidance + execution — use cases (objective)
 
 left to right direction
 
 actor "Operator" as Op
 
 rectangle "mdd toolchain (utility, outside the parity gate)" {
-  usecase "Guide an Azure Container Apps\ndeployment via a diagram,\nrunbook, and generated IaC" as Guide
+  usecase "PLAN then EXECUTE an Azure Container\nApps deployment: diagram + IaC +\nrunbook, then run it to live traffic" as Guide
   usecase "Choose & CONFIRM the IaC dialect\n(Bicep XOR Terraform) before any\nartifact is written — no silent default" as Dialect
   usecase "Confirm the deployment PURPOSE\n(dev/staging/prod) before any\npurpose-driven default — no silent default" as Purpose
   usecase "Account for who READS and WRITES\nevery secured store (identity + admitted\npath) before emitting — surface holes" as AccessCheck
+  usecase "EXECUTE the runbook: manage auth,\ndry-run, apply, provision, migrate, route —\nautonomous except irreversible steps; halt on error" as Execute
+  usecase "CONFIRM go-live: surface the full\nproduction billing multi-factor gate\nbefore live-traffic cutover" as GoLive
   usecase "Inspect the generated\ndeployment diagram as SVG" as Inspect
 }
 
@@ -48,26 +54,27 @@ Op --> Guide
 Op --> Dialect
 Op --> Purpose
 Op --> AccessCheck
+Op --> Execute
+Op --> GoLive
 Op --> Inspect
 
 Guide ..> Dialect : <<include>>
 Guide ..> Purpose : <<include>>
 Guide ..> AccessCheck : <<include>>
+Guide ..> Execute : <<include>>
+Execute ..> GoLive : <<include>>
 Guide ..> Inspect : <<extend>>
 
 note bottom of Guide
   v1 target: azure-container-apps (../atlas-ate-server).
-  Reads .mdd/models + the target repo READ-ONLY.
-  PAUSES with a BLOCKING clarification on ambiguity OR
-  a GENERALIZED go-live landmine — any choice whose
-  correctness depends on a fact NOT grounded in the
-  inputs (access-path axis + purpose axis, not just
-  app-config). Surfaces the gap/trade-off instead of
-  jumping to a solution; never a buried runbook STOP
-  note. Writes diagram + runbook + SECURE-BY-DEFAULT
-  IaC in the confirmed dialect, then STOPS. NEVER runs
-  az / docker / terraform / brew.
-  Realized by SEQ-DEPLOY-GUIDANCE.
+  Reads .mdd/models + the target repo READ-ONLY to PLAN,
+  then EXECUTES the runbook to live traffic. PAUSES with a
+  BLOCKING clarification on ambiguity OR a GENERALIZED
+  go-live landmine — any choice whose correctness depends
+  on a fact NOT grounded in the inputs (app-config /
+  purpose / access-path). Now RUNS az / terraform / docker
+  via Bash; the old "executes nothing" non-goal is retired.
+  Realized by SEQ-DEPLOY-GUIDANCE (plan) + SEQ-DEPLOY-EXECUTE (run).
 end note
 
 note bottom of Dialect
@@ -85,8 +92,7 @@ note bottom of Purpose
   doorway) is generated until dev/staging/prod is
   confirmed. No silent default; the skill never assumes
   prod- or dev-grade. Purpose RECOMMENDS; the operator
-  confirms. Secure-by-default is preserved — the vault
-  stays most-restrictive and any relaxation is explicit.
+  confirms. Secure-by-default is preserved.
   Constrained by OCL-DEPLOY-IAC-PURPOSE /
   OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE.
   Realized by SEQ-DEPLOY-GUIDANCE.
@@ -95,14 +101,33 @@ end note
 note bottom of AccessCheck
   Mandatory <<include>>: before emitting, every secured
   store must have a named READER and WRITER, each with
-  an identity and a network path the posture admits.
-  A read-but-never-written store, or a writer with no
-  admitted path, is SURFACED as a blocking question —
-  not shipped as a complete-looking diagram. Surfaces
-  the connectivity options framed by purpose; operator
-  chooses. Constrained by OCL-DEPLOY-IAC-ACCESS-COMPLETE
-  / OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE.
+  an admitted network path. A read-but-never-written
+  store, or a writer with no admitted path, is SURFACED
+  as a blocking question. Constrained by
+  OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.
   Realized by SEQ-DEPLOY-GUIDANCE.
+end note
+
+note bottom of Execute
+  Mandatory <<include>>: after planning, the skill walks
+  the runbook itself. Manages auth (az login + subscription
+  select), dry-runs before any apply, runs idempotent steps
+  AUTONOMOUSLY, and BLOCKS only at irreversible steps
+  (first apply, secret writes, migration, go-live). HALTS
+  on first error; new revision at 0% traffic until verified.
+  Constrained by OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY /
+  -HALT-ON-ERROR / -PAUSE-IRREVERSIBLE.
+  Realized by SEQ-DEPLOY-EXECUTE.
+end note
+
+note bottom of GoLive
+  Mandatory <<include>> of Execute: the ONE stop that is
+  never skipped in full-auto. Surfaces the full production
+  billing multi-factor gate state, then BLOCKS for explicit
+  operator confirmation before the live-traffic cutover.
+  Never auto-confirmed. Constrained by
+  OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED.
+  Realized by SEQ-DEPLOY-EXECUTE.
 end note
 
 note bottom of Inspect

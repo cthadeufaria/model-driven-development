@@ -279,6 +279,40 @@ links:
   - from: OCL-DEPLOY-IAC-SURFACE-NOT-DECIDE
     to: DOM-DEPLOY-IAC
     relation: constrains
+  # Cycle 0021 — deploy skill full executor
+  - from: USE-DEPLOY-EXECUTE
+    to: SEQ-DEPLOY-EXECUTE
+    relation: realizes
+  - from: USE-DEPLOY-GOLIVE
+    to: SEQ-DEPLOY-EXECUTE
+    relation: realizes
+  - from: USE-DEPLOY-EXECUTE
+    to: CMP-DEPLOY-EXEC
+    relation: realized_by
+  - from: USE-DEPLOY-GOLIVE
+    to: CMP-DEPLOY-EXEC
+    relation: realized_by
+  - from: SEQ-DEPLOY-EXECUTE
+    to: CMP-DEPLOY-EXEC
+    relation: depends_on
+  - from: SEQ-DEPLOY-EXECUTE
+    to: DOM-DEPLOY-IAC
+    relation: depends_on
+  - from: CMP-DEPLOY-EXEC
+    to: CMP-DEPLOY-TARGET
+    relation: depends_on
+  - from: OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-EXEC-HALT-ON-ERROR
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE
+    to: DOM-DEPLOY-IAC
+    relation: constrains
+  - from: OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED
+    to: DOM-DEPLOY-IAC
+    relation: constrains
   - from: SEQ-RENDER-DIFF-SVG
     to: DOM-RENDER-ENGINE
     relation: depends_on
@@ -446,6 +480,19 @@ links:
     relation: constrains
   - from: OCL-INIT-MIGRATE-PRESERVES
     to: DOM-STATE-MIGRATION
+    relation: constrains
+  # Cycle 0022 — init scaffolds the Ralph workspace (seeded-once PLAN.md)
+  - from: USE-INIT-RALPH
+    to: SEQ-INIT-SCAFFOLD
+    relation: realizes
+  - from: USE-INIT-RALPH
+    to: CMP-INIT-ENGINE
+    relation: realized_by
+  - from: SEQ-INIT-SCAFFOLD
+    to: DOM-INIT-SEED-ONCE
+    relation: depends_on
+  - from: OCL-INIT-SEED-ONCE
+    to: DOM-INIT-SEED-ONCE
     relation: constrains
   - from: USE-OPEN-RENDER
     to: SEQ-OPEN-RENDER
@@ -732,6 +779,22 @@ source_links:
     symbol: MDD_RENDER_SKILL
   - model_id: CMP-DEPLOY-PROFILE-DOC
     path: .mdd/docs/deploy-profile.md
+  - model_id: USE-DEPLOY-EXECUTE
+    path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-EXECUTE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: USE-DEPLOY-GOLIVE
+    path: .claude/skills/mdd-deploy/SKILL.md
+  - model_id: USE-DEPLOY-GOLIVE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: SEQ-DEPLOY-EXECUTE
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
+  - model_id: CMP-DEPLOY-EXEC
+    path: crates/mdd-core/src/templates.rs
+    symbol: MDD_DEPLOY_SKILL
   - model_id: USE-VIEW-DEPLOY
     path: crates/mdd-viewer/src/lib.rs
     symbol: MddViewer
@@ -923,6 +986,22 @@ source_links:
   - model_id: CMP-INIT-ENGINE
     path: crates/mdd-core/src/lib.rs
     symbol: InitReport
+  # cycle 0022 — init scaffolds the Ralph workspace (seeded-once PLAN.md)
+  - model_id: DOM-INIT-SEED-ONCE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_text_create_if_missing
+  - model_id: USE-INIT-RALPH
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_text_create_if_missing
+  - model_id: USE-INIT-RALPH
+    path: crates/mdd-core/src/templates.rs
+    symbol: ralph_prompt
+  - model_id: USE-INIT-RALPH
+    path: crates/mdd-core/src/templates.rs
+    symbol: ralph_plan
+  - model_id: CMP-INIT-ENGINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::write_text_create_if_missing
   # cycle 0020 — agent CLI wiring + mockups in /mdd-map
   - model_id: USE-AGENT-PREPARE
     path: crates/mdd-cli/src/main.rs

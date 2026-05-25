@@ -1,11 +1,11 @@
 # MDD Deploy Profile
 
 `/mdd-deploy` is a **utility skill, not a workflow gate** — a sibling of
-`/mdd-render`. It guides a deployment by producing a UML deployment diagram, a
-copy-pasteable command runbook, and generated Infrastructure-as-Code. It never
-executes a deploy command, and nothing it writes participates in the
-`current ↔ objective` parity gate. `/mdd-validate`, `/mdd-review`, and the
-`/mdd-cycle` parity loop never read `.mdd/deploy/`.
+`/mdd-render`. It PLANS a deployment (a UML deployment diagram, a runbook, and
+generated Infrastructure-as-Code) and then EXECUTES that runbook all the way to
+live traffic. Nothing it writes participates in the `current ↔ objective`
+parity gate. `/mdd-validate`, `/mdd-review`, and the `/mdd-cycle` parity loop
+never read `.mdd/deploy/`.
 
 A UML deployment diagram has no code-derived counterpart (topology lives in
 infrastructure, not application source), so it could never reach parity — by
@@ -15,10 +15,11 @@ design it is kept out of the gate.
 
 - `.mdd/deploy/<target>/diagram.puml` — a true UML **deployment** diagram:
   nodes, the deployed artifact, and annotated communication paths/protocols.
-- `.mdd/deploy/<target>/runbook.md` — ordered, numbered steps. Every step
-  states the exact command, the directory / cloud context to run it in, and the
-  required env/secret values. A **STOP / confirm** marker precedes every
-  state-changing or go-live step.
+- `.mdd/deploy/<target>/runbook.md` — ordered, numbered steps that double as
+  the **execution plan the skill walks itself**. Every step states the exact
+  command, the directory / cloud context to run it in, and the required
+  env/secret values. A **STOP / confirm** marker precedes every irreversible or
+  go-live step; idempotent steps run autonomously.
 - The generated IaC in the **operator-confirmed dialect** (Bicep or
   Terraform — exactly one per run), written into the **target repo**
   (cross-repo output is fine because the skill is non-gated guidance).
@@ -220,11 +221,46 @@ Three axes recur (the list grows as new shapes appear):
 The general rule subsumes all three: surface the ungrounded choice; never
 ship a confident default in its place.
 
+## Execution model — the skill runs the runbook
+
+After the plan phase writes the diagram + IaC + runbook, `/mdd-deploy`
+**executes the runbook itself**, all the way to live traffic. The runbook
+is the ordered execution plan; the skill walks it via Bash (`az`,
+`terraform`, `docker`). Five rules govern execution:
+
+- **Manage auth.** The skill runs `az login` and selects/verifies the
+  subscription. A wrong or ambiguous subscription is a landmine — surface
+  it and STOP, never guess.
+- **Dry-run before any apply.** `terraform plan` / `az deployment what-if`
+  runs and the diff is shown before any apply. No apply without a prior
+  dry-run (`OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY`).
+- **Pause only at irreversible steps.** Idempotent / reversible steps
+  (resource-group + ACR create, image build & push, plan/what-if, health
+  checks) run autonomously. The operator confirms only at irreversible
+  steps — batched as one "apply this plan?" gate covering the infra apply,
+  the Key Vault secret writes, and the pre-traffic migration job
+  (`OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE`). The operator may split those into
+  separate confirms, but none runs unconfirmed.
+- **Halt on the first failed step.** A failed command stops execution; no
+  later step runs (`OCL-DEPLOY-EXEC-HALT-ON-ERROR`). The new revision
+  deploys at 0% traffic and is health-checked first, so a bad rollout
+  cannot displace the running revision.
+- **Go-live is never auto-confirmed.** Before routing live traffic the
+  skill surfaces the full production billing multi-factor gate state
+  (`ENABLE_PRODUCTION_BILLING`, `APP_ENV`, `DATABASE_MARKER`,
+  `PUBLIC_HOST`, `APPLE_ENVIRONMENT`, App Attest prod identity) and BLOCKS
+  for explicit confirmation. It is the one stop full-auto never skips
+  (`OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED`).
+
+Execution is **agent-driven Bash**, not a new `mdd` CLI verb, and stays
+outside the parity gate exactly as the plan phase does.
+
 ## Known tradeoff (not auto-changed)
 
 "Migrations before traffic" (invariant 6) is enforced **procedurally** —
-an ordered pre-traffic migration job plus a runbook STOP — not as an
-infrastructure interlock the platform could enforce structurally. This
-weaker pattern is a documented, accepted tradeoff for v1. The skill
-surfaces it here rather than silently choosing it, but does not
-auto-change it; tightening it into a true interlock is deferred.
+the executor runs an ordered pre-traffic migration job (behind the apply
+confirmation) before routing traffic — not as an infrastructure interlock
+the platform could enforce structurally. This weaker pattern is a
+documented, accepted tradeoff for v1. The skill surfaces it here rather
+than silently choosing it, but does not auto-change it; tightening it into
+a true interlock is deferred.

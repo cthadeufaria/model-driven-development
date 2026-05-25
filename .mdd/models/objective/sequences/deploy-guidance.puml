@@ -1,112 +1,126 @@
 @startuml
 ' @id(SEQ-DEPLOY-GUIDANCE)
 ' @id(SEQ-DEPLOY-INSPECT)
+' @id(SEQ-DEPLOY-EXECUTE)
 ' @ref(USE-DEPLOY-GUIDANCE)
 ' @ref(USE-DEPLOY-INSPECT)
 ' @ref(USE-DEPLOY-DIALECT)
 ' @ref(USE-DEPLOY-PURPOSE)
 ' @ref(USE-DEPLOY-ACCESS-CHECK)
+' @ref(USE-DEPLOY-EXECUTE)
+' @ref(USE-DEPLOY-GOLIVE)
 '
-' Objective-side runtime flow of the standalone /mdd-deploy utility
-' skill. Guidance-only: it writes artifacts and a runbook then STOPS;
-' it never executes a deployment command.
+' Objective-side runtime flow of the /mdd-deploy utility skill. Two
+' phases: PLAN (SEQ-DEPLOY-GUIDANCE) writes the diagram + IaC + runbook,
+' then EXECUTE (SEQ-DEPLOY-EXECUTE) runs that runbook to live traffic.
 '
-' CHANGE (cycle 0016): two adaptive gates and a generalized landmine
-' pause are inserted BEFORE artifacts are written:
-'   - deployment-purpose confirmation (dev/staging/prod) gates every
-'     purpose-driven default; no silent default.
-'   - an access-completeness pass over every secured store checks that
-'     both a READER and a WRITER are named, each with an identity and a
-'     network path the chosen posture admits; holes are SURFACED as
-'     blocking questions, never shipped as a complete-looking diagram.
-' Both gates SURFACE options for the operator; they never bake in an
-' answer. The landmine pause now triggers on ANY choice whose
-' correctness depends on a fact not grounded in the inputs read.
+' CHANGE (cycle 0021): the skill no longer stops after writing artifacts.
+' The plan phase ends by handing off to a new execution phase that manages
+' auth, dry-runs, applies, provisions, migrates, and routes traffic —
+' pausing only at irreversible steps and halting on the first failed step.
 '
-' @desc(SEQ-DEPLOY-GUIDANCE, "How /mdd-deploy turns a one-line description into deployment guidance: validate target=azure-container-apps, read MDD models + the target repo read-only, STOP for a blocking clarification on ambiguity OR a GENERALIZED go-live landmine (any choice whose correctness depends on a fact not grounded in the inputs — access-path + purpose axes, not just app-config), CONFIRM the IaC dialect AND the deployment purpose (dev/staging/prod; no silent default) before writing anything, run an ACCESS-COMPLETENESS pass over every secured store (named reader + writer, each with an identity and an admitted network path; surface holes as blocking questions), then write the deployment diagram, generate secure-by-default IaC in the confirmed dialect sized/postured for the confirmed purpose (surfaced, not assumed), write the STOP-gated runbook, and report — executing nothing.")
+' @desc(SEQ-DEPLOY-GUIDANCE, "PLAN phase. How /mdd-deploy turns a one-line description into a deployment plan: validate target=azure-container-apps, read MDD models + the target repo read-only, STOP for a blocking clarification on ambiguity OR a GENERALIZED go-live landmine, CONFIRM the IaC dialect AND the deployment purpose (dev/staging/prod; no silent default) before writing anything, run an ACCESS-COMPLETENESS pass over every secured store, write the deployment diagram, generate secure-by-default IaC in the confirmed dialect sized for the confirmed purpose, write the runbook — then HAND OFF to SEQ-DEPLOY-EXECUTE to run it.")
 ' @desc(SEQ-DEPLOY-INSPECT, "How /mdd-render rasterizes .mdd/deploy/**/*.puml to its deterministic .mdd/rendered/deploy/**/*.svg mirror so the deployment diagram is inspectable like every other diagram. Additive, non-gating.")
-title /mdd-deploy guidance and inspection (objective)
+' @desc(SEQ-DEPLOY-EXECUTE, "EXECUTE phase. How /mdd-deploy runs the generated runbook to live traffic: it manages cloud auth (az login + selects/verifies the subscription, stopping on mismatch), validates the IaC and runs a DRY-RUN (terraform plan / az what-if) showing the diff, then walks the runbook via Bash (az/terraform/docker). Idempotent/reversible steps run autonomously; the executor BLOCKS for confirmation only at irreversible steps — one APPLY gate covering infra apply + secret writes + the pre-traffic migration job — then deploys the new revision at 0% traffic and health-checks it. The GO-LIVE gate surfaces the full production billing multi-factor state and BLOCKS before routing live traffic; it is never auto-confirmed. Execution HALTS on the first failed step. Realizes USE-DEPLOY-EXECUTE + USE-DEPLOY-GOLIVE; constrained by OCL-DEPLOY-EXEC-*.")
+title /mdd-deploy plan, execute, and inspection (objective)
 
 actor "Operator" as Op
-participant "/mdd-deploy\n(utility skill)" as Dep
+participant "/mdd-deploy\n(skill: plan + executor)" as Dep
 participant ".mdd/models/\ncomponents + use-cases" as Models
 participant "../atlas-ate-server\n(target repo, read-only)" as Target
 database ".mdd/deploy/\nazure-container-apps/" as Store
 participant "../atlas-ate-server/\ninfra/ (generated IaC)" as Infra
+participant "Bash: az, terraform, docker" as CLI
+participant "Azure subscription\n(LIVE)" as Az
 participant "/mdd-render" as Render
 database ".mdd/rendered/deploy/" as Rendered
 
-== SEQ-DEPLOY-GUIDANCE ==
+== SEQ-DEPLOY-GUIDANCE (PLAN) ==
 Op -> Dep : /mdd-deploy <deployment description>
-alt target != azure-container-apps
+alt target is not azure-container-apps
   Dep --> Op : not yet supported (v1 = azure-container-apps only); stop
-else target == azure-container-apps
+else target is azure-container-apps
   Dep -> Models : read components + use-cases (the "what")
   Dep -> Target : read README, Dockerfile, docker-compose.yml,\n.env.example, src (READ-ONLY)
-  opt ambiguity OR a GENERALIZED landmine — any choice whose correctness\ndepends on a fact NOT grounded in the inputs (access-path / purpose / app-config)
+  opt ambiguity OR a GENERALIZED landmine (app-config, purpose, or access-path)
     Dep -> Op : BLOCKING clarification (same discipline as /mdd-cycle);\nSURFACE the gap, never bury it as a runbook STOP note
     Op --> Dep : decision
   end
 
-  group MANDATORY dialect confirmation — BEFORE any artifact (USE-DEPLOY-DIALECT)
-    Dep -> Dep : resolve requested IaC dialect (Bicep | Terraform) — exactly one
+  group MANDATORY dialect confirmation, BEFORE any artifact (USE-DEPLOY-DIALECT)
     Dep -> Op : BLOCKING confirm: "generate <dialect> IaC?"\n(unspecified/unconfirmed -> STOP, write nothing)
     Op --> Dep : confirmed dialect
   end
-
-  group MANDATORY deployment-purpose confirmation — BEFORE purpose-driven defaults (USE-DEPLOY-PURPOSE)
-    Dep -> Dep : resolve deployment purpose (dev | staging | prod)\n— NO silent default; never assume prod- or dev-grade
+  group MANDATORY deployment-purpose confirmation (USE-DEPLOY-PURPOSE)
     Dep -> Op : BLOCKING confirm purpose + SURFACE purpose-appropriate\noptions (DB tier/redundancy, recommended doorway)
     Op --> Dep : confirmed purpose + choices
-    note right of Dep
-      Purpose RECOMMENDS the sizing/posture; the operator
-      confirms. Secure-by-default is preserved — the vault
-      stays most-restrictive; any relaxation is explicit.
-      OCL-DEPLOY-IAC-PURPOSE / -SURFACE-NOT-DECIDE.
-    end note
   end
-
-  group ACCESS-COMPLETENESS pass — BEFORE any artifact (USE-DEPLOY-ACCESS-CHECK)
-    loop each secured store (Key Vault, DB, ACR, remote state)
-      Dep -> Dep : name READER + WRITER; each needs an identity\nand a network path the chosen posture ADMITS
-      opt read-but-never-written, OR a writer with no admitted path
-        Dep -> Op : BLOCKING: SURFACE the hole + connectivity options\n(allowlist / in-VNet / tunnel), framed by purpose
-        Op --> Dep : choice (never auto-decided by the skill)
-      end
+  group ACCESS-COMPLETENESS pass, BEFORE any artifact (USE-DEPLOY-ACCESS-CHECK)
+    Dep -> Dep : name READER + WRITER for every secured store;\neach needs an identity and an admitted network path
+    opt read-but-never-written, OR a writer with no admitted path
+      Dep -> Op : BLOCKING: SURFACE the hole + connectivity options
+      Op --> Dep : choice (never auto-decided by the skill)
     end
-    note right of Dep
-      The diagram is not "done" until every secured store has
-      BOTH a reader and a writer with an admitted path. A
-      complete-looking diagram with a missing write path is
-      exactly the failure this gate prevents.
-      OCL-DEPLOY-IAC-ACCESS-COMPLETE / -SURFACE-NOT-DECIDE.
-    end note
   end
 
-  Dep -> Store : write diagram.puml (UML deployment diagram; shows BOTH the\nruntime read path AND the provisioning write path; doc-only stereotypes)
-  alt confirmed dialect == Bicep
+  Dep -> Store : write diagram.puml + runbook.md
+  alt confirmed dialect is Bicep
     Dep -> Infra : generate SECURE-BY-DEFAULT infra/main.bicep (+ modules)
-  else confirmed dialect == Terraform
+  else confirmed dialect is Terraform
     Dep -> Infra : generate SECURE-BY-DEFAULT infra/main.tf (+ modules):\nazurerm provider + remote state backend
   end
-  note right of Infra
-    FULL PARITY regardless of dialect: Container Apps, ACR,
-    Azure DB for PostgreSQL (TLS; tier set by the confirmed
-    purpose), Key Vault (Deny + bypass=AzureServices when
-    peers private) + BOTH role grants (reader Secrets User,
-    writer Secrets Officer), secret refs, ingress 8080,
-    pre-traffic migration job. Hardening that creates a new
-    requirement (e.g. a locked vault) surfaces the doorway,
-    never bakes one in.
-  end note
-  Dep -> Store : write runbook.md (numbered steps; exact command, location,\nenv/secret; STOP before every state-changing or go-live step)
-  note right of Dep
-    Enforces every atlas-ate-server invariant identically for
-    either dialect. Caveat: migrations-before-traffic stays
-    procedural (documented v1 tradeoff, not auto-changed).
-  end note
-  Dep --> Op : report written files; review the diagram\nand run the runbook yourself. Executes NOTHING.
+  Dep -> Dep : HAND OFF to SEQ-DEPLOY-EXECUTE (run the runbook)
 end
+
+== SEQ-DEPLOY-EXECUTE (RUN) ==
+note over Dep
+  Precondition: the PLAN phase produced diagram + IaC + runbook.
+  The runbook is now the EXECUTION PLAN the skill walks itself.
+end note
+group AUTH — managed by the skill (USE-DEPLOY-EXECUTE)
+  Dep -> CLI : az login (interactive device/browser)
+  CLI --> Op : complete the auth handshake
+  Op --> Dep : authenticated
+  Dep -> CLI : az account set --subscription <target>
+  opt wrong or ambiguous subscription
+    Dep -> Op : BLOCKING: surface the subscription mismatch; STOP
+  end
+end
+group PREFLIGHT — DRY-RUN before any apply (OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY)
+  Dep -> CLI : validate IaC (terraform validate / az bicep build)
+  Dep -> CLI : DRY-RUN (terraform plan / az deployment what-if)
+  CLI --> Dep : plan diff
+  Dep -> Op : show the diff
+end
+group EXECUTE — autonomous except irreversible; HALT on first error (OCL-DEPLOY-EXEC-HALT-ON-ERROR)
+  Dep -> CLI : resource group + ACR create; docker build + push (idempotent, AUTONOMOUS)
+  Dep -> Op : BLOCKING confirm — APPLY this plan?\n(one gate covering infra apply + secret writes + migration job)
+  Op --> Dep : approve (OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE)
+  Dep -> CLI : apply infra (terraform apply / az deployment create)
+  CLI -> Az : provision Container Apps, ACR, Postgres, Key Vault, OpenAI
+  Dep -> CLI : provision secrets (az keyvault secret set)
+  CLI -> Az : write secrets into Key Vault
+  Dep -> CLI : run migration job (completes BEFORE traffic)
+  CLI -> Az : schema migrate
+  Dep -> CLI : deploy new revision at 0% traffic; health-check
+  opt any step failed
+    Dep -> Op : HALT — report the failing step; run NO further step
+  end
+end
+group GO-LIVE — never auto-confirmed (USE-DEPLOY-GOLIVE / OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED)
+  Dep -> Op : SURFACE full billing multi-factor gate state\n(ENABLE_PRODUCTION_BILLING, APP_ENV, DATABASE_MARKER,\nPUBLIC_HOST, APPLE_ENVIRONMENT, App Attest prod); BLOCKING confirm
+  Op --> Dep : confirm go-live
+  Dep -> CLI : route 100% traffic to the new revision (GO LIVE)
+  CLI -> Az : live-traffic cutover
+end
+Dep -> CLI : verify ingress responds + revision healthy
+Dep --> Op : report — deployed and LIVE, or HALTED at the failing step
+note over Az
+  New revision deploys at 0% traffic and is health-checked
+  BEFORE the go-live cutover, so a bad rollout cannot take
+  down the running revision. The billing gate is never
+  auto-flipped — GO-LIVE is the one stop full-auto never skips.
+end note
 
 == SEQ-DEPLOY-INSPECT ==
 Op -> Render : /mdd-render

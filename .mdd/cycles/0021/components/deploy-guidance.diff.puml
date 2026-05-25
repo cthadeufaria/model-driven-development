@@ -1,0 +1,42 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam cloud {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam folder {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-DEPLOY-EXEC) <<added>> this cycle (0021)
+' Cycle 0021 diff (current side): the skill gains an execution engine —
+' agent-driven Bash running az / terraform / docker against the LIVE Azure
+' subscription, walking the generated runbook. Still outside the parity
+' gate. Nothing removed; the skill / store / target / render / profile-doc
+' components are reused.
+title /mdd-deploy execution engine added · cycle 0021 diff (current)
+
+actor "Operator" as Op
+
+component "/mdd-deploy\n(skill: plan + executor)" as Skill
+component "execution engine\n(agent -> Bash: az / terraform / docker)" as Exec <<added>>
+folder ".mdd/deploy/azure-container-apps/\ndiagram.puml, runbook.md" as Store
+folder "../atlas-ate-server/\ninfra/ (Bicep or Terraform)" as Target
+cloud "Azure subscription\n(LIVE)" as Az <<added>>
+
+Op --> Skill : /mdd-deploy <description>
+Skill --> Store : write diagram.puml + runbook.md (plan)
+Skill --> Target : generate infra/ (plan)
+Skill --> Exec : drive execution (walk the runbook)
+Exec --> Store : read runbook.md as the execution plan
+Exec --> Target : apply infra/ (terraform apply / az deployment)
+Exec --> Az : auth, apply, provision secrets, migrate, route traffic
+Op ..> Exec : auth handshake + confirm irreversible steps & go-live
+@enduml

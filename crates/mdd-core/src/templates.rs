@@ -42,8 +42,13 @@ pub const WORKFLOW_SKILLS: &[SkillTemplate] = &[
     },
     SkillTemplate {
         name: "mdd-deploy",
-        description: "Utility: guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect + deployment purpose). Surfaces ungrounded ambiguity — access paths, dev/prod sizing — instead of guessing; never executes deploy commands; outside the parity gate",
+        description: "Utility: PLAN then EXECUTE an Azure Container Apps deployment — generates a UML deployment diagram, runbook, and Bicep or Terraform IaC (operator-confirmed dialect + purpose), then runs the runbook to live traffic: manages auth, dry-runs, applies, provisions, migrates, and routes traffic, pausing only at irreversible steps and a never-auto-confirmed go-live gate; halts on first error. Surfaces ungrounded ambiguity instead of guessing; outside the parity gate",
         body: MDD_DEPLOY_SKILL,
+    },
+    SkillTemplate {
+        name: "mdd-ralph",
+        description: "Utility: run the Ralph loop — an unattended self-paced loop (driven by /loop) that picks one highest-priority item from a plan pointer (.mdd/ralph/PLAN.md by default; any source may write it) each iteration, routes it to the right MDD skill or general tools, and must pass the parity gate before committing; runs on a feature branch, exits on RALPH-DONE; outside the parity gate, on-demand",
+        body: MDD_RALPH_SKILL,
     },
 ];
 
@@ -68,6 +73,14 @@ pub fn security_profile_doc() -> &'static str {
 
 pub fn deploy_profile_doc() -> &'static str {
     MDD_DEPLOY_PROFILE_DOC
+}
+
+pub fn ralph_prompt() -> &'static str {
+    RALPH_PROMPT
+}
+
+pub fn ralph_plan() -> &'static str {
+    RALPH_PLAN
 }
 
 pub fn claude_entrypoint() -> &'static str {
@@ -370,11 +383,11 @@ Rendered SVGs, approvals, and acceptance-test gaps are readiness warnings — re
 
 const MDD_DEPLOY_SKILL: &str = r#"# MDD Deploy
 
-You are an MDD, UML, PlantUML, and OCL specialist for deployment guidance.
+You are an MDD, UML, PlantUML, and OCL specialist for deployment planning and execution.
 
-This is a **utility skill, NOT a workflow gate** — a sibling of `/mdd-render`. It produces a UML deployment diagram, generated Infrastructure-as-Code, and an explicit command runbook for a human to run. It **never executes a deploy command** (no `az`, `docker`, `terraform`, `brew`, …). `/mdd-validate`, `/mdd-implement`, `/mdd-review`, and the `/mdd-cycle` parity loop do not depend on it and never read `.mdd/deploy/`.
+This is a **utility skill, NOT a workflow gate** — a sibling of `/mdd-render`. It PLANS a deployment (a UML deployment diagram, generated Infrastructure-as-Code, and an explicit runbook) **and then EXECUTES that runbook all the way to live traffic** — managing cloud auth, dry-running, applying, provisioning secrets, running the migration, and routing traffic, via `az` / `terraform` / `docker`. `/mdd-validate`, `/mdd-implement`, `/mdd-review`, and the `/mdd-cycle` parity loop do not depend on it and never read `.mdd/deploy/`. A deployment has no code-derived counterpart, so executing it (not merely guiding it) does not pull it into the parity gate.
 
-Read `.mdd/docs/deploy-profile.md` first — it defines the deployment-diagram conventions, the `azure-container-apps` node vocabulary, the invariant checklist, the deployment-purpose and access-completeness gates, and the generalized landmine rule this skill must preserve.
+Read `.mdd/docs/deploy-profile.md` first — it defines the deployment-diagram conventions, the `azure-container-apps` node vocabulary, the invariant checklist, the deployment-purpose and access-completeness gates, the generalized landmine rule, and the **execution model** (auth, dry-run, the autonomous-vs-irreversible step classification, halt-on-error, and the go-live gate) this skill must preserve.
 
 ## The adaptive habit (read before the steps)
 
@@ -383,9 +396,11 @@ Most of this skill's failures share one shape: it confidently generates somethin
 - **Ground before you generate.** Every choice whose correctness depends on a fact must trace to an input you actually read (`.mdd/models`, the target repo, the operator's answers). If it is a default you filled in, it is ungrounded — **surface it, do not bake it in.** This is the generalized landmine rule (step 3); it covers the app-config axis (a default vs. shipped code), the **purpose axis** (dev vs. prod — step 5), the **access-path axis** (who reaches a secured store — step 6), and any other axis with the same shape.
 - **Every secured store has two ends, and a locked door needs a key-holder who can reach it.** For each secured resource you draw, ask: who **reads** it, who **writes / provisions** it, and — after any hardening you apply — can each still reach it? A store read but never written, or a writer with no admitted path, is an incomplete diagram, not a finished one (step 6).
 
-Where any of this is undetermined, **pause and surface the choice** for the operator — never jump to a solution. A paused, correct deployment beats a fast, broken one.
+Where any of this is undetermined, **pause and surface the choice** for the operator — never jump to a solution. A paused, correct deployment beats a fast, broken one. **This discipline extends into execution: pause at every irreversible step and halt on the first failure rather than barrel ahead.**
 
-## Workflow
+## Workflow — Phase A: PLAN (steps 1-10)
+
+The plan phase produces the artifacts (diagram + IaC + runbook) under the gates below; it is unchanged from the guidance-only skill. Phase B then executes the runbook.
 
 1. Read the deployment description. v1 supports exactly one target: `azure-container-apps` (the sibling repo `../atlas-ate-server`). If any other target is requested, say it is not yet supported and stop. Also read which **IaC dialect** is requested — exactly one of `bicep` or `terraform` per run (these are the only supported dialects).
 2. Read context, **read-only**: `.mdd/models/**/{components,use-cases}/*.puml` (the *what* of the system) and the target repo `../atlas-ate-server` (`README.md`, `Dockerfile`, `docker-compose.yml`, `.env.example`, `src/`) to ground the topology and security invariants in reality.
@@ -397,26 +412,40 @@ Where any of this is undetermined, **pause and surface the choice** for the oper
 8. Generate the IaC in the **confirmed dialect only** (one per run), into the target repo `../atlas-ate-server/infra/`:
    - **Bicep** → `infra/main.bicep` (+ Bicep modules).
    - **Terraform** → `infra/main.tf` (+ Terraform modules), the `azurerm` provider, and a **remote state backend** (`backend "azurerm"`).
-   Either dialect declares the identical resource set: Container Apps, ACR, Azure Database for PostgreSQL (TLS required; **tier sized to the confirmed purpose** from step 5), Key Vault + secret references, external ingress on `8080`, and the database migration as a separate Container Apps job run before traffic routing. Emit **every access grant the step-6 pass surfaced** — the reader's read-only role AND the writer / deployer's write role — plus whatever connectivity the operator chose. Cross-repo output is fine — the skill is non-gated guidance. **Secure-by-default network posture — full parity, identical for both dialects**: automatable hardening is not a deferred human decision. Never emit a secret or data store more openly network-reachable than its peers; choose the most restrictive network posture consistent with the connectivity the runbook actually requires — **runtime AND provisioning** — and relax it only via the explicit, surfaced decision from step 6. Concretely for the v1 target, when Postgres and Azure OpenAI are private, Key Vault must default to the most restrictive posture — Bicep `networkAcls.defaultAction: 'Deny'` + `bypass: 'AzureServices'`, the Terraform equivalent `network_acls { default_action = Deny, bypass = AzureServices }` (or a private endpoint) — never public network access with an `Allow` default. See `.mdd/docs/deploy-profile.md` ("Secure-by-default").
-9. Write `.mdd/deploy/azure-container-apps/runbook.md`: numbered steps for the confirmed dialect, each with the exact command, the directory / Azure context to run it in, the required env/secret values, and an explicit **STOP / confirm** marker before every state-changing or go-live step. The secret-provisioning step must state the two real preconditions surfaced in step 6 — the deployer holds the data-plane write role AND has a network path the posture admits — and note the role-assignment propagation delay. Frame it explicitly as "run these yourself".
+   Either dialect declares the identical resource set: Container Apps, ACR, Azure Database for PostgreSQL (TLS required; **tier sized to the confirmed purpose** from step 5), Key Vault + secret references, external ingress on `8080`, and the database migration as a separate Container Apps job run before traffic routing. Emit **every access grant the step-6 pass surfaced** — the reader's read-only role AND the writer / deployer's write role — plus whatever connectivity the operator chose. Cross-repo output is fine — the skill is non-gated. **Secure-by-default network posture — full parity, identical for both dialects**: automatable hardening is not a deferred human decision. Never emit a secret or data store more openly network-reachable than its peers; choose the most restrictive network posture consistent with the connectivity the runbook actually requires — **runtime AND provisioning** — and relax it only via the explicit, surfaced decision from step 6. Concretely for the v1 target, when Postgres and Azure OpenAI are private, Key Vault must default to the most restrictive posture — Bicep `networkAcls.defaultAction: 'Deny'` + `bypass: 'AzureServices'`, the Terraform equivalent `network_acls { default_action = Deny, bypass = AzureServices }` (or a private endpoint) — never public network access with an `Allow` default. See `.mdd/docs/deploy-profile.md` ("Secure-by-default").
+9. Write `.mdd/deploy/azure-container-apps/runbook.md`: numbered steps for the confirmed dialect, each with the exact command, the directory / Azure context to run it in, the required env/secret values, and an explicit **STOP / confirm** marker before every irreversible or go-live step. The secret-provisioning step must state the two real preconditions surfaced in step 6 — the deployer holds the data-plane write role AND has a network path the posture admits — and note the role-assignment propagation delay. These STOP markers are exactly the points where Phase B pauses for confirmation; the idempotent steps between them the executor runs autonomously.
 10. Enforce, in the diagram and the runbook, **identically regardless of the confirmed dialect**, every `../atlas-ate-server` invariant from `.mdd/docs/deploy-profile.md`: Key-Vault-only secrets, App Attest required, the billing production multi-factor gate, BYOK never touching the server, DB TLS + at-rest encryption, the pre-traffic migration job, non-root container, port `8080` ingress.
-11. Report the written files. Do **NOT** execute anything. Tell the user to review the diagram and run the runbook themselves. `/mdd-render` rasterizes `.mdd/deploy/**/*.puml` to `.mdd/rendered/deploy/**/*.svg` for visual inspection.
+11. **Plan complete — proceed to execution.** The runbook you just wrote is now the **execution plan you walk yourself** (Phase B). Do not stop here. (`/mdd-render` rasterizes `.mdd/deploy/**/*.puml` to `.mdd/rendered/deploy/**/*.svg` for visual inspection at any time.)
 
-## Secure-by-default, purpose, access-completeness & landmines
+## Workflow — Phase B: EXECUTE the runbook
 
-These obligations strengthen what the skill does *within* its guidance-only role (full rationale and worked examples in `.mdd/docs/deploy-profile.md`):
+Walk the runbook top to bottom via Bash (`az`, `terraform`, `docker`). Two rules govern the whole phase:
+
+- **Halt on the first failed step.** If any command fails, STOP, report the failing step and its output, and run no further step. Never barrel ahead on a broken deploy. (OCL-DEPLOY-EXEC-HALT-ON-ERROR)
+- **Pause only at irreversible steps.** Idempotent / reversible steps (resource-group + ACR create, image build & push, `plan` / `what-if`, validation, health checks) run **autonomously**; the operator confirms only at irreversible steps. (OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE)
+
+12. **Manage auth yourself.** Run `az login` (interactive device/browser — the operator completes the handshake) and `az account set --subscription <target>`, then **verify** the active subscription is the intended one. If it is wrong or ambiguous, **STOP and surface it** — do not guess the subscription (it is a landmine).
+13. **Preflight — dry-run before any apply.** Validate the IaC (`terraform validate` / `az bicep build`), then run the **dry-run** (`terraform plan` / `az deployment ... what-if`) and show the operator the diff. **No apply may run without a prior dry-run.** (OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY)
+14. **Execute the irreversible core behind ONE confirm.** Run the autonomous steps (RG/ACR create, image build & push) silently, then **STOP for one blocking confirmation — "apply this plan?"** — covering the infra apply, the Key Vault secret writes, and the pre-traffic migration job (all shown by the dry-run diff). On approval, in order: `terraform apply` / `az deployment create`; provision secrets (`az keyvault secret set`); run the migration job (it must complete **before** any traffic); deploy the new revision at **0% traffic** and health-check it, so a bad rollout cannot displace the running revision. (If the operator prefers, confirm secrets / migration separately — but never run them unconfirmed.)
+15. **Go-live gate — never auto-confirmed.** Before routing live traffic, **surface the full production billing multi-factor gate state** (`ENABLE_PRODUCTION_BILLING`, `APP_ENV`, `DATABASE_MARKER`, `PUBLIC_HOST=api.atlas.codes`, `APPLE_ENVIRONMENT`, App Attest prod identity, …) and **STOP for an explicit go-live confirmation**. This is the one stop full-auto never skips; the billing gate is never auto-flipped. On confirmation, route 100% traffic to the new revision. (OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED)
+16. **Verify and report.** Confirm ingress responds and the revision is healthy; report what was deployed and that it is live — or, if execution halted, the failing step and its output. Execution honors every `../atlas-ate-server` invariant from step 10 (Key-Vault-only secrets, App Attest, the billing gate, migration-before-traffic, TLS, non-root, port 8080) identically for either dialect.
+
+## Secure-by-default, purpose, access-completeness, landmines & execution safety
+
+These obligations strengthen what the skill does across both phases (full rationale and worked examples in `.mdd/docs/deploy-profile.md`):
 
 - **IaC dialect confirmation is a mandatory blocking pause** — Bicep XOR Terraform, one per run, explicitly confirmed before any deploy artifact is written (step 4). No silent default.
 - **Deployment-purpose confirmation is a mandatory blocking pause** — dev / staging / prod, confirmed before any purpose-driven default (step 5). No silent default; purpose *recommends* sizing and posture, the operator confirms.
 - **Access-completeness is a mandatory pass** — every secured store needs a named reader AND writer, each with a network path the chosen posture admits, before the diagram is "done" (step 6). A read-but-never-written store, or a writer locked out by your own hardening, is surfaced — never shipped as a complete-looking diagram.
 - **Secure-by-default IaC** — the most restrictive network posture consistent with the connectivity the runbook actually requires, runtime AND provisioning (step 8), identically for whichever dialect was confirmed; no store may be left more openly reachable than its peers. Hardening that creates a new requirement (a locked vault needs a writer path) surfaces the doorway; it never bakes one in and never silently relaxes.
 - **Generalized landmine detection is a mandatory blocking pause** — any choice whose correctness depends on a fact NOT grounded in the inputs is a go-live landmine, across the app-config, purpose, and access-path axes alike (step 3). Surface it as a blocking question; never demote it to a buried runbook STOP note.
+- **Execution safety is mandatory** — a dry-run precedes every apply (step 13); execution halts on the first failed step; only irreversible steps are confirmation-gated while idempotent steps run autonomously (step 14); the go-live cutover is never auto-confirmed and always surfaces the full billing gate state (step 15); the new revision deploys at 0% traffic until health-verified. These replace "never execute" as the safety story.
 
-Caveat: "migrations before traffic" is enforced procedurally (an ordered pre-traffic migration job + a runbook STOP), not as an infrastructure interlock. That is a documented, accepted v1 tradeoff — surfaced in the profile, not auto-changed here.
+Caveat: "migrations before traffic" is still enforced procedurally — the executor runs an ordered pre-traffic migration job before routing traffic, behind the apply confirmation — not as an infrastructure interlock. That is a documented, accepted v1 tradeoff — surfaced in the profile, not auto-changed here.
 
-This sharpens the skill's diligence; it does not change the non-goal. The skill still **never executes a deploy command** — step 11 is report-and-stop.
+The skill now **executes** the deployment — managing auth, applying, provisioning, and routing traffic to live — instead of stopping at a runbook. The safety that once came from "never execute" now comes from the execution-safety obligations above.
 
-Deploy guidance is not a gate.
+Deploy execution is not a gate.
 "#;
 
 const MDD_WORKFLOW_DOC: &str = r#"# MDD Workflow
@@ -802,6 +831,92 @@ class UserInput <<BufferOverflow>> {
 - Refs resolve **within the same side**: never write a `@ref(USE-X)` inside `current/` and expect it to resolve to an objective `USE-X`.
 "#;
 
+const MDD_RALPH_SKILL: &str = r#"# MDD Ralph
+
+You are an MDD, UML, PlantUML, and OCL specialist running the **Ralph loop** over this repo.
+
+This is a **utility skill, NOT a workflow gate** — a sibling of `/mdd-render` and `/mdd-deploy`. It does not open a cycle, does not gate `/mdd-validate`, `/mdd-implement`, `/mdd-review`, or the `/mdd-cycle` parity loop, and nothing reads a Ralph-specific state tree. It is launched on demand to grind a backlog to completion unattended.
+
+Ralph (after Geoffrey Huntley's technique) is, at its core, `while :; do cat PROMPT.md | agent; done`: each iteration the agent picks **the single most important unfinished thing**, does exactly that one thing, validates, commits, and loops. Here the loop driver is the native **`/loop`** skill, the per-iteration prompt is `.mdd/ralph/PROMPT.md`, and the action vocabulary is **the whole MDD toolbox plus general tools**.
+
+## How to launch
+
+1. **Confirm the plan pointer.** Ralph consumes a plan file but never owns its source — *anything* can write it (the objective-vs-current model gap, a hand-written backlog, an issue export, another agent). Default pointer: `.mdd/ralph/PLAN.md`. Ask the user which plan path to point Ralph at if not the default.
+2. **Confirm the branch.** Ralph is unattended and commits each loop. Ralph is a greenfield-leaning technique applied to a mature repo, so **run it on a feature branch, never on `main`.** If the current branch is `main`, create one first.
+3. **Launch via `/loop`, self-paced**, feeding `.mdd/ralph/PROMPT.md` as the recurring input with the resolved `$PLAN_PATH`. The loop runs each iteration to completion, then re-fires itself.
+4. **Exit** when the prompt emits `RALPH-DONE` (plan has no unfinished items) — stop the loop.
+
+## The contract the loop must honor (do not relax)
+
+- **One item per iteration.** Pick the single highest-priority unfinished item from the plan. Do not batch. This is context-window discipline — degradation is real well before the advertised window.
+- **Route, don't hardcode.** Choose the action that best advances the chosen item: `/mdd-cycle` for a feature/change from a description; `/mdd-map` when diagrams drifted from code; `/mdd-generate` when the objective is wrong/missing; `/mdd-implement` then `/mdd-map` for a targeted code gap with intent already agreed; `/mdd-render` or `/mdd-deploy` for inspection/infra items; general tools (Read, Grep, Bash, Edit) for everything else.
+- **The parity gate is the only backpressure — it is mandatory.** Full-unattended + free tool choice means a bare `/mdd-implement` or raw `Edit` could drift the models from the code with nothing to catch it. So: **no iteration commits until `/mdd-validate` AND `/mdd-review` pass.** If the iteration used `/mdd-cycle`, that gate already ran; otherwise run it explicitly before committing. Never loosen `.mdd/config.yml` to `warn` to get past it.
+- **Don't assume — search first.** Before implementing, search `current/` and the code so you don't re-build something that exists. Fan search/read out to `Explore`/`Agent` subagents; keep build/validate serialized (Ralph's "many search subagents, one build subagent") to protect the main context.
+- **Full unattended for modeling/implementation — but irreversible actions still stop.** Resolve ordinary modeling/implementation ambiguity yourself and keep going (a deliberate exception to the standing clarify-before-deciding rule; the parity gate is the safety net that makes it acceptable). This does **not** extend to irreversible or outward-facing actions: a `/mdd-deploy` apply / provision / migration or the **never-auto-confirmed** go-live cutover, force-pushes, deletes, and publishing to external services still pause for explicit human confirmation. The parity gate is backpressure for code; a human is still the gate for go-live.
+- **Update the plan and commit every iteration.** Check off the done item, append any bugs discovered mid-flight (even if unrelated), commit with a clear message. A bad unattended iteration is recoverable: abort the cycle / `git reset --hard` on the branch.
+- **Self-tune.** When you learn a better build/run/validate command, record it in `AGENTS.md` / `CLAUDE.md` so later iterations inherit it.
+
+## Stop conditions
+
+- Plan has no unfinished items -> emit `RALPH-DONE`, stop.
+- The parity gate cannot be made to pass for the chosen item after a reasonable attempt -> record the blocker in the plan, skip the item, continue. If every remaining item is blocked -> emit `RALPH-DONE` with the blocked list, stop.
+"#;
+
+const RALPH_PROMPT: &str = r#"# Ralph loop — per-iteration prompt
+
+You are running one iteration of the **Ralph loop** for this repo. The plan pointer for this run is `$PLAN_PATH` (default: `.mdd/ralph/PLAN.md`). Read `.claude/skills/mdd-ralph/SKILL.md` for the full contract; this file is the per-loop instruction.
+
+Do **exactly one** iteration, then return so the loop can re-fire.
+
+## This iteration
+
+1. **Read the plan** at `$PLAN_PATH` and the objective models under `.mdd/models/objective/`. If the plan has no unfinished items, emit `RALPH-DONE` and stop the loop.
+2. **Pick the single highest-priority unfinished item.** One item. No batching.
+3. **Search before assuming.** Verify it isn't already implemented — search `current/` and the code, fanning reads out to `Explore`/`Agent` subagents. Keep build/validate serialized.
+4. **Route to the right action** for that one item:
+   - feature/change from a description -> `/mdd-cycle "<item>"`
+   - diagrams drifted from code -> `/mdd-map`, then re-plan
+   - objective spec wrong/missing -> `/mdd-generate`
+   - targeted code gap, intent already agreed -> `/mdd-implement` then `/mdd-map`
+   - inspection / infra -> `/mdd-render` or `/mdd-deploy`
+   - anything else -> general tools (Read, Grep, Bash, Edit)
+5. **Pass the parity gate — mandatory before commit.** If you did not run `/mdd-cycle` (which gates internally), run `/mdd-validate` and `/mdd-review` now and make them pass. Do not commit on a gate failure; do not loosen `.mdd/config.yml`.
+6. **Update the plan and commit.** Check off the completed item in `$PLAN_PATH`, append any bugs found mid-flight, and commit with a clear message. If the gate can't be made to pass after a reasonable attempt, record the blocker, skip the item, and continue. If every remaining item is blocked, emit `RALPH-DONE` with the blocked list and stop.
+7. **Self-tune** if you learned a better build/run/validate command: record it in `AGENTS.md` / `CLAUDE.md`.
+
+## Rules (do not break)
+
+- Full unattended for **modeling and implementation** decisions: resolve ordinary ambiguity yourself, never pause for it. The parity gate is the safety net.
+- **BUT still stop for irreversible / outward-facing actions.** Full-unattended never overrides these — anything hard to undo or that publishes externally needs explicit human confirmation: a `/mdd-deploy` apply / provision / migration / go-live cutover (the go-live gate is **never** auto-confirmed), force-pushes, deletes, or sending to an external service. Pause and ask for these even though everything else runs unattended.
+- Never commit to `main`; this loop runs on a feature branch.
+- One item per iteration — context discipline.
+"#;
+
+const RALPH_PLAN: &str = r#"# Ralph plan
+
+> **Contract.** This is the plan pointer Ralph consumes — the default `$PLAN_PATH`.
+> *Anything* may write it: the objective-vs-current model gap, a hand-written backlog,
+> an issue-tracker export, or another agent. Ralph **only consumes and updates** it —
+> it never owns the source. Point Ralph at a different file by passing `$PLAN_PATH`.
+>
+> **Format.** A priority-ordered checklist. Highest priority first. Ralph takes the
+> single topmost unfinished `- [ ]` item each iteration, completes it through the
+> parity gate, then checks it off `- [x]`. Bugs found mid-flight get appended as new
+> unfinished items. When no unfinished items remain, Ralph emits `RALPH-DONE`.
+
+## Items
+
+<!-- Replace with real backlog items, highest priority first. Examples: -->
+<!-- - [ ] <feature/change described well enough for /mdd-generate or /mdd-cycle> -->
+<!-- - [ ] <drift fix: "re-map <area>, diagrams lag the code"> -->
+
+(no items yet — populate before launching Ralph)
+
+## Blocked
+
+<!-- Ralph moves items here, with a one-line reason, when the parity gate can't be made to pass. -->
+"#;
+
 const CLAUDE_ENTRYPOINT: &str = r#"# Claude Code MDD Entry Point
 
 This repository uses agent-first MDD. Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md`.
@@ -821,7 +936,8 @@ Orchestration skill (runs the whole loop from one description):
 Utility skills (on demand, not a workflow gate):
 
 - `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
-- `/mdd-deploy` — guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect, one per run); never executes deploy commands; outside the parity gate.
+- `/mdd-deploy` — plan then EXECUTE an Azure Container Apps deployment: generates a UML deployment diagram, runbook, and Bicep or Terraform IaC (operator-confirmed dialect + purpose), then runs the runbook to live traffic — managing auth, dry-running, applying, provisioning, migrating, and routing traffic, pausing only at irreversible steps and a never-auto-confirmed go-live gate, halting on first error; outside the parity gate.
+- `/mdd-ralph` — run the Ralph loop: an unattended, self-paced loop (driven by `/loop`) that takes one highest-priority item per iteration from a plan pointer (`.mdd/ralph/PLAN.md` by default; any source may write it), routes it to the right MDD skill or general tools, and must pass the parity gate before committing. Runs on a feature branch, never `main`; exits on `RALPH-DONE`; outside the parity gate.
 
 ## Session start: diagrams-first
 
@@ -846,7 +962,8 @@ Codex and other agents should use the project skills in `.codex/skills/`:
 - `/mdd-review` — strict structural match between current and objective; emits annotated diff PUMLs on mismatch.
 - `/mdd-cycle` — orchestration: run the whole loop from one description; owns the cycle boundary, loops to parity, pauses for clarification.
 - `/mdd-render` — utility: render PlantUML diagrams to SVG for external visual inspection.
-- `/mdd-deploy` — utility: guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect, one per run); never executes deploy commands; outside the parity gate.
+- `/mdd-deploy` — utility: plan then EXECUTE an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect + purpose); runs the runbook to live traffic, pausing only at irreversible steps + a never-auto-confirmed go-live gate and halting on first error; outside the parity gate.
+- `/mdd-ralph` — utility: run the Ralph loop — an unattended, self-paced loop (driven by `/loop`) that takes one highest-priority item per iteration from a plan pointer (`.mdd/ralph/PLAN.md` by default; any source may write it), routes it to the right MDD skill or general tools, and must pass the parity gate before committing; runs on a feature branch, exits on `RALPH-DONE`; outside the parity gate.
 
 ## Session start: diagrams-first
 

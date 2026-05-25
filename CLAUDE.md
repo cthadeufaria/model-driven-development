@@ -1,5 +1,5 @@
 <!-- mdd:begin -->
-<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"claude-entrypoint","content_sha256":"80a669791c32cb3530bb670fc742a5838e349a25cbb45ed845ba1ed6531b2c08"} -->
+<!-- mdd:meta {"tool":"mdd","schema":1,"kind":"claude-entrypoint","content_sha256":"2559025839e0b0634ba9019dab5cc51ec7d60e80eee536a67689a391d114b63d"} -->
 # Claude Code MDD Entry Point
 
 This repository uses agent-first MDD. Start by reading `.mdd/docs/mdd-workflow.md` and `.mdd/docs/uml-and-ocl-guide.md`.
@@ -19,7 +19,8 @@ Orchestration skill (runs the whole loop from one description):
 Utility skills (on demand, not a workflow gate):
 
 - `/mdd-render` — render PlantUML diagrams to SVG for external visual inspection.
-- `/mdd-deploy` — guide an Azure Container Apps deployment via a UML deployment diagram, runbook, and generated Bicep or Terraform IaC (operator-confirmed dialect, one per run); never executes deploy commands; outside the parity gate.
+- `/mdd-deploy` — plan then EXECUTE an Azure Container Apps deployment: generates a UML deployment diagram, runbook, and Bicep or Terraform IaC (operator-confirmed dialect + purpose), then runs the runbook to live traffic — managing auth, dry-running, applying, provisioning, migrating, and routing traffic, pausing only at irreversible steps and a never-auto-confirmed go-live gate, halting on first error; outside the parity gate.
+- `/mdd-ralph` — run the Ralph loop: an unattended, self-paced loop (driven by `/loop`) that takes one highest-priority item per iteration from a plan pointer (`.mdd/ralph/PLAN.md` by default; any source may write it), routes it to the right MDD skill or general tools, and must pass the parity gate before committing. Runs on a feature branch, never `main`; exits on `RALPH-DONE`; outside the parity gate.
 
 ## Session start: diagrams-first
 

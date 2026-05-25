@@ -12,6 +12,15 @@
 -- path) before the diagram is "done", and surfaces choices rather than
 -- baking in an answer. Secure-by-default + migration-order still hold
 -- identically for either dialect (full parity).
+--
+-- Objective (cycle 0021): /mdd-deploy no longer writes files and stops —
+-- it EXECUTES the runbook to live traffic. Four execution-safety
+-- invariants govern the new RunbookExecution / DryRun / GoLiveGate
+-- concepts: a dry-run must precede any apply, execution halts on the
+-- first failed step, only irreversible steps are confirmation-gated
+-- (idempotent steps run autonomously), and the go-live cutover is never
+-- auto-confirmed. These still document the intended contract: /mdd-deploy
+-- remains outside the parity / security gate.
 
 -- @id(OCL-DEPLOY-IAC-DIALECT)
 -- @ref(DOM-DEPLOY-IAC)
@@ -74,3 +83,42 @@ inv SurfaceChoicesNeverBakeInAnAnswer:
   -- specific answer (no default IP allowlist, no default DB tier) and
   -- never silently relaxes secure-by-default.
   self.purposeDrivenDefaultsSurfaced and not self.bakesInAnswer
+
+-- @id(OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY)
+-- @ref(DOM-DEPLOY-IAC)
+context RunbookExecution
+inv DryRunBeforeAnyApply:
+  -- A plan/what-if (terraform plan / az deployment what-if) must be
+  -- produced and shown before any apply runs. No apply without a prior,
+  -- approved dry-run.
+  self.applyExecuted implies self.dryRunProducedAndApproved
+
+-- @id(OCL-DEPLOY-EXEC-HALT-ON-ERROR)
+-- @ref(DOM-DEPLOY-IAC)
+context RunbookExecution
+inv HaltsOnFirstFailedStep:
+  -- Execution stops at the first failed step; no later step runs. The
+  -- skill never barrels ahead on a broken deploy.
+  self.stepFailed implies not self.laterStepRan
+
+-- @id(OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE)
+-- @ref(DOM-DEPLOY-IAC)
+context RunbookExecution
+inv PauseOnlyAtIrreversibleSteps:
+  -- Every irreversible step (first infra apply, secret writes, the
+  -- migration job, go-live) is confirmation-gated; idempotent/reversible
+  -- steps run autonomously. This is the "pause only at irreversible
+  -- steps" rule.
+  self.irreversibleSteps->forAll(s | s.operatorConfirmed)
+    and self.reversibleSteps->forAll(s | s.autonomous)
+
+-- @id(OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED)
+-- @ref(DOM-DEPLOY-IAC)
+context GoLiveGate
+inv GoLiveNeverAutoConfirmed:
+  -- The production billing / live-traffic cutover requires explicit
+  -- operator confirmation that surfaces the full multi-factor gate state
+  -- (ENABLE_PRODUCTION_BILLING, APP_ENV, DATABASE_MARKER, PUBLIC_HOST,
+  -- APPLE_ENVIRONMENT, App Attest prod identity). Never auto-confirmed.
+  self.trafficRouted implies
+    (self.operatorConfirmed and self.fullGateStateSurfaced)
