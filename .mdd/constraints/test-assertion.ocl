@@ -48,3 +48,31 @@ context GreenGateReport
 inv StillRedBlocksUnderError:
   (self.all_green = false and TestConfig.gate = ParityMode::Error)
     implies self.blocking = true
+
+-- @id(OCL-TEST-RED-EVIDENCE-RECORDED)
+-- @ref(DOM-TEST-EVIDENCE)
+-- NON-NEGOTIABLE. Every gap @id (an objective element absent from current at
+-- cycle open) must have a gap_tests entry in .mdd/cycles/<N>/test-evidence.yml
+-- whose red phase was observed FAILING (exit_code != 0) before its implementing
+-- code. The evidence is the runner's own output, not a heuristic. No config
+-- disables this (USE-TEST-RED-PHASE).
+context GapTest
+inv RedObservedBeforeCode:
+  self.isGap implies
+    (self.red->notEmpty() and self.red.result = TestPhaseResult::Fail
+     and self.red.exit_code <> 0)
+
+-- @id(OCL-TEST-RED-THEN-GREEN-TO-CLOSE)
+-- @ref(DOM-TEST-EVIDENCE)
+-- NON-NEGOTIABLE. A cycle closes only when every gap @id shows fail THEN pass:
+-- red.result = Fail then green.result = Pass (exit_code == 0). This has no
+-- config off-switch — distinct from test.gate, which governs only the green
+-- side (USE-TEST-RED-GREEN-GATE). An empty gap set (pure refactor) closes on
+-- the green gate alone; non-negotiable means every NEW behaviour proves
+-- red->green, not that every cycle invents a failure.
+context RedGreenReport
+inv RedThenGreenRequiredToClose:
+  self.satisfied = true implies
+    (self.missing_evidence->isEmpty()
+     and self.not_red_first->isEmpty()
+     and self.still_red->isEmpty())

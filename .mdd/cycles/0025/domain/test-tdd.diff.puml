@@ -1,0 +1,39 @@
+@startuml
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(DOM-TEST-EVIDENCE) <<added>> this cycle (0025)
+' @id(DOM-TEST-PHASE-RECORD) <<added>> this cycle (0025)
+' Cycle 0025 diff (current side): the red->green evidence artifact and its
+' per-phase record. All added; none removed.
+title MDD diagram-driven tests — red->green evidence · cycle 0025 diff (current)
+
+enum TestPhaseResult <<added>> {
+  Fail
+  Pass
+}
+class PhaseRecord <<added>> {
+  + command : String
+  + exit_code : i32
+  + result : TestPhaseResult
+  + excerpt : String
+  + at : String
+}
+class GapTest <<added>> {
+  + id : String
+  + model_id : String
+  + layer : TestLayer
+  + red : Option<PhaseRecord>
+  + green : Option<PhaseRecord>
+}
+class TestEvidence <<added>> {
+  + version : u32
+  + cycle : String
+  + gap_tests : Vec<GapTest>
+}
+
+TestEvidence "1" o-- "*" GapTest : records >
+GapTest "1" --> "0..1" PhaseRecord : red/green >
+PhaseRecord ..> TestPhaseResult : result >
+@enduml

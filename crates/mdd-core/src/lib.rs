@@ -207,6 +207,63 @@ pub struct GreenGateReport {
     pub blocking: bool,
 }
 
+/// The result of running a gap test in one phase (part of DOM-TEST-PHASE-RECORD).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum TestPhaseResult {
+    Fail,
+    Pass,
+}
+
+/// One observation of running a gap test (DOM-TEST-PHASE-RECORD): the runner's
+/// own command, exit code, result, and a captured output excerpt — not a bare
+/// boolean, so a recorded RED is hard to fabricate without actually running.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct PhaseRecord {
+    pub command: String,
+    pub exit_code: i32,
+    pub result: TestPhaseResult,
+    #[serde(default)]
+    pub excerpt: String,
+    #[serde(default)]
+    pub at: String,
+}
+
+/// One gap test's red→green record (part of DOM-TEST-EVIDENCE). The red phase
+/// writes `red`; the green step writes `green`.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct GapTest {
+    pub id: String,
+    pub model_id: String,
+    pub layer: TestLayer,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub red: Option<PhaseRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub green: Option<PhaseRecord>,
+}
+
+/// The per-cycle red→green evidence artifact (DOM-TEST-EVIDENCE),
+/// `.mdd/cycles/<N>/test-evidence.yml`. Its shape is validated deterministically;
+/// the fail/pass results are produced by agent-Bash running the tests.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct TestEvidence {
+    pub version: u32,
+    pub cycle: String,
+    #[serde(default)]
+    pub gap_tests: Vec<GapTest>,
+}
+
+/// The non-negotiable red→green verdict (CMP-TEST-RED-GATE). `satisfied` is
+/// true only when every gap @id shows fail-then-pass; the three buckets name
+/// exactly why it is not. No config disables this gate.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct RedGreenReport {
+    pub satisfied: bool,
+    pub missing_evidence: Vec<String>,
+    pub not_red_first: Vec<String>,
+    pub still_red: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct SecurityConfig {
     #[serde(default)]
@@ -1081,6 +1138,71 @@ impl Project {
             blocking: !all_green && gate == ParityMode::Error,
             still_red,
         })
+    }
+
+    /// Read `.mdd/cycles/<cycle>/test-evidence.yml` if present (CMP-TEST-EVIDENCE).
+    /// Returns `None` when the file is absent (a no-gap or pre-Cycle-C cycle).
+    pub fn read_test_evidence(&self, cycle: &str) -> Result<Option<TestEvidence>> {
+        let path = self
+            .mdd_dir()
+            .join("cycles")
+            .join(cycle)
+            .join("test-evidence.yml");
+        if !path.exists() {
+            return Ok(None);
+        }
+        let raw = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        let evidence: TestEvidence = serde_yaml::from_str(&raw)
+            .with_context(|| format!("malformed test-evidence.yml at {}", path.display()))?;
+        Ok(Some(evidence))
+    }
+
+    /// The non-negotiable red→green verdict (CMP-TEST-RED-GATE). Given the
+    /// evidence and the cycle's gap @id set, `satisfied` is true only when every
+    /// gap id has an entry whose `red` failed (exit != 0) and `green` passed
+    /// (exit == 0). No config switch — this is distinct from `test.gate` (which
+    /// governs only the green side). An empty `gap_ids` is vacuously satisfied
+    /// (a pure refactor closes on the green gate alone).
+    pub fn evaluate_red_green_gate(
+        &self,
+        evidence: Option<&TestEvidence>,
+        gap_ids: &[String],
+    ) -> RedGreenReport {
+        let mut missing_evidence = Vec::new();
+        let mut not_red_first = Vec::new();
+        let mut still_red = Vec::new();
+
+        for id in gap_ids {
+            let entry = evidence.and_then(|e| e.gap_tests.iter().find(|g| &g.id == id));
+            match entry {
+                None => missing_evidence.push(id.clone()),
+                Some(g) => {
+                    let red_failed = matches!(
+                        &g.red,
+                        Some(r) if r.result == TestPhaseResult::Fail && r.exit_code != 0
+                    );
+                    let green_passed = matches!(
+                        &g.green,
+                        Some(gr) if gr.result == TestPhaseResult::Pass && gr.exit_code == 0
+                    );
+                    if !red_failed {
+                        not_red_first.push(id.clone());
+                    }
+                    if !green_passed {
+                        still_red.push(id.clone());
+                    }
+                }
+            }
+        }
+        RedGreenReport {
+            satisfied: missing_evidence.is_empty()
+                && not_red_first.is_empty()
+                && still_red.is_empty(),
+            missing_evidence,
+            not_red_first,
+            still_red,
+        }
     }
 
     /// Resolve the framework for an authored UI test from the test profile
@@ -2820,6 +2942,60 @@ impl Project {
                             errors.push(msg);
                         } else {
                             warnings.push(msg);
+                        }
+                    }
+                }
+            }
+        }
+
+        // test-evidence.yml shape check (CMP-TEST-EVIDENCE): when a cycle dir
+        // carries one, it must parse and every gap entry must be well-formed —
+        // a present red failed (exit != 0), a present green passed (exit == 0),
+        // and the model_id is known. The fail/pass values themselves are
+        // produced by agent-Bash; this gates only the SHAPE.
+        let cycles_dir = self.mdd_dir().join("cycles");
+        if cycles_dir.is_dir() {
+            let mut cycle_dirs: Vec<_> = fs::read_dir(&cycles_dir)
+                .with_context(|| format!("failed to read {}", cycles_dir.display()))?
+                .filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.is_dir())
+                .collect();
+            cycle_dirs.sort();
+            for dir in cycle_dirs {
+                let ev_path = dir.join("test-evidence.yml");
+                if !ev_path.exists() {
+                    continue;
+                }
+                let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+                let raw = fs::read_to_string(&ev_path).unwrap_or_default();
+                match serde_yaml::from_str::<TestEvidence>(&raw) {
+                    Err(e) => errors.push(format!(
+                        "test-evidence.yml in cycle {name} is malformed: {e}"
+                    )),
+                    Ok(evidence) => {
+                        for g in &evidence.gap_tests {
+                            if !all_ids.contains(&g.model_id) {
+                                errors.push(format!(
+                                    "test-evidence.yml (cycle {name}) gap test {} references unknown model ID {}",
+                                    g.id, g.model_id
+                                ));
+                            }
+                            if let Some(r) = &g.red
+                                && (r.result != TestPhaseResult::Fail || r.exit_code == 0)
+                            {
+                                errors.push(format!(
+                                    "test-evidence.yml (cycle {name}) gap test {}: red phase must be a failure (result=fail, exit_code != 0)",
+                                    g.id
+                                ));
+                            }
+                            if let Some(gr) = &g.green
+                                && (gr.result != TestPhaseResult::Pass || gr.exit_code != 0)
+                            {
+                                errors.push(format!(
+                                    "test-evidence.yml (cycle {name}) gap test {}: green phase must be a pass (result=pass, exit_code == 0)",
+                                    g.id
+                                ));
+                            }
                         }
                     }
                 }
@@ -6684,5 +6860,92 @@ mod tests {
         // all green -> not blocking regardless of gate.
         let green = vec![TestRunResult { id: "UT-A".to_string(), exit_code: 0 }];
         assert!(project.evaluate_green_gate(&green).unwrap().all_green);
+    }
+
+    fn phase(result: TestPhaseResult, exit: i32) -> PhaseRecord {
+        PhaseRecord {
+            command: "cargo test x".to_string(),
+            exit_code: exit,
+            result,
+            excerpt: "…".to_string(),
+            at: "2026-05-25T00:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn red_green_gate_satisfied_only_on_fail_then_pass() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        let evidence = TestEvidence {
+            version: 1,
+            cycle: "0025".to_string(),
+            gap_tests: vec![GapTest {
+                id: "UT-DOM-USER".to_string(),
+                model_id: "DOM-USER".to_string(),
+                layer: TestLayer::Unit,
+                red: Some(phase(TestPhaseResult::Fail, 101)),
+                green: Some(phase(TestPhaseResult::Pass, 0)),
+            }],
+        };
+        let gap = vec!["UT-DOM-USER".to_string()];
+        let rep = project.evaluate_red_green_gate(Some(&evidence), &gap);
+        assert!(rep.satisfied, "fail-then-pass satisfies the gate");
+
+        // Empty gap set is vacuously satisfied (pure refactor).
+        assert!(project.evaluate_red_green_gate(None, &[]).satisfied);
+
+        // Missing evidence for a gap blocks.
+        let rep = project.evaluate_red_green_gate(None, &gap);
+        assert!(!rep.satisfied);
+        assert_eq!(rep.missing_evidence, gap);
+    }
+
+    #[test]
+    fn red_green_gate_flags_vacuous_red_and_still_red() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        // red recorded as pass (vacuous) + green missing.
+        let evidence = TestEvidence {
+            version: 1,
+            cycle: "0025".to_string(),
+            gap_tests: vec![GapTest {
+                id: "UT-X".to_string(),
+                model_id: "DOM-USER".to_string(),
+                layer: TestLayer::Unit,
+                red: Some(phase(TestPhaseResult::Pass, 0)),
+                green: None,
+            }],
+        };
+        let rep = project.evaluate_red_green_gate(Some(&evidence), &["UT-X".to_string()]);
+        assert!(!rep.satisfied);
+        assert_eq!(rep.not_red_first, vec!["UT-X".to_string()]);
+        assert_eq!(rep.still_red, vec!["UT-X".to_string()]);
+    }
+
+    #[test]
+    fn validate_rejects_malformed_red_phase_in_evidence() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        let cdir = dir.path().join(".mdd/cycles/0025");
+        fs::create_dir_all(&cdir).unwrap();
+        // red recorded as a PASS — illegal shape (a red must fail).
+        let yaml = "version: 1\ncycle: '0025'\ngap_tests:\n  - id: UT-DOM-USER\n    model_id: DOM-USER\n    layer: unit\n    red:\n      command: cargo test\n      exit_code: 0\n      result: pass\n";
+        fs::write(cdir.join("test-evidence.yml"), yaml).unwrap();
+
+        let report = project.validate().unwrap();
+        assert!(!report.ok);
+        assert!(report
+            .errors
+            .iter()
+            .any(|e| e.contains("red phase must be a failure") && e.contains("0025")));
+    }
+
+    #[test]
+    fn read_test_evidence_absent_is_none() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+        assert!(project.read_test_evidence("0099").unwrap().is_none());
     }
 }

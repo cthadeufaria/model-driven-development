@@ -1,0 +1,53 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(DOM-SESSION-CONTEXT, 0014)
+' @cycle(DOM-MAP-BASELINE, 0014)
+' @cycle(DOM-SESSION-HOOK, 0014)
+' @id(DOM-SESSION-CONTEXT)
+' @desc(DOM-SESSION-CONTEXT, "Built as the SessionContext struct in crates/mdd-core/src/lib.rs: { toc: Vec<TocEntry>, fresh: bool, source_revision: Option<String>, drift: Vec<MapDrift> }. TocEntry is { kind: String, concept_count: usize, id_count: usize }. Returned by Project::session_context; the fresh/drift/source_revision fields are copied from MapStatusReport so the brief and `mdd map-status` never disagree.")
+' @id(DOM-MAP-BASELINE)
+' @desc(DOM-MAP-BASELINE, "Built as Project::read_map_source_revision + Project::derive_map_baseline in crates/mdd-core/src/lib.rs. An explicit non-empty source_revision in .mdd/map/manifest.yml wins; otherwise derive_map_baseline runs `git log -1 --format=%H -- .mdd/models/current` (the last commit touching the current diagrams). No .mdd/map manifest -> None (FRESH, no baseline). Nothing is written; the baseline self-maintains off commit history.")
+' @id(DOM-SESSION-HOOK)
+' @desc(DOM-SESSION-HOOK, "The mdd-managed SessionStart entry { type: command, command: \"mdd context\" } (templates::SESSION_HOOK_COMMAND). upsert_session_hook merges it into .claude/settings.json keyed by command (idempotent); strip_session_hook removes exactly it and prunes emptied groups/keys; command_hook_matches / group_has_command are the matchers. Driven by Project::write_session_hook (init) and Project::remove_session_hook (clean).")
+' Current-side domain model for agent session bootstrap (cycle 0014), as built.
+title Agent session bootstrap — domain (current)
+
+class SessionContext <<value>> {
+  + toc : TocEntry[]
+  + fresh : boolean
+  + source_revision : String [0..1]
+  + drift : MapDrift[]
+}
+
+class TocEntry <<value>> {
+  + kind : String
+  + concept_count : int
+  + id_count : int
+}
+
+class MapBaseline <<value>> {
+  + explicit : Revision [0..1]
+  + resolve() : Revision [0..1]
+}
+
+class SessionHook <<value>> {
+  + event : "SessionStart"
+  + type : "command"
+  + command : "mdd context"
+}
+
+SessionContext "1" o-- "*" TocEntry
+SessionContext ..> MapBaseline : freshness via map_status
+
+note right of MapBaseline
+  resolve() = read_map_source_revision: explicit
+  source_revision, else derive_map_baseline
+  (git log over .mdd/models/current). None when
+  no whole-map manifest exists.
+end note
+
+note bottom of SessionHook
+  upsert_session_hook / strip_session_hook on
+  .claude/settings.json. Idempotent, keyed by command.
+end note
+@enduml

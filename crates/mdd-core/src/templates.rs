@@ -21,6 +21,11 @@ pub const WORKFLOW_SKILLS: &[SkillTemplate] = &[
         body: MDD_VALIDATE_SKILL,
     },
     SkillTemplate {
+        name: "mdd-test",
+        description: "The red phase of the TDD loop: realize each gap @id's linked test as a runnable native test, run it against pre-implement code, assert it fails (assertion error, not compile error), and record the RED to .mdd/cycles/<N>/test-evidence.yml before /mdd-implement. Also authors diagram-derived Playwright e2e acceptance specs keyed to USE- (Gherkin-as-doc retired). Engages only when test.layers is configured",
+        body: MDD_TEST_SKILL,
+    },
+    SkillTemplate {
         name: "mdd-implement",
         description: "Close the gap between objective and current by writing code; diagrams are refreshed by map afterwards",
         body: MDD_IMPLEMENT_SKILL,
@@ -146,7 +151,8 @@ Use this skill to derive the current view from existing code. Diagrams go into `
 
    Routes / handlers / fields the description treats as security-sensitive but the code does not enforce: **leave the marker off entirely** so `/mdd-review` surfaces the gap as a missing-marker mismatch.
 8. Update `.mdd/trace.yml` with model-to-model trace links and `source_links` from current-side IDs to concrete files or symbols.
-9. Hand off to `/mdd-validate`.
+9. **Discover native tests (brownfield coverage).** Find existing tests in the code (`#[cfg(test)]`, `tests/`, `__tests__`, `test_*.py`, Playwright e2e specs) and refresh the unified trace `tests` links to the model `@id`s they exercise, so a mapped repo starts with real coverage. Discovery is additive and structural — link what you find; never author or run tests here.
+10. Hand off to `/mdd-validate`.
 "#;
 
 const MDD_GENERATE_SKILL: &str = r#"# MDD Generate
@@ -190,7 +196,7 @@ Use this skill to derive the objective view from a description — a POC concept
    Add `id=SEC-<NAME>` only when the marker is a trace target or test-scaffold host. When the description is silent on a concern for a feature that is plainly out of scope, do not invent a marker — leave the element unmarked rather than emit fabricated values.
 7. Add stable `@id(...)` markers using the prefixes from `.mdd/docs/uml-and-ocl-guide.md`. Use `@ref(...)` only between objective-side IDs.
 8. Update `.mdd/trace.yml` with model-to-model trace links. Do not add `source_links` here — `/mdd-map` adds those after implementation.
-9. Generate acceptance test scaffolds under `.mdd/tests/acceptance/` for use cases that need executable coverage, and link them in `.mdd/trace.yml`.
+9. **Author per-layer test intent + links** for the impl-bearing `@id`s, marking gap tests `expect: red-until-implemented` in the unified trace `tests`. Use-case (acceptance) tests are **executable Playwright e2e** specs keyed to the `USE-` id — reuse the UI/e2e runner; do **not** write Gherkin `.feature` files as the spec. The canonical documentation of a use case is its **diagram** (`@desc` + the sequence it realizes); generate any acceptance prose from the diagram, keeping the diagram the single source of truth (Gherkin-as-documentation is retired).
 10. Hand off to `/mdd-validate`.
 
 Keep the objective reviewable and specific. If a behavior is ambiguous, mark the ambiguity in the model and ask for review before treating it as implementation scope.
@@ -239,6 +245,33 @@ If `mdd validate` reports `ok: true` (no errors), unlock the next step in the wo
 If it reports `ok: false`, stop and fix the structural errors in the affected diagrams or trace data before running any other skill.
 
 Report missing or stale approvals, rendered SVGs, and acceptance-test coverage as readiness warnings (non-blocking).
+"#;
+
+const MDD_TEST_SKILL: &str = r#"# MDD Test
+
+You are an MDD, UML, PlantUML, and OCL specialist for the RED phase of the test-driven cycle.
+
+Start by reading `.mdd/docs/mdd-workflow.md`, `.mdd/docs/uml-and-ocl-guide.md`, and `.mdd/docs/test-profile.md`. Treat `.mdd/models`, `.mdd/constraints`, and `.mdd/trace.yml` as authoritative MDD state.
+
+This skill writes the failing tests **before** any implementing code and records the proof. It runs only when `.mdd/config.yml` `test.layers` is configured; with no profile it is a no-op (the cycle proceeds without a red phase).
+
+## The gap set
+
+The cycle's **gap** is the set of objective `@id`s not present in current at cycle open — the new behaviors. `/mdd-cycle` provides them; otherwise compute objective `@id`s minus current `@id`s. A pure refactor has an **empty gap set**: nothing must go red, and you write no evidence — that *is* TDD.
+
+## Workflow (per gap @id)
+
+1. **Find the linked test** for the gap `@id` in `.mdd/trace.yml` (`tests`), and its `layer`/`framework` from the test profile. If none is linked, author one (intent comes from the diagram — the class/sequence/use-case `@desc`), at the layer that kind expects (§5.1 taxonomy).
+2. **Realize it as a runnable native test** in the confirmed framework, located where the ecosystem expects (`#[cfg(test)]`, `tests/`, `__tests__`, `test_*.py`, the Playwright e2e dir for use cases).
+3. **Run it against the pre-implement code** via Bash. It MUST fail with an **assertion/expectation failure**, not a compile/collection error — if the runner distinguishes, require the former; otherwise surface for confirmation.
+4. **Record the RED** to `.mdd/cycles/<N>/test-evidence.yml` under this gap's entry: `red: { command, exit_code (non-zero), result: fail, excerpt (the captured failure), at }`. If the test PASSES here, **STOP and surface a blocking question** — the assertion is vacuous or the behavior already exists, so it is not a new gap.
+5. Hand off to `/mdd-implement`, which writes minimal code to turn red→green and records the `green` observation.
+
+`mdd validate` checks the SHAPE of `test-evidence.yml`; the non-negotiable red→green close gate (`Project::evaluate_red_green_gate`) verifies every gap shows fail-then-pass. There is **no config off-switch** for red-first.
+
+## Acceptance (use-case) tests
+
+Use-case acceptance tests EXECUTE as **Playwright e2e** specs keyed to the `USE-` id (reuse the working UI/e2e runner — no Gherkin runner). The canonical documentation of a use case is its **diagram** (the use-case model + `@desc` + the sequence it realizes); author any human-readable acceptance description **from the diagram**, never as a hand-written `.feature`. Gherkin-as-documentation is retired.
 "#;
 
 const MDD_IMPLEMENT_SKILL: &str = r#"# MDD Implement
@@ -359,7 +392,7 @@ Standalone `/mdd-map` and `/mdd-generate` never open or close a cycle — only t
    touched_files: []
    ```
 
-2. **Loop to parity**: `/mdd-validate` → `/mdd-implement` → `/mdd-map` → `/mdd-validate` → `/mdd-review`. On a review mismatch, hand back to `/mdd-implement` and loop. Repeat until `/mdd-review` reports parity matched (ID parity and security parity per `.mdd/config.yml`).
+2. **Loop to parity**: `/mdd-validate` → (`/mdd-test` red phase, when `test.layers` is configured) → `/mdd-implement` → `/mdd-map` → `/mdd-validate` → `/mdd-review`. On a review mismatch, hand back to `/mdd-implement` and loop. Repeat until `/mdd-review` reports parity matched (ID parity and security parity per `.mdd/config.yml`). See *Test profile and the green gate* for the red phase and the three Close gates.
 3. **Close**: copy `.mdd/models/current/` to `.mdd/cycles/<N>/after/`. For every diagram whose element set changed between `before/` and `after/`, write an annotated `<diagram>.diff.puml` under `.mdd/cycles/<N>/` (shared elements once, additions `<<added>>` green, removals `<<removed>>` red), then rasterize each to its deterministic mirror `.mdd/rendered/cycles/<N>/<rel>.diff.svg` (via `/mdd-render` or `mdd_render::render_cycle_diffs`) so the viewer's Diff mode can paint it, and run `mdd_render::render_ocl_diagrams` so the viewer's OCL Diagram sub-mode can paint constraint files. **Then accumulate the whole-map baseline** (see *Whole-map baseline* below). Update the manifest: `status: closed`, add `closed_at`, and set `touched_files` to the model files this cycle changed.
 4. **Abort**: if the user cancels, set `status: aborted` and leave snapshots as-is.
 
@@ -386,8 +419,11 @@ The whole-map is an **inspection artifact, outside the parity gate**: `/mdd-vali
 When the repo has adopted diagram-driven tests (`.mdd/config.yml` `test.layers` is non-empty), the cycle also runs the linked test suite and gates on green at close. Detection and the plan are deterministic `mdd` verbs; the confirmation and the run are this skill's job — the same plan-deterministic / execute-in-skill split as `/mdd-deploy`.
 
 - **Detect, then confirm (first run / new layer).** If `test.layers` is empty or a needed layer is missing, run `mdd test-detect --json`. It RECOMMENDS a per-layer framework+command from the build files and lists `ambiguities`. Present the recommendation; **surface every ambiguity as a blocking question — never auto-pick a runner**. Write the operator-confirmed profile to `config.test.layers`. No silent default.
-- **Green gate at close (after parity matches).** Run `mdd test-plan --json` for the ordered steps, execute each step's `command` via Bash, and collect exit codes. Feed them to `Project::evaluate_green_gate` (reads `test.gate`): a still-red test **blocks** close when `test.gate=error`, or is **reported and allows a user-accepted close** when `warn` (the opt-down, like `security.parity_check`). This is the GREEN side only; the non-negotiable red→green requirement is a separate gate (Cycle C).
-- **Inert by default.** With no configured layers the gate does nothing, so a repo that has not adopted diagram-driven tests closes exactly as before.
+- **Red phase, before code (`/mdd-test`).** After `/mdd-validate` and before `/mdd-implement`, hand the cycle's gap set (objective `@id`s absent from current at open) to `/mdd-test`. It realizes each gap's linked test, runs it against the pre-implement code, asserts it FAILS, and records `red` to `.mdd/cycles/<N>/test-evidence.yml`. `/mdd-implement` then turns red→green and records `green`. An empty gap set (pure refactor) writes no evidence.
+- **Green gate at close (after parity matches).** Run `mdd test-plan --json` for the ordered steps, execute each step's `command` via Bash, and collect exit codes. Feed them to `Project::evaluate_green_gate` (reads `test.gate`): a still-red test **blocks** close when `test.gate=error`, or is **reported and allows a user-accepted close** when `warn` (the opt-down, like `security.parity_check`).
+- **Non-negotiable red→green gate at close.** Also call `Project::evaluate_red_green_gate(evidence, gap_ids)`: the cycle closes only when every gap `@id` shows fail-then-pass. This has **no config off-switch** (distinct from `test.gate`, which governs only the green side). A gap recorded red-as-pass is a blocking question, never accepted.
+- **Three gates at Close.** Parity (`Project::review()`) AND the non-negotiable red→green evidence AND the green gate (per `test.gate`) must all pass to close.
+- **Inert by default.** With no configured layers all of this does nothing, so a repo that has not adopted diagram-driven tests closes exactly as before.
 
 ## Readiness
 

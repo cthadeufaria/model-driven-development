@@ -1,0 +1,24 @@
+@startuml
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(CMP-TEST-EVIDENCE) <<added>> this cycle (0025)
+' @id(CMP-TEST-RED-GATE) <<added>> this cycle (0025)
+' @id(CMP-TEST-SKILL) <<added>> this cycle (0025)
+' Cycle 0025 diff (current side): the evidence read+shape layer, the
+' non-negotiable red->green verdict, and the new /mdd-test skill. All added.
+title MDD diagram-driven tests — red->green ownership · cycle 0025 diff (current)
+
+actor "Developer / Agent" as Dev
+
+component "/mdd-test skill\n(CMP-TEST-SKILL)" as Skill <<added>>
+component "read_test_evidence + shape\n(CMP-TEST-EVIDENCE)" as Evidence <<added>>
+component "evaluate_red_green_gate\n(CMP-TEST-RED-GATE)" as Gate <<added>>
+component "test-evidence.yml" as File
+
+Dev --> Skill
+Skill --> File : write red (then green)
+Evidence --> File : read + shape-validate
+Gate --> File : red->green verdict
+@enduml

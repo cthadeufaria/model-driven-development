@@ -44,7 +44,7 @@ Use this skill to derive the objective view from a description — a POC concept
    Add `id=SEC-<NAME>` only when the marker is a trace target or test-scaffold host. When the description is silent on a concern for a feature that is plainly out of scope, do not invent a marker — leave the element unmarked rather than emit fabricated values.
 7. Add stable `@id(...)` markers using the prefixes from `.mdd/docs/uml-and-ocl-guide.md`. Use `@ref(...)` only between objective-side IDs.
 8. Update `.mdd/trace.yml` with model-to-model trace links. Do not add `source_links` here — `/mdd-map` adds those after implementation.
-9. Generate acceptance test scaffolds under `.mdd/tests/acceptance/` for use cases that need executable coverage, and link them in `.mdd/trace.yml`.
+9. **Author per-layer test intent + links** for the impl-bearing `@id`s, marking gap tests `expect: red-until-implemented` in the unified trace `tests`. Use-case (acceptance) tests are **executable Playwright e2e** specs keyed to the `USE-` id — reuse the UI/e2e runner; do **not** write Gherkin `.feature` files as the spec. The canonical documentation of a use case is its **diagram** (`@desc` + the sequence it realizes); generate any acceptance prose from the diagram, keeping the diagram the single source of truth (Gherkin-as-documentation is retired).
 10. Hand off to `/mdd-validate`.
 
 Keep the objective reviewable and specific. If a behavior is ambiguous, mark the ambiguity in the model and ask for review before treating it as implementation scope.

@@ -1,0 +1,46 @@
+@startuml
+' @id(SEQ-TEST-TDD-LOOP)
+' @ref(USE-TEST-RED-PHASE)
+' @desc(SEQ-TEST-TDD-LOOP, "Objective flow for the red-first TDD loop and its close gate. OPEN: compute the gap set (objective @ids absent from current). RED (/mdd-test): for each gap @id realize the linked test, run it against pre-implement code, require an assertion failure, and write red{command,exit_code,result=fail,excerpt,at} to test-evidence.yml; a gap test that passes here BLOCKS. GREEN (/mdd-implement): write minimal code, run until pass, write green{...result=pass}. MAP/VALIDATE/REVIEW: refresh current, structural gate, parity. CLOSE GATE: parity matched AND evaluate_red_green_gate(evidence, gap_ids).satisfied (NON-NEGOTIABLE) AND evaluate_green_gate per test.gate. Empty gap set => only the green gate applies.")
+' Current sequence for Cycle C: red -> green -> map -> the three-part
+' close gate (parity + non-negotiable red->green + green).
+title red-first TDD loop + close gate (current)
+
+actor "Developer / Agent" as Dev
+participant "/mdd-cycle" as Cycle
+participant "/mdd-test (red)" as Red
+participant "runner (Bash)" as Bash
+participant "test-evidence.yml" as Ev
+participant "/mdd-implement (green)" as Impl
+participant "Project::evaluate_red_green_gate" as RGate
+participant "Project::review() + green gate" as Other
+
+== Open ==
+Cycle -> Cycle : gap_ids = objective @ids absent from current
+
+== Red (before code) ==
+loop each gap @id
+  Red -> Bash : run realized test (pre-implement)
+  Bash --> Red : non-zero (assertion failure)
+  Red -> Ev : write red { exit_code!=0, result=fail, excerpt }
+  alt red passed (vacuous)
+    Red -> Dev : BLOCK — gap test did not fail
+  end
+end
+
+== Green (after code) ==
+Impl -> Bash : run test until pass
+Bash --> Impl : exit 0
+Impl -> Ev : write green { exit_code==0, result=pass }
+
+== Close gate (after map + parity) ==
+Cycle -> Other : parity + green gate
+Cycle -> RGate : evaluate_red_green_gate(evidence, gap_ids)
+RGate -> Ev : read
+RGate --> Cycle : { satisfied, missing_evidence, not_red_first, still_red }
+alt parity AND satisfied AND green ok
+  Cycle -> Dev : CLOSE
+else
+  Cycle -> Dev : BLOCK (loop)
+end
+@enduml

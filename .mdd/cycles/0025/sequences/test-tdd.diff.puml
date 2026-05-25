@@ -1,0 +1,16 @@
+@startuml
+' @id(SEQ-TEST-TDD-LOOP) <<added>> this cycle (0025)
+' Cycle 0025 diff (current side): the red -> green -> close-gate flow.
+' New sequence; nothing removed.
+title red-first TDD loop + close gate · cycle 0025 diff (current)
+
+participant "/mdd-test (red)" as Red
+participant "/mdd-implement (green)" as Impl
+participant "test-evidence.yml" as Ev
+participant "evaluate_red_green_gate" as Gate
+
+note over Red #90EE90: <<added>> 0025
+Red -> Ev : write red { exit!=0, fail }
+Impl -> Ev : write green { exit==0, pass }
+Gate -> Ev : every gap fail->pass? (non-negotiable)
+@enduml

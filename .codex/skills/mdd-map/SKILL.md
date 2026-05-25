@@ -40,4 +40,5 @@ Use this skill to derive the current view from existing code. Diagrams go into `
 
    Routes / handlers / fields the description treats as security-sensitive but the code does not enforce: **leave the marker off entirely** so `/mdd-review` surfaces the gap as a missing-marker mismatch.
 8. Update `.mdd/trace.yml` with model-to-model trace links and `source_links` from current-side IDs to concrete files or symbols.
-9. Hand off to `/mdd-validate`.
+9. **Discover native tests (brownfield coverage).** Find existing tests in the code (`#[cfg(test)]`, `tests/`, `__tests__`, `test_*.py`, Playwright e2e specs) and refresh the unified trace `tests` links to the model `@id`s they exercise, so a mapped repo starts with real coverage. Discovery is additive and structural — link what you find; never author or run tests here.
+10. Hand off to `/mdd-validate`.

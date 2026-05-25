@@ -1,0 +1,32 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-TEST-RED-PHASE) <<added>> this cycle (0025)
+' @id(USE-TEST-RED-GREEN-GATE) <<added>> this cycle (0025)
+' @id(USE-MAP-TEST-DISCOVERY) <<added>> this cycle (0025)
+' @id(USE-TEST-ACCEPTANCE-E2E) <<added>> this cycle (0025)
+' Cycle 0025 diff (current side): new concept — red-first TDD. All four
+' use cases added; nothing removed.
+title MDD diagram-driven tests — red-first TDD · cycle 0025 diff (current)
+
+left to right direction
+actor "Developer / Agent" as Dev
+
+rectangle "TDD cycle" {
+  usecase "Write failing test,\nrecord RED (/mdd-test)" as Red <<added>>
+  usecase "Close only on\nred->green (non-negotiable)" as Gate <<added>>
+  usecase "Map discovers\nnative tests" as Discover <<added>>
+  usecase "Acceptance = Playwright e2e;\ndocs from diagrams" as Accept <<added>>
+}
+
+Dev --> Red
+Dev --> Gate
+Dev --> Discover
+Dev --> Accept
+@enduml

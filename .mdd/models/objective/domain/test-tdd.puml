@@ -1,0 +1,48 @@
+@startuml
+' @id(DOM-TEST-EVIDENCE)
+' @desc(DOM-TEST-EVIDENCE, "The per-cycle red->green evidence artifact (.mdd/cycles/<N>/test-evidence.yml), a first-class cycle file. TestEvidence { version, cycle, gap_tests: Vec<GapTest> }; GapTest { id, model_id, layer, red: Option<PhaseRecord>, green: Option<PhaseRecord> }. The red phase writes `red`; the green step writes `green`. Because by close the test is green, the recorded RED is the only proof it failed first — so the artifact, not prose, is what the non-negotiable gate verifies. mdd validates its SHAPE (parses; every gap @id present; each phase well-formed); the actual fail/pass is produced by agent-Bash running the test (same plan/execute split as deploy).")
+' @id(DOM-TEST-PHASE-RECORD)
+' @desc(DOM-TEST-PHASE-RECORD, "One observation of running a gap test in a phase (PhaseRecord): { command, exit_code, result (Fail|Pass), excerpt, at }. It stores the runner's OWN output — the command, its exit code, and a captured excerpt — not a bare boolean, so a recorded RED is hard to fabricate without actually running (the §4 locked decision; a pre-implement git ref was considered and not adopted). The red phase requires an assertion/expectation failure (inspected in `excerpt`), not a compile/collection error; otherwise it is surfaced for confirmation. red.result must be Fail (exit_code != 0); green.result must be Pass (exit_code == 0).")
+' Objective-side domain for Cycle C: the evidence artifact and its
+' per-phase record. Pure data; the running that fills it is agent-Bash,
+' the gate that reads it is deterministic.
+title MDD diagram-driven tests — red->green evidence (objective)
+
+enum TestPhaseResult {
+  Fail
+  Pass
+}
+
+class PhaseRecord {
+  + command : String
+  + exit_code : i32
+  + result : TestPhaseResult
+  + excerpt : String
+  + at : String
+}
+
+class GapTest {
+  + id : String
+  + model_id : String
+  + layer : TestLayer
+  + red : Option<PhaseRecord>
+  + green : Option<PhaseRecord>
+}
+
+class TestEvidence {
+  + version : u32
+  + cycle : String
+  + gap_tests : Vec<GapTest>
+}
+
+TestEvidence "1" o-- "*" GapTest : records >
+GapTest "1" --> "0..1" PhaseRecord : red >
+GapTest "1" --> "0..1" PhaseRecord : green >
+PhaseRecord ..> TestPhaseResult : result >
+
+note bottom of PhaseRecord
+  DOM-TEST-PHASE-RECORD: the runner's own command +
+  exit_code + excerpt, not a boolean — so RED is
+  verifiable. red => Fail (exit!=0); green => Pass (exit==0).
+end note
+@enduml

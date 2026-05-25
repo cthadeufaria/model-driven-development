@@ -1,0 +1,20 @@
+number: 0025
+slug: tdd-red-phase-evidence-gate
+entry: generate
+description: "Cycle C of diagram-driven tests: the /mdd-test red phase, test-evidence.yml, the non-negotiable red->green close gate, /mdd-map test discovery, and acceptance as Playwright e2e with diagram-derived docs (Gherkin-as-doc retired)."
+status: closed
+opened_at: "2026-05-25T18:00:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/test-tdd.puml
+  - .mdd/models/objective/domain/test-tdd.puml
+  - .mdd/models/objective/components/test-tdd.puml
+  - .mdd/models/objective/sequences/test-tdd.puml
+  - .mdd/models/current/use-cases/test-tdd.puml
+  - .mdd/models/current/domain/test-tdd.puml
+  - .mdd/models/current/components/test-tdd.puml
+  - .mdd/models/current/sequences/test-tdd.puml
+  - .mdd/constraints/test-assertion.ocl
+  - crates/mdd-core/src/lib.rs
+  - crates/mdd-core/src/templates.rs
+  - .claude/skills/mdd-test/SKILL.md
+closed_at: "2026-05-25T18:55:00Z"

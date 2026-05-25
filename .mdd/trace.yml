@@ -567,6 +567,47 @@ links:
   - from: OCL-TEST-GREEN-GATE
     to: DOM-TEST-PLAN-STEP
     relation: constrains
+  # Cycle 0025 — diagram-driven tests (Cycle C): red phase, evidence, the
+  # non-negotiable red->green close gate, map discovery, acceptance e2e.
+  - from: USE-TEST-RED-PHASE
+    to: SEQ-TEST-TDD-LOOP
+    relation: realizes
+  - from: USE-TEST-RED-GREEN-GATE
+    to: SEQ-TEST-TDD-LOOP
+    relation: realizes
+  - from: USE-MAP-TEST-DISCOVERY
+    to: SEQ-TEST-TDD-LOOP
+    relation: realizes
+  - from: USE-TEST-ACCEPTANCE-E2E
+    to: SEQ-TEST-TDD-LOOP
+    relation: realizes
+  - from: USE-TEST-RED-PHASE
+    to: CMP-TEST-SKILL
+    relation: realized_by
+  - from: USE-TEST-RED-GREEN-GATE
+    to: CMP-TEST-RED-GATE
+    relation: realized_by
+  - from: USE-MAP-TEST-DISCOVERY
+    to: CMP-TEST-EVIDENCE
+    relation: realized_by
+  - from: USE-TEST-ACCEPTANCE-E2E
+    to: CMP-TEST-SKILL
+    relation: realized_by
+  - from: SEQ-TEST-TDD-LOOP
+    to: DOM-TEST-EVIDENCE
+    relation: depends_on
+  - from: CMP-TEST-EVIDENCE
+    to: DOM-TEST-EVIDENCE
+    relation: depends_on
+  - from: CMP-TEST-RED-GATE
+    to: DOM-TEST-EVIDENCE
+    relation: depends_on
+  - from: OCL-TEST-RED-EVIDENCE-RECORDED
+    to: DOM-TEST-EVIDENCE
+    relation: constrains
+  - from: OCL-TEST-RED-THEN-GREEN-TO-CLOSE
+    to: DOM-TEST-EVIDENCE
+    relation: constrains
   - from: USE-OPEN-RENDER
     to: SEQ-OPEN-RENDER
     relation: realizes
@@ -1183,3 +1224,30 @@ source_links:
   - model_id: CMP-TEST-DETECT
     path: crates/mdd-core/src/lib.rs
     symbol: TestRunResult
+  # Cycle 0025 — diagram-driven tests (Cycle C)
+  - model_id: DOM-TEST-EVIDENCE
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestEvidence
+  - model_id: DOM-TEST-EVIDENCE
+    path: crates/mdd-core/src/lib.rs
+    symbol: GapTest
+  - model_id: DOM-TEST-PHASE-RECORD
+    path: crates/mdd-core/src/lib.rs
+    symbol: PhaseRecord
+  - model_id: DOM-TEST-PHASE-RECORD
+    path: crates/mdd-core/src/lib.rs
+    symbol: TestPhaseResult
+  - model_id: CMP-TEST-EVIDENCE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::read_test_evidence
+  - model_id: CMP-TEST-RED-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::evaluate_red_green_gate
+  - model_id: CMP-TEST-RED-GATE
+    path: crates/mdd-core/src/lib.rs
+    symbol: RedGreenReport
+  - model_id: CMP-TEST-SKILL
+    path: .claude/skills/mdd-test/SKILL.md
+  - model_id: SEQ-TEST-TDD-LOOP
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::evaluate_red_green_gate

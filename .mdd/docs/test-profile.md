@@ -37,6 +37,25 @@ The non-negotiable red→green evidence gate is a **later cycle** (Cycle C).
 These engage only when `test.layers` is configured; an unconfigured repo is
 unaffected.
 
+## What Cycle C adds (red-first TDD + evidence)
+
+- The `/mdd-test` skill owns the **red phase**: for each gap `@id` it realizes
+  the linked test, runs it against pre-implement code, requires an assertion
+  failure, and records `red` to `.mdd/cycles/<N>/test-evidence.yml`.
+- `/mdd-implement` turns red→green and records `green`.
+- **Three Close gates** (all must pass): parity (`Project::review()`), the
+  **non-negotiable red→green** gate (`Project::evaluate_red_green_gate` — every
+  gap shows fail-then-pass, **no off-switch**), and the green gate (`test.gate`).
+- `mdd validate` checks the **shape** of any `test-evidence.yml` (a present
+  `red` failed, a present `green` passed, model IDs resolve).
+- `/mdd-map` **discovers** native tests in brownfield code and links them.
+
+**Acceptance tests run as Playwright e2e** keyed to the `USE-` id — there is no
+Gherkin runner. The canonical documentation of a use case is its **diagram**
+(the model + `@desc` + the sequence it realizes); acceptance prose is derived
+from the diagram, not authored as a `.feature`. Gherkin-as-documentation is
+retired.
+
 ## The `test:` config block
 
 ```yaml
