@@ -1,0 +1,15 @@
+number: 26
+slug: scoped-parity
+entry: generate
+description: "Cycle A of greenfield-kickoff (docs/proposals/greenfield-kickoff.md): scoped-parity core. review()/review_security() auto-read the open cycle's manifest scope and narrow the parity gate to that @id slice (absent/empty = whole-model, back-compatible); CycleManifest gains a scope field; /mdd-cycle gains a realize-slice entry and /mdd-review honors the scope; OCL-REVIEW-SCOPE-SUBSET-OF-OBJECTIVE documents the manifest-scope invariant."
+status: closed
+opened_at: "2026-05-25T16:22:26Z"
+closed_at: "2026-05-25T16:30:00Z"
+touched_files:
+  - .mdd/models/objective/domain/cycle-tracking.puml
+  - .mdd/models/objective/use-cases/cycle-tracking.puml
+  - .mdd/models/objective/sequences/scoped-review.puml
+  - .mdd/models/current/domain/cycle-tracking.puml
+  - .mdd/models/current/use-cases/cycle-tracking.puml
+  - .mdd/models/current/sequences/scoped-review.puml
+  - .mdd/constraints/scoped-review.ocl

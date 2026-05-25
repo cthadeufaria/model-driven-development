@@ -1,0 +1,192 @@
+@startuml
+' @id(DOM-DEPLOY-IAC)
+' @ref(USE-DEPLOY-GUIDANCE)
+' @ref(USE-DEPLOY-EXECUTE)
+'
+' Current-side domain model of the IaC artifact /mdd-deploy generates AND
+' the execution that applies it, as implemented in
+' templates::MDD_DEPLOY_SKILL + .mdd/docs/deploy-profile.md.
+'
+' CHANGE (cycle 0021): the implemented skill no longer writes files and
+' stops. Four execution concepts join the planning gates: RunbookExecution
+' <<executor>>, DryRun <<gate>>, GoLiveGate <<gate>>, AuthContext
+' <<principal>>. Stereotypes here are documentation-only; this file
+' carries NO security-parity markers (/mdd-deploy is outside the gate).
+'
+' @desc(DOM-DEPLOY-IAC, "As implemented in templates::MDD_DEPLOY_SKILL: /mdd-deploy generates IaC under two confirmed gates (DialectChoice, DeploymentPurpose) plus the ResourceAccess completeness gate, then EXECUTES it. After planning, a RunbookExecution (under an AuthContext the skill manages) applies the IaC: a DryRun must precede any apply (OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY), idempotent steps run autonomously while irreversible ones are confirmation-gated (OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE), execution halts on the first failed step (OCL-DEPLOY-EXEC-HALT-ON-ERROR), and the GoLiveGate blocks the live-traffic cutover until the operator confirms the full billing multi-factor state (OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED). BicepIaC and TerraformIaC compose the identical secured topology with the same secure-by-default + migration-order invariants.")
+title /mdd-deploy generated IaC + execution (current)
+
+class DialectChoice <<gate>> {
+  value : {bicep | terraform}
+  confirmed : Boolean
+  rule = exactly one dialect per run
+  rule = no artifact written until confirmed
+  rule = no silent default
+}
+
+class DeploymentPurpose <<gate>> {
+  value : {dev | staging | prod}
+  confirmed : Boolean
+  rule = no silent default (never assume dev- or prod-grade)
+  rule = confirmed before any purpose-driven default
+  drives = DB tier/redundancy, backup retention,
+           RECOMMENDED network/doorway posture
+  rule = RECOMMENDS only; operator confirms;
+         secure-by-default vault posture preserved
+}
+
+class ResourceAccess <<gate>> {
+  scope = every secured store (Key Vault, DB, ACR, remote state)
+  reader = principal + identity + admitted path (runtime)
+  writer = principal + identity + admitted path (provisioning)
+  rule = read AND write both accounted for before "diagram done"
+  rule = read-but-never-written => SURFACE blocking question
+  rule = writer with no admitted path => SURFACE blocking question
+  rule = surface the option (allowlist|in-VNet|tunnel); never bake one in
+}
+
+class Deployer <<principal>> {
+  identity = operator or CI (whoever runs apply)
+  role = Key Vault Secrets Officer (data-plane WRITE)
+  reaches = vault over a network path the posture admits
+}
+
+class AuthContext <<principal>> {
+  managedBy = the skill (runs az login + az account set)
+  identity = the logged-in principal
+  subscription = selected + verified before execution
+  rule = wrong/ambiguous subscription => SURFACE and STOP
+}
+
+class RunbookExecution <<executor>> {
+  walks = the generated runbook.md, step by step
+  autonomous = idempotent/reversible steps (RG/ACR create, build, push, plan)
+  gated = irreversible steps (first apply, secret writes, migration, go-live)
+  rule = DRY-RUN must precede any apply
+  rule = HALT on the first failed step (run no further step)
+  rule = new revision at 0% traffic until health-checked
+}
+
+class DryRun <<gate>> {
+  command = terraform plan / az deployment what-if
+  rule = produced and shown before any apply
+  rule = no apply runs without a prior dry-run
+}
+
+class GoLiveGate <<gate>> {
+  scope = production billing multi-factor cutover + traffic routing
+  surfaces = ENABLE_PRODUCTION_BILLING, APP_ENV, DATABASE_MARKER,
+             PUBLIC_HOST, APPLE_ENVIRONMENT, App Attest prod identity
+  rule = NEVER auto-confirmed; explicit operator confirmation required
+  rule = the one stop full-auto never skips
+}
+
+abstract class IaCArtifact <<artifact>> {
+  target = azure-container-apps (v1, only)
+  generatedBy = /mdd-deploy (plan phase)
+  appliedBy = RunbookExecution (the skill),
+              operator-confirmed at irreversible steps
+}
+class BicepIaC <<artifact>> {
+  language = Bicep (Azure-native ARM DSL)
+  entrypoint = main.bicep
+  appliedVia = az deployment
+}
+class TerraformIaC <<artifact>> {
+  language = Terraform HCL
+  entrypoint = main.tf
+  provider = azurerm
+  stateBackend = remote (azurerm backend)
+  appliedVia = terraform plan + apply
+}
+
+class ContainerRegistry <<Azure ACR>>
+class ContainerAppsEnv <<Azure Container Apps>>
+class AppRevision <<Azure Container Apps>> {
+  ingress = 8080 external
+  user = non-root
+  env = NODE_ENV=production
+  rollout = 0% traffic until health-checked, then go-live cutover
+}
+class PostgresFlexibleServer <<Azure DB for PostgreSQL>> {
+  transport = sslmode=require
+  encryption = at-rest
+  tier = set by DeploymentPurpose (surfaced, not assumed)
+}
+class KeyVault <<Azure Key Vault>> {
+  holds = every secret (Container Apps secret refs)
+  networkDefaultAction = Deny
+  bypass = AzureServices
+}
+class AzureOpenAI <<Azure OpenAI>>
+class MigrationJob <<Azure Container Apps Job>> {
+  order = before any revision traffic routing
+}
+
+DialectChoice "1" --> "1" IaCArtifact : selects & gates
+DeploymentPurpose "1" --> "1" IaCArtifact : sizes & postures (recommends)
+IaCArtifact <|-- BicepIaC
+IaCArtifact <|-- TerraformIaC
+
+RunbookExecution "1" --> "1" AuthContext : runs under
+RunbookExecution "1" --> "1" DryRun : must precede apply
+RunbookExecution "1" --> "1" GoLiveGate : blocks live cutover
+RunbookExecution "1" ..> "1" IaCArtifact : applies
+
+IaCArtifact "1" *-- "1" ContainerRegistry
+IaCArtifact "1" *-- "1" ContainerAppsEnv
+IaCArtifact "1" *-- "1" KeyVault
+IaCArtifact "1" *-- "1" PostgresFlexibleServer
+IaCArtifact "1" *-- "1" AzureOpenAI
+IaCArtifact "1" *-- "1" MigrationJob
+ContainerAppsEnv "1" *-- "1..*" AppRevision
+AppRevision ..> ContainerRegistry : pull image
+AppRevision ..> KeyVault : secret refs <<Secrets User>> (runtime READ)
+AppRevision ..> PostgresFlexibleServer : <<Encrypt>> TLS (sslmode=require)
+AppRevision ..> AzureOpenAI : API key (landmine: NOT managed identity)
+MigrationJob ..> PostgresFlexibleServer : <<Encrypt>> schema migrate
+MigrationJob "1" --> "1" AppRevision : completes BEFORE\ntraffic routing
+
+Deployer ..> KeyVault : set secrets <<Secrets Officer>> (provisioning WRITE)
+ResourceAccess "1" --> "1" KeyVault : completeness check (exemplar)
+GoLiveGate "1" --> "1" AppRevision : gates traffic cutover
+
+note bottom of RunbookExecution
+  The execution engine (CMP-DEPLOY-EXEC). Walks the runbook
+  via Bash (az/terraform/docker). Idempotent steps run
+  AUTONOMOUSLY; irreversible steps and go-live are
+  confirmation-gated; execution HALTS on the first failed
+  step. Invariants: OCL-DEPLOY-EXEC-HALT-ON-ERROR,
+  OCL-DEPLOY-EXEC-PAUSE-IRREVERSIBLE.
+end note
+
+note bottom of DryRun
+  A plan/what-if must run and be shown before ANY apply.
+  Invariant: OCL-DEPLOY-EXEC-DRYRUN-BEFORE-APPLY.
+end note
+
+note bottom of GoLiveGate
+  The one stop full-auto never skips: surfaces the full
+  production billing multi-factor state, then BLOCKS for
+  explicit operator confirmation before the live-traffic
+  cutover. Never auto-confirmed. Invariant:
+  OCL-DEPLOY-EXEC-GOLIVE-CONFIRMED.
+end note
+
+note bottom of KeyVault
+  Secure-by-default, identical for BOTH dialects: when
+  Postgres + Azure OpenAI are private, Key Vault is
+  generated with networkAcls.defaultAction='Deny' +
+  bypass='AzureServices'. Invariant:
+  OCL-DEPLOY-IAC-SECURE-BY-DEFAULT.
+end note
+
+note bottom of IaCArtifact
+  FULL PARITY: BicepIaC and TerraformIaC compose the same
+  secured topology and satisfy the same invariant checklist.
+  Produced by SEQ-DEPLOY-GUIDANCE; written into
+  CMP-DEPLOY-TARGET; APPLIED by RunbookExecution via
+  SEQ-DEPLOY-EXECUTE. Constrained by
+  OCL-DEPLOY-IAC-SECURE-BY-DEFAULT / -MIGRATION-ORDER.
+end note
+@enduml

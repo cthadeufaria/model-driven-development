@@ -1,0 +1,16 @@
+@startuml
+' @id(SEQ-SCOPED-REVIEW) <<added>> this cycle (0026)
+' Cycle 0026 diff (current side): scoped parity — Project::review narrows the
+' gate to the open cycle's manifest scope. New sequence; nothing removed.
+title Scoped parity review · cycle 0026 diff (current)
+
+participant "Project::review" as Review
+participant "open_cycle_scope" as Scope
+participant "review_security_scoped" as Sec
+
+note over Review #90EE90: <<added>> 0026
+Review -> Scope : highest open cycle's manifest.scope (else empty)
+Review -> Review : missing = (objective - current) filtered by scope
+Review -> Sec : skip @sec markers whose host is out of scope
+note over Review #90EE90: empty scope = whole-model (unchanged)
+@enduml

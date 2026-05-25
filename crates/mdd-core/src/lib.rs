@@ -534,6 +534,12 @@ pub struct ReviewReport {
     pub matched: bool,
     /// Pure ID-parity result (every objective `@id` present in current).
     pub ids_matched: bool,
+    /// Parity scope in effect: the objective `@id`s the open cycle declared
+    /// (its manifest `scope`). Empty = whole-model — `missing` was computed
+    /// against the entire objective id set. When non-empty, `missing` and the
+    /// security pass were narrowed to these ids and out-of-scope gaps were
+    /// treated as expected. (greenfield-kickoff Cycle A)
+    pub scope: Vec<String>,
     pub missing_ids: Vec<String>,
     pub extra_ids: Vec<String>,
     pub diff_puml_paths: Vec<String>,
@@ -1482,6 +1488,21 @@ impl Project {
         self.validate_inner(true)
     }
 
+    /// The parity scope for the currently open cycle, or empty when none.
+    /// Reads the highest-numbered `Open` cycle's manifest `scope`; an empty
+    /// result means the whole-model gate (the default for ordinary cycles,
+    /// and whenever no cycle is open). (greenfield-kickoff Cycle A)
+    fn open_cycle_scope(&self) -> Result<BTreeSet<String>> {
+        let registry = self.cycle_registry()?;
+        Ok(registry
+            .cycles
+            .iter()
+            .filter(|c| c.manifest.status == CycleStatus::Open)
+            .max_by_key(|c| c.manifest.number)
+            .map(|c| c.manifest.scope.iter().cloned().collect())
+            .unwrap_or_default())
+    }
+
     pub fn review(&self) -> Result<ReviewReport> {
         let registry = self.model_registry()?;
 
@@ -1498,10 +1519,27 @@ impl Project {
             .map(|element| element.id.clone())
             .collect();
 
-        let missing: BTreeSet<String> =
-            objective_ids.difference(&current_ids).cloned().collect();
-        let extra: BTreeSet<String> =
-            current_ids.difference(&objective_ids).cloned().collect();
+        // Scoped parity (greenfield-kickoff Cycle A): when the open cycle
+        // declares a manifest `scope`, narrow the ID gate to those objective
+        // ids — objective ids outside the scope that are still absent from
+        // current are expected, not a mismatch. An empty scope (ordinary
+        // cycles, or no open cycle) is the whole-model gate, byte-identical
+        // to before scoped parity.
+        let scope = self.open_cycle_scope()?;
+        let missing: BTreeSet<String> = objective_ids
+            .difference(&current_ids)
+            .filter(|id| scope.is_empty() || scope.contains(*id))
+            .cloned()
+            .collect();
+        // Scope `extra` the same way so a realize-slice review annotates only
+        // the slice: the rest of the (current) system is not flagged "extra"
+        // relative to one slice's objective. Empty scope keeps every extra
+        // (whole-model, unchanged).
+        let extra: BTreeSet<String> = current_ids
+            .difference(&objective_ids)
+            .filter(|id| scope.is_empty() || scope.contains(*id))
+            .cloned()
+            .collect();
         let ids_matched = missing.is_empty();
 
         let mut diff_puml_paths = Vec::new();
@@ -1553,7 +1591,7 @@ impl Project {
             }
         }
 
-        let security = self.review_security()?;
+        let security = self.review_security_scoped(&scope)?;
         let security_gate_satisfied = security.matched || security.mode == ParityMode::Warn;
 
         let traceability = self.review_traceability(&registry)?;
@@ -1565,6 +1603,7 @@ impl Project {
         Ok(ReviewReport {
             matched,
             ids_matched,
+            scope: scope.into_iter().collect(),
             missing_ids: missing.into_iter().collect(),
             extra_ids: extra.into_iter().collect(),
             diff_puml_paths,
@@ -1574,6 +1613,15 @@ impl Project {
     }
 
     pub fn review_security(&self) -> Result<SecurityReviewReport> {
+        self.review_security_scoped(&BTreeSet::new())
+    }
+
+    /// Security-marker parity, optionally narrowed to a scope of objective
+    /// `@id`s (greenfield-kickoff Cycle A). When `scope` is non-empty, only
+    /// markers whose `host=` id is in scope are compared, so a realize-slice
+    /// cycle is not blocked by guards the rest of the objective requires. An
+    /// empty `scope` is the whole-model pass — the public `review_security`.
+    fn review_security_scoped(&self, scope: &BTreeSet<String>) -> Result<SecurityReviewReport> {
         let config = self.read_config()?;
         let mode = config.security.parity_check;
         let registry = self.model_registry()?;
@@ -1595,6 +1643,11 @@ impl Project {
             let markers = extract_sec_markers(&content)?;
             for marker in markers {
                 if marker.stereotype.is_empty() || marker.host.is_empty() {
+                    continue;
+                }
+                // Scoped parity: skip markers hosted on out-of-scope ids so a
+                // realize-slice cycle only enforces its own slice's guards.
+                if !scope.is_empty() && !scope.contains(&marker.host) {
                     continue;
                 }
                 let summary = MarkerSummary {
@@ -5641,6 +5694,103 @@ mod tests {
             "extras: {:?}",
             report.extra_ids
         );
+    }
+
+    /// Write an `Open` cycle manifest carrying a parity `scope`, so
+    /// `review()` narrows to that slice (greenfield-kickoff Cycle A).
+    fn write_open_cycle_with_scope(project: &Project, number: u32, scope: &[&str]) {
+        let dir = project.root().join(format!(".mdd/cycles/{number:04}"));
+        fs::create_dir_all(dir.join("before")).unwrap();
+        let scope_yaml: String = scope.iter().map(|s| format!("  - {s}\n")).collect();
+        fs::write(
+            dir.join("manifest.yml"),
+            format!(
+                "number: {number}\nslug: test-slice\nentry: generate\nstatus: open\nscope:\n{scope_yaml}"
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn review_scope_excludes_out_of_scope_gaps() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        fs::write(
+            dir.path().join(".mdd/models/objective/use-cases/login.puml"),
+            "@startuml\n' @id(USE-LOGIN)\nusecase \"Log in\" as Login\n@enduml\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join(".mdd/models/objective/use-cases/checkout.puml"),
+            "@startuml\n' @id(USE-CHECKOUT)\nusecase \"Check out\" as Checkout\n@enduml\n",
+        )
+        .unwrap();
+
+        // Whole-model (no open cycle): USE-CHECKOUT is a gap -> mismatch.
+        let whole = project.review().unwrap();
+        assert!(!whole.matched);
+        assert_eq!(whole.missing_ids, vec!["USE-CHECKOUT".to_string()]);
+        assert!(whole.scope.is_empty());
+
+        // Open a realize-slice cycle scoped to USE-LOGIN (already covered).
+        // The out-of-scope USE-CHECKOUT gap is now expected -> parity matches.
+        write_open_cycle_with_scope(&project, 1, &["USE-LOGIN"]);
+        let scoped = project.review().unwrap();
+        assert!(scoped.matched, "missing: {:?}", scoped.missing_ids);
+        assert!(scoped.missing_ids.is_empty());
+        assert_eq!(scoped.scope, vec!["USE-LOGIN".to_string()]);
+        assert!(scoped.diff_puml_paths.is_empty());
+    }
+
+    #[test]
+    fn review_scope_still_blocks_in_scope_gap() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_minimal_valid_models(&project);
+        fs::write(
+            dir.path().join(".mdd/models/objective/use-cases/login.puml"),
+            "@startuml\n' @id(USE-LOGIN)\nusecase \"Log in\" as Login\n@enduml\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join(".mdd/models/objective/use-cases/checkout.puml"),
+            "@startuml\n' @id(USE-CHECKOUT)\nusecase \"Check out\" as Checkout\n@enduml\n",
+        )
+        .unwrap();
+
+        // The scope names the gap itself, so it still blocks closure.
+        write_open_cycle_with_scope(&project, 1, &["USE-CHECKOUT"]);
+        let report = project.review().unwrap();
+        assert!(!report.matched);
+        assert_eq!(report.missing_ids, vec!["USE-CHECKOUT".to_string()]);
+        assert_eq!(report.scope, vec!["USE-CHECKOUT".to_string()]);
+        assert_eq!(report.diff_puml_paths.len(), 1);
+    }
+
+    #[test]
+    fn review_security_scopes_to_open_cycle_scope() {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        write_security_parity_mismatch_fixture(&project);
+
+        // Whole-model: the objective requires a guard on USE-LOGIN the current
+        // side does not enforce -> security mismatch blocks (error mode).
+        let whole = project.review().unwrap();
+        assert!(whole.ids_matched);
+        assert!(!whole.security.matched);
+        assert!(!whole.matched);
+
+        // A realize-slice cycle scoped to DOM-USER does not touch the
+        // USE-LOGIN guard, so the out-of-scope marker is not enforced here.
+        write_open_cycle_with_scope(&project, 1, &["DOM-USER"]);
+        let scoped = project.review().unwrap();
+        assert!(scoped.ids_matched, "missing: {:?}", scoped.missing_ids);
+        assert!(
+            scoped.security.matched,
+            "out-of-scope guard must not block a scoped cycle"
+        );
+        assert!(scoped.matched);
     }
 
     /// Author the same use case on both sides, but only the objective side

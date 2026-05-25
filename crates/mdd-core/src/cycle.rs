@@ -31,9 +31,39 @@ pub enum CycleStatus {
     Aborted,
 }
 
+/// Deserialize a `u32` that historical manifests sometimes wrote zero-padded
+/// (`number: 0020`) or quoted (`number: "0021"`) — both of which serde_yaml
+/// surfaces as a *string*, not an integer. Accept an integer or any numeric
+/// string so `CycleRegistry::scan` is robust to every manifest the skill has
+/// written. `Project::review` now scans cycles (scoped parity), so a single
+/// legacy manifest must not break the review gate or the viewer.
+fn de_u32_flexible<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct U32Flexible;
+    impl<'de> serde::de::Visitor<'de> for U32Flexible {
+        type Value = u32;
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("a u32 or a numeric string (possibly zero-padded or quoted)")
+        }
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<u32, E> {
+            u32::try_from(v).map_err(E::custom)
+        }
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<u32, E> {
+            u32::try_from(v).map_err(E::custom)
+        }
+        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<u32, E> {
+            v.trim().parse::<u32>().map_err(E::custom)
+        }
+    }
+    deserializer.deserialize_any(U32Flexible)
+}
+
 /// On-disk `.mdd/cycles/<n>/manifest.yml`, authored by the skill.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct CycleManifest {
+    #[serde(deserialize_with = "de_u32_flexible")]
     pub number: u32,
     pub slug: String,
     pub entry: EntryPoint,
@@ -46,6 +76,14 @@ pub struct CycleManifest {
     pub closed_at: Option<String>,
     #[serde(default)]
     pub touched_files: Vec<String>,
+    /// Optional parity scope: the objective `@id`s this cycle realizes. When
+    /// non-empty the review gate narrows to just these ids (a realize-slice
+    /// cycle: out-of-scope objective ids still absent from current are
+    /// expected, not a mismatch). Empty — the default for ordinary cycles —
+    /// is the whole-model gate, byte-identical to before scoped parity.
+    /// Read by `Project::review`; written by the `/mdd-cycle` skill.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scope: Vec<String>,
 }
 
 /// A resolved cycle: its manifest plus the snapshot directories.
@@ -558,6 +596,7 @@ mod tests {
                 opened_at: String::new(),
                 closed_at: None,
                 touched_files: vec![],
+                scope: vec![],
             },
             dir: PathBuf::from(".mdd/cycles/0002"),
             before_dir: PathBuf::from(".mdd/cycles/0002/before"),
@@ -595,5 +634,23 @@ mod tests {
         assert!(!c.is_closed());
         assert!(c.after_dir.is_none());
         assert!(c.label().contains("Cycle 0001"));
+    }
+
+    #[test]
+    fn manifest_number_accepts_padded_or_quoted() {
+        // Historical manifests wrote `number` zero-padded or quoted; the reader
+        // must accept both (serde_yaml surfaces them as strings) plus a plain
+        // integer, so CycleRegistry::scan never breaks the review gate.
+        let padded: CycleManifest =
+            serde_yaml::from_str("number: 0020\nslug: x\nentry: generate\nstatus: closed\n")
+                .unwrap();
+        assert_eq!(padded.number, 20);
+        let quoted: CycleManifest =
+            serde_yaml::from_str("number: \"0021\"\nslug: x\nentry: generate\nstatus: closed\n")
+                .unwrap();
+        assert_eq!(quoted.number, 21);
+        let plain: CycleManifest =
+            serde_yaml::from_str("number: 26\nslug: x\nentry: generate\nstatus: open\n").unwrap();
+        assert_eq!(plain.number, 26);
     }
 }

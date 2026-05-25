@@ -328,9 +328,13 @@ Use this skill after a `/mdd-implement → /mdd-map → /mdd-validate` cycle to 
    - **`warn`**: missing markers are reported prominently but do not by themselves block closure (opt-down for projects not yet enforcing security parity).
 7. On any missing security marker, `.mdd/rendered/review/<diagram>.security.diff.puml` is written (render via `/mdd-render`). Report the gap and hand off to `/mdd-implement`.
 
+## Scope (realize-slice cycles)
+
+When the open cycle's manifest declares a non-empty `scope` (a set of objective `@id`s), `Project::review()` narrows **both passes** to that slice automatically: `missing` is intersected with the scope and `@sec` markers are compared only for in-scope hosts, so objective ids and guards **outside** the scope that are absent from current are **expected**, not a mismatch (they belong to other PLAN items / future realize-slice cycles). An empty or absent scope is the whole-model gate — the default for ordinary cycles and a bare `mdd review`. You do **not** pass the scope; review reads it from the highest-numbered open cycle. Whole-model parity is therefore reached exactly when the last slice closes.
+
 ## Closure rule
 
-The cycle is **done** only when **ID parity matches AND (security parity matches OR `security.parity_check` is `warn` and the user accepts the listed warnings)**. ID parity is strict structural; the security gate is `error` by default. The user may override a result manually (e.g. "ignore this extra"), but the default decision is automatable from `Project::review()`.
+The cycle is **done** only when **ID parity matches AND (security parity matches OR `security.parity_check` is `warn` and the user accepts the listed warnings)** — over the scope in effect (the whole model when no scope is declared). ID parity is strict structural; the security gate is `error` by default. The user may override a result manually (e.g. "ignore this extra"), but the default decision is automatable from `Project::review()`.
 "#;
 
 const MDD_RENDER_SKILL: &str = r#"# MDD Render
@@ -375,6 +379,7 @@ Whenever a modeling or implementation decision is genuinely ambiguous, **stop an
 
 - **Description provided** → entry is `/mdd-generate` (derive the objective from the description), then run the full loop below.
 - **No description** → behave **exactly as `/mdd-map` with no comments** does: refresh the current-side use-case view only, then stop. Do **not** open a cycle, run the loop, or write snapshots.
+- **Scope provided (realize-slice)** → a slice of an *existing* objective is named (a set of `@id`s — e.g. a PLAN item's `@scope(...)`). **Skip `/mdd-generate`** (the objective is already authored); open a cycle that records `scope: [ids]` in its manifest and loop `/mdd-validate → /mdd-implement → /mdd-map → /mdd-validate → /mdd-review` to **scoped** parity. Only the in-scope `@id`s must reach the current side; objective ids outside the scope that are still absent are **expected**, not a mismatch. Whole-model parity is reached when the last slice closes. `Project::review` reads the open cycle's manifest `scope` automatically (empty = whole-model, the default for the two entries above). This is the entry the greenfield kickoff → Ralph handoff uses.
 
 ## Cycle boundary (this skill owns it)
 
@@ -390,6 +395,7 @@ Standalone `/mdd-map` and `/mdd-generate` never open or close a cycle — only t
    status: open
    opened_at: "<unix-seconds-or-ISO>"
    touched_files: []
+   scope: []              # realize-slice only: objective @ids this cycle realizes; omit/[] = whole-model
    ```
 
 2. **Loop to parity**: `/mdd-validate` → (`/mdd-test` red phase, when `test.layers` is configured) → `/mdd-implement` → `/mdd-map` → `/mdd-validate` → `/mdd-review`. On a review mismatch, hand back to `/mdd-implement` and loop. Repeat until `/mdd-review` reports parity matched (ID parity and security parity per `.mdd/config.yml`). See *Test profile and the green gate* for the red phase and the three Close gates.

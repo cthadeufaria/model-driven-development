@@ -1,0 +1,18 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(USE-REALIZE-SLICE) <<added>> this cycle (0026)
+' Cycle 0026 diff (current side): the realize-slice entry to /mdd-cycle —
+' drive an existing objective slice to scoped parity. One use case added;
+' nothing removed.
+title MDD cycle tracking — realize-slice · cycle 0026 diff (current)
+
+left to right direction
+actor "Developer" as Dev
+
+usecase "Realize one objective slice\n(scoped realize-slice cycle)" as RealizeSlice <<added>>
+
+Dev --> RealizeSlice
+@enduml

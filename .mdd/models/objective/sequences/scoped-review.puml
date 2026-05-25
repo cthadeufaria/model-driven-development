@@ -1,0 +1,44 @@
+@startuml
+' @id(SEQ-SCOPED-REVIEW)
+' @ref(USE-REALIZE-SLICE)
+' @desc(SEQ-SCOPED-REVIEW, "How Project::review() narrows the parity gate to a slice. It resolves the latest OPEN cycle's manifest scope (a set of objective @ids). When that scope is non-empty: missing = (objective ids minus current ids) intersected with scope, so objective ids outside the scope that are still absent from current are EXPECTED, not failures; and security parity compares only @sec markers whose host id is in scope. When the scope is empty or there is no open cycle, behaviour is byte-identical to the whole-model gate. ids_matched is then computed from the (possibly narrowed) missing set; the combined gate folds in the scoped security and the unchanged traceability pass.")
+' Objective sequence for the scoped-parity core (cycle 0026, greenfield-kickoff
+' Cycle A). The scope is read from the cycle manifest, never passed as a flag,
+' so /mdd-review and `mdd review` scope automatically when a realize-slice cycle
+' is open and stay whole-model otherwise.
+title Scoped parity review (objective)
+
+participant "mdd review\n/ /mdd-review" as CLI
+participant "Project::review()" as Review
+participant "CycleRegistry\n(open cycle manifest)" as Cycles
+participant "ModelRegistry\n(current + objective)" as Reg
+participant "Project::review_security()" as Sec
+participant "ReviewReport" as Rep
+
+CLI -> Review : review()
+Review -> Cycles : latest open cycle scope
+Cycles --> Review : scope : Set<Id> (may be empty)
+Review -> Reg : current ids, objective ids
+Reg --> Review : id sets
+
+alt scope is non-empty
+  Review -> Review : missing = (objective minus current) intersect scope
+  note right of Review
+    Objective ids outside scope that are
+    still absent from current are EXPECTED,
+    not a mismatch (they belong to other
+    PLAN items / future realize-slice cycles).
+  end note
+  Review -> Sec : review_security(scope)
+  Sec -> Sec : compare only markers whose host id is in scope
+  Sec --> Review : scoped security report
+else scope empty or no open cycle
+  Review -> Review : missing = objective minus current (whole-model)
+  Review -> Sec : review_security(none)
+  Sec --> Review : whole-model security report
+end
+
+Review -> Review : ids_matched = missing.isEmpty()
+Review -> Rep : matched = ids_matched AND security_gate AND traceability_gate
+Rep --> CLI : ReviewReport (scope echoed in output)
+@enduml

@@ -1,0 +1,28 @@
+-- @id(OCL-REVIEW-SCOPE-SUBSET-OF-OBJECTIVE)
+-- @ref(DOM-CYCLE)
+-- Scoped parity (greenfield-kickoff Cycle A). A cycle's scope, when present,
+-- narrows the review gate to a slice of the objective: review() compares only
+-- the in-scope objective @ids against the current side and treats out-of-scope
+-- gaps as expected (they belong to other PLAN items / future realize-slice
+-- cycles). Every id the scope names must therefore resolve to a real objective
+-- @id, so a realize-slice cycle can never "close" against ids that do not
+-- exist. An empty scope is the whole-model gate — byte-identical to the
+-- behaviour before scoped parity, and the default for ordinary cycles, so a
+-- bare `mdd review` and every pre-existing cycle are unaffected.
+context Cycle
+inv ScopeSubsetOfObjective:
+  self.scope->forAll(id | ObjectiveModel.ids->includes(id))
+
+-- @id(OCL-REVIEW-WHOLE-PARITY-AT-DONE)
+-- @ref(DOM-CYCLE)
+-- Scoping is incremental, not a way to skip coverage: because each realize-
+-- slice cycle closes only its own slice, whole-model parity (the full
+-- objective-minus-current missing set is empty) is reached precisely when the
+-- last slice closes. The union of all realize-slice scopes therefore covers
+-- every implementation-bearing objective @id — the invariant the greenfield
+-- PLAN relies on so that exhausting the plan coincides with whole parity.
+context Cycle
+inv ClosedSlicesCoverObjectiveWhenDone:
+  Cycle.allInstances()->forAll(c | c.status = CycleStatus::Closed)
+    implies Cycle.allInstances().scope->asSet()
+              ->includesAll(ObjectiveModel.implementableIds)

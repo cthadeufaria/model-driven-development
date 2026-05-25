@@ -70,6 +70,19 @@ links:
   - from: SEQ-RUN-CYCLE
     to: DOM-CYCLE
     relation: depends_on
+  # cycle 0026 — scoped parity (greenfield-kickoff Cycle A)
+  - from: USE-REALIZE-SLICE
+    to: SEQ-SCOPED-REVIEW
+    relation: realizes
+  - from: SEQ-SCOPED-REVIEW
+    to: DOM-CYCLE
+    relation: depends_on
+  - from: OCL-REVIEW-SCOPE-SUBSET-OF-OBJECTIVE
+    to: DOM-CYCLE
+    relation: constrains
+  - from: OCL-REVIEW-WHOLE-PARITY-AT-DONE
+    to: DOM-CYCLE
+    relation: constrains
   - from: SEQ-RENDER-CYCLE-DIFF
     to: DOM-CYCLE-DIFF
     relation: depends_on
@@ -1007,6 +1020,25 @@ source_links:
   - model_id: SEQ-TRACE-REVIEW
     path: crates/mdd-core/src/lib.rs
     symbol: Project::review
+  # cycle 0026 — scoped parity (greenfield-kickoff Cycle A)
+  - model_id: SEQ-SCOPED-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::review
+  - model_id: SEQ-SCOPED-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::review_security
+  - model_id: SEQ-SCOPED-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::review_security_scoped
+  - model_id: SEQ-SCOPED-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::open_cycle_scope
+  - model_id: SEQ-SCOPED-REVIEW
+    path: crates/mdd-core/src/lib.rs
+    symbol: ReviewReport
+  - model_id: DOM-CYCLE
+    path: crates/mdd-core/src/cycle.rs
+    symbol: CycleManifest
   - model_id: CMP-TRACE-GATE
     path: crates/mdd-core/src/lib.rs
     symbol: Project::validate_inner

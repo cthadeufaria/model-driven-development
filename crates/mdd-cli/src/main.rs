@@ -185,6 +185,13 @@ fn main() -> Result<()> {
         Commands::Review => {
             let project = Project::discover(env::current_dir()?)?;
             let report = project.review()?;
+            if !report.scope.is_empty() {
+                println!(
+                    "scope:           {} objective id(s) [{}] — out-of-scope gaps expected",
+                    report.scope.len(),
+                    report.scope.join(", ")
+                );
+            }
             println!("ID parity:       {}", pass_fail(report.ids_matched));
             for id in &report.missing_ids {
                 println!("  missing in current: {id}");

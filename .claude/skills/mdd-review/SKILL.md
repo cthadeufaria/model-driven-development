@@ -30,6 +30,10 @@ Use this skill after a `/mdd-implement → /mdd-map → /mdd-validate` cycle to 
    - **`warn`**: missing markers are reported prominently but do not by themselves block closure (opt-down for projects not yet enforcing security parity).
 7. On any missing security marker, `.mdd/rendered/review/<diagram>.security.diff.puml` is written (render via `/mdd-render`). Report the gap and hand off to `/mdd-implement`.
 
+## Scope (realize-slice cycles)
+
+When the open cycle's manifest declares a non-empty `scope` (a set of objective `@id`s), `Project::review()` narrows **both passes** to that slice automatically: `missing` is intersected with the scope and `@sec` markers are compared only for in-scope hosts, so objective ids and guards **outside** the scope that are absent from current are **expected**, not a mismatch (they belong to other PLAN items / future realize-slice cycles). An empty or absent scope is the whole-model gate — the default for ordinary cycles and a bare `mdd review`. You do **not** pass the scope; review reads it from the highest-numbered open cycle. Whole-model parity is therefore reached exactly when the last slice closes.
+
 ## Closure rule
 
-The cycle is **done** only when **ID parity matches AND (security parity matches OR `security.parity_check` is `warn` and the user accepts the listed warnings)**. ID parity is strict structural; the security gate is `error` by default. The user may override a result manually (e.g. "ignore this extra"), but the default decision is automatable from `Project::review()`.
+The cycle is **done** only when **ID parity matches AND (security parity matches OR `security.parity_check` is `warn` and the user accepts the listed warnings)** — over the scope in effect (the whole model when no scope is declared). ID parity is strict structural; the security gate is `error` by default. The user may override a result manually (e.g. "ignore this extra"), but the default decision is automatable from `Project::review()`.

@@ -9,7 +9,7 @@
 ' Objective-side domain model for cycle tracking. New concepts, absent on
 ' the current side until /mdd-implement + /mdd-map close the parity gap.
 '
-' @desc(DOM-CYCLE, "One tracked MDD loop: its entry point, description, status, the model files it touched, and its before/after snapshot directories.")
+' @desc(DOM-CYCLE, "One tracked MDD loop: its entry point, description, status, the model files it touched, its before/after snapshot directories, and an optional scope — a set of objective @ids that narrows the parity gate to that slice (empty = whole-model).")
 ' @desc(DOM-CYCLE-DIFF, "Per-diagram element partition between a cycle's before and after current-side snapshots: unchanged, added, removed, plus the path of its rendered superposed .diff.svg.")
 ' @desc(DOM-ELEMENT-DESCRIPTION, "The @desc(<ID>, text) marker: a one-line human description attached to a model @id, surfaced in the MODEL CONTEXT card.")
 ' @desc(DOM-CYCLE-REGISTRY, "Scans .mdd/cycles/ into an ordered list of Cycle records for the viewer rail and diff view; analogous to ModelRegistry.")
@@ -42,6 +42,7 @@ class Cycle {
   + openedAt : Timestamp
   + closedAt : Timestamp?
   + touchedFiles : List<String>
+  + scope : List<String>
   + beforeDir : Path
   + afterDir : Path?
 }
@@ -128,7 +129,13 @@ note bottom of Cycle
   and at least one CycleDiff
   (OCL-CYCLE-CLOSED-HAS-SNAPSHOTS). entry is
   Generate iff the run started from a
-  description (OCL-CYCLE-ENTRY-VALID).
+  description (OCL-CYCLE-ENTRY-VALID). scope is
+  optional: when non-empty it narrows the parity
+  gate to those objective @ids and must be a
+  subset of the objective registry
+  (OCL-REVIEW-SCOPE-SUBSET-OF-OBJECTIVE); empty
+  scope means whole-model parity, exactly as
+  before. Realized by SEQ-SCOPED-REVIEW.
 end note
 
 note bottom of DiffView

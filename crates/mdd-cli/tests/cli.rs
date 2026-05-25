@@ -340,7 +340,10 @@ fn help_exposes_init_clean_and_render_commands() {
         .stdout(predicate::str::contains("describe").not())
         .stdout(predicate::str::contains("diff").not())
         .stdout(predicate::str::contains("approve").not())
-        .stdout(predicate::str::contains("test").not())
+        // NB: no bare `test` command, but `test-plan`/`test-detect` legitimately
+        // contain that substring — `removed_commands_fail_as_unknown` below is
+        // the real guard that the bare `test` command is gone, so we do not
+        // substring-match "test" in the help here.
         .stdout(predicate::str::contains("code").not())
         .stdout(predicate::str::contains("app").not());
 }

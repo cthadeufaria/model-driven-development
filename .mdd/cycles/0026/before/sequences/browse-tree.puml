@@ -1,0 +1,44 @@
+@startuml
+' @id(SEQ-BROWSE-TREE)
+' @ref(USE-BROWSE-TREE)
+'
+' Current-side flow as implemented in MddViewer::update + tree.rs:
+' TreeNode::build produces a nested directory tree; the rail toggles
+' between Directory and By-cycle organization.
+'
+' @desc(SEQ-BROWSE-TREE, "As-built rail: TreeNode::build splits short_path on '/'; By-cycle mode groups CycleRegistry.touched_files; CollapsingHeader renders the tree; click loads the file.")
+title Browse models in a directory tree (current)
+
+actor "Developer" as Dev
+participant "MddViewer::update" as Viewer
+participant "ModelRegistry\n(mdd-core)" as Reg
+participant "CycleRegistry\n(self.cycles)" as CReg
+participant "tree::TreeNode::build" as Tree
+participant "egui SidePanel\n(left rail)" as Rail
+
+Dev -> Viewer : mdd view
+Viewer -> Reg : registry.files (cloned)
+Viewer -> Tree : build(files, short_path, kind_label)
+Tree --> Viewer : dir_tree
+
+alt rail_mode == ByCycle
+  Viewer -> CReg : self.cycles.cycles
+  loop each cycle
+    Viewer -> Tree : build(touched leaves)
+  end
+  Viewer -> Viewer : + Unassigned group
+end
+
+Viewer -> Rail : Directory / By cycle toggle
+loop each frame
+  Rail -> Tree : TreeNode::ui (CollapsingHeader recursion)
+  Tree --> Rail : Option<clicked path>
+end
+Rail --> Viewer : clicked path
+
+Dev -> Rail : click a diagram leaf
+Viewer -> Viewer : load_file(matched ModelFile)
+
+Dev -> Rail : toggle organize mode
+Viewer -> Viewer : self.rail_mode = new_mode (rebuild next frame)
+@enduml

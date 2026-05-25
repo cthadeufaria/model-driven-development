@@ -1,5 +1,6 @@
 @startuml
 ' @id(USE-RUN-CYCLE)
+' @id(USE-REALIZE-SLICE)
 ' @id(USE-BROWSE-TREE)
 ' @id(USE-GROUP-BY-CYCLE)
 ' @id(USE-CYCLE-DIFF-VIEW)
@@ -20,6 +21,7 @@
 ' right-hand MODEL CONTEXT card. Syntax: ' @desc(<ID>, "text")
 '
 ' @desc(USE-RUN-CYCLE, "One-shot orchestration: run the whole MDD loop from a single feature/bug description, pausing only to ask clarifying questions.")
+' @desc(USE-REALIZE-SLICE, "Realize one slice of an existing objective: /mdd-cycle's realize-slice entry opens a cycle scoped to a declared subset of objective @ids (recorded on the manifest's scope), skips /mdd-generate, and drives the current side to just that slice, closing on scoped parity. Whole-model parity is reached when the last slice closes — the basis for the greenfield kickoff to Ralph handoff, where each PLAN item realizes its @scope.")
 ' @desc(USE-BROWSE-TREE, "Left rail is a VSCode-style collapsible directory tree of model files instead of a flat alphabetical list.")
 ' @desc(USE-GROUP-BY-CYCLE, "Alternative rail organization that groups diagrams under the cycle that last touched them.")
 ' @desc(USE-CYCLE-DIFF-VIEW, "Diff mode is bound to the model file selected in the left rail; the cycle is chosen only among the cycles that actually changed that file (default the latest such cycle), never a global picker.")
@@ -34,6 +36,7 @@ actor "Developer" as Dev
 
 rectangle "mdd toolchain + viewer" {
   usecase "Run a full MDD cycle\nfrom one description" as RunCycle
+  usecase "Realize one objective slice\n(scoped realize-slice cycle)" as RealizeSlice
   usecase "Browse models in a\ndirectory tree (VSCode-style)" as Tree
   usecase "Group diagrams by cycle" as Group
   usecase "View the selected file's\nbefore/after diff for a cycle" as Diff
@@ -43,6 +46,7 @@ rectangle "mdd toolchain + viewer" {
 }
 
 Dev --> RunCycle
+Dev --> RealizeSlice
 Dev --> Tree
 Dev --> Diff
 Dev --> Desc
@@ -53,6 +57,7 @@ Diff ..> Tree : <<include>>
 Diff ..> DiffDiagram : <<extend>>
 Tree ..> Desc : <<extend>>
 RunCycle ..> WholeMap : <<extend>>
+RealizeSlice ..> RunCycle : <<extend>>
 
 note right of RunCycle
   Entry-point selection:
@@ -67,6 +72,18 @@ note right of RunCycle
   ambiguous. It owns the cycle boundary:
   opens + snapshots before, closes +
   snapshots after + writes the diff pumls.
+end note
+
+note bottom of RealizeSlice
+  A third entry alongside description (generate)
+  and no-description (map): given a scope (a set
+  of objective @ids, recorded on the manifest),
+  skip /mdd-generate and loop validate ->
+  implement -> map -> validate -> review until
+  SCOPED parity — only the in-scope @ids must
+  reach current; out-of-scope gaps are expected.
+  Whole-model parity is reached when the last
+  slice closes. Realized by SEQ-SCOPED-REVIEW.
 end note
 
 note bottom of Diff
