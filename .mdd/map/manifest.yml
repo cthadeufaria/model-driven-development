@@ -1,6 +1,6 @@
 version: 1
 last_cycle: 20
-generated_at: "2026-05-24T20:30:30Z"
+generated_at: "2026-05-25T10:00:00Z"
 files:
   - components/agent-prepare.puml
   - components/cycle-tracking.puml
@@ -39,6 +39,7 @@ files:
   - sequences/init-scaffold.puml
   - sequences/map-mockups.puml
   - sequences/map-status.puml
+  - sequences/open-render.puml
   - sequences/panel-collapse.puml
   - sequences/session-brief.puml
   - sequences/trace-review.puml

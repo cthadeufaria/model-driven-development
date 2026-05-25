@@ -1,9 +1,13 @@
 @startuml
 ' --- whole-map provenance: cycle that introduced each @id ---
 ' @cycle(CMP-VIEWER-SHELL, 0001)
+' @cycle(CMP-MOCKUP-LAUNCH, 0019)
 ' @id(CMP-VIEWER-SHELL)
 ' @ref(USE-VIEW-DIAGRAMS)
 ' @desc(CMP-VIEWER-SHELL, "The egui shell of mdd-viewer as built by MddViewer::update: collapsible left/right SidePanels, a toolbar with no zoom buttons, and the center-fixed fisheye canvas stage that warps the rendered texture before painting.")
+' @id(CMP-MOCKUP-LAUNCH)
+' @ref(USE-OPEN-RENDER)
+' @desc(CMP-MOCKUP-LAUNCH, "As built (cycle 0019, crates/mdd-viewer/src/lib.rs): the launch helpers behind the view-tab 'Open render' button. selected_render_slug() gates the button; open_mockup_render(root, slug) spawns a thread that calls mockup_server_up() to probe localhost:4317, spawns npm run dev with cwd <root>/mockups only if the port is not serving (polling until it binds), then open_in_browser opens the OS default browser at /mockup/<slug>. No npm install, no child-process shutdown tracking.")
 ' Current-side component view derived from MddViewer::update in
 ' crates/mdd-viewer/src/lib.rs.
 title mdd-viewer UI shell — ownership (current)
@@ -35,5 +39,23 @@ note bottom of Fisheye
   zoom/pan placement; it does not change the render/font
   pipeline (CMP-VIEWER-RENDER-PIPELINE) — it only remaps
   where the already-rasterized texture is painted.
+end note
+
+component "MockupLauncher\n(CMP-MOCKUP-LAUNCH)\nopen_mockup_render · mockup_server_up · open_in_browser" as Launch
+component "npm run dev\n(Vite dev server, :4317, cwd mockups/)" as Vite
+component "OS default browser\n(open / xdg-open / start)" as Browser
+
+Viewer --> Launch : open_mockup_render(root, slug)\non "Open render" click (UIC-OPEN-RENDER)
+Launch --> Vite : spawn in mockups/ only if :4317 not serving
+Launch --> Browser : open /mockup/<slug>
+
+note bottom of Launch
+  Code (CMP-MOCKUP-LAUNCH / USE-OPEN-RENDER): selected_render_slug()
+  enables the button only for a ModelKind::Mockup whose
+  mockups/src/mockups/<slug>.tsx exists. open_mockup_render runs
+  off the UI thread (std::thread): mockup_server_up() probes :4317,
+  spawns npm run dev (cwd <root>/mockups) if down and polls until it
+  binds, then open_in_browser opens /mockup/<slug>. Realized by
+  SEQ-OPEN-RENDER.
 end note
 @enduml

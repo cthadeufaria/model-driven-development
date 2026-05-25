@@ -7,6 +7,7 @@
 ' @cycle(USE-VIEW-DEPLOY, 0010)
 ' @cycle(USE-VIEWER-THEMED, 0011)
 ' @cycle(USE-VIEW-PUML-SOURCE, 0012)
+' @cycle(USE-OPEN-RENDER, 0019)
 ' @id(USE-VIEW-DIAGRAMS)
 ' @desc(USE-VIEW-DIAGRAMS, "Developer views a rendered model diagram on the in-app canvas with shapes and text legible.")
 ' @id(USE-FISHEYE-FOCUS)
@@ -21,6 +22,8 @@
 ' @desc(USE-VIEWER-THEMED, "Implemented (cycle 0011) as crates/mdd-viewer/src/theme.rs: run() calls theme::register_fonts(&cc.egui_ctx) once at startup (Inter Regular + Medium at the head of FontFamily::Proportional, JetBrains Mono Regular at the head of FontFamily::Monospace). MddViewer::update calls theme::apply_theme(ctx) FIRST each frame: dark_light::detect() → catppuccin_egui::set_theme(ctx, MOCHA | LATTE), then style.spacing.item_spacing = (8.0, 6.0) and rounding = 6.0 on every WidgetVisuals variant. Pure chrome — does not touch ModelRegistry, CycleRegistry, or the SVG render pipeline.")
 ' @id(USE-VIEW-PUML-SOURCE)
 ' @desc(USE-VIEW-PUML-SOURCE, "Implemented (cycle 0012): the CentralPanel toggle row is Diagram | Source | Diff (View enum gains View::Source). Clicking Source sets self.view = View::Source; update() dispatches to MddViewer::source_ui before the constraint/canvas branch. source_ui lazily reads the selected file's text into SourceView { loaded, source } (cached by path) and paints it in egui::ScrollArea::both as read-only monospace — `' @` marker lines yellow, `@start`/`@end` directives blue, other `'` comments dimmed. No DiagramPage / usvg call, so it works even when the SVG is unrendered.")
+' @id(USE-OPEN-RENDER)
+' @desc(USE-OPEN-RENDER, "As built (cycle 0019): the central-panel view-tab row has an 'Open render' button (MddViewer::update). It is enabled only when MddViewer::selected_render_slug() is Some — the selected file is a ModelKind::Mockup whose render mockups/src/mockups/<slug>.tsx exists under project.root(). Click runs open_mockup_render off the UI thread: probe :4317, spawn npm run dev in mockups/ if it is not already serving, then open the OS browser at /mockup/<slug>.")
 ' Current-side use-case view of the `mdd view` interactive diagram viewer,
 ' refreshed from code: the canvas applies a center-fixed fisheye over
 ' the base scroll zoom, the side panels collapse, the toolbar has no
@@ -45,6 +48,7 @@ rectangle "mdd-viewer" {
   usecase "View deployment diagrams\n(dedicated DEPLOY section,\nNOT parity-gated)" as ViewDeploy
   usecase "View themed viewer chrome\n(Catppuccin, bundled fonts,\nOS appearance auto-follow)" as Themed
   usecase "View PlantUML source\n(Source toggle next to Diagram)" as ViewSource
+  usecase "Open React mockup render\n(button opens browser)" as OpenRender
 }
 
 Dev --> View
@@ -57,6 +61,7 @@ Dev --> ViewOcl
 Dev --> ViewDeploy
 Dev --> Themed
 Dev --> ViewSource
+Dev --> OpenRender
 
 View ..> Browse : <<include>>
 View ..> PanZoom : <<extend>>
@@ -66,6 +71,7 @@ View ..> Themed : <<include>>
 View ..> ViewSource : <<extend>>
 ViewOcl ..> PanZoom : <<extend>>
 ViewDeploy ..> PanZoom : <<extend>>
+OpenRender ..> Browse : <<include>>
 
 note bottom of ViewOcl
   Code (USE-VIEW-OCL): when the selected file
@@ -141,5 +147,16 @@ note bottom of ViewSource
   comments dimmed). No DiagramPage / rasterizer call, so
   it needs no rendered SVG (OCL-PUML-SOURCE-NO-RENDER).
   Realized by SEQ-VIEW-PUML-SOURCE.
+end note
+
+note bottom of OpenRender
+  Code (USE-OPEN-RENDER): the view-tab row adds an "Open render"
+  button (MddViewer::update). Enabled only when
+  MddViewer::selected_render_slug() is Some — the selection is a
+  ModelKind::Mockup whose mockups/src/mockups/<slug>.tsx exists.
+  Click runs open_mockup_render off-thread: mockup_server_up()
+  probes :4317, spawns npm run dev in mockups/ if down, then
+  open_in_browser opens /mockup/<slug>. Realized by
+  SEQ-OPEN-RENDER; launcher CMP-MOCKUP-LAUNCH.
 end note
 @enduml
