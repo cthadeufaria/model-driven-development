@@ -1,0 +1,51 @@
+@startuml
+' @id(SEQ-MAP-SCOPE)
+' @ref(USE-SCOPED-REMAP)
+' @desc(SEQ-MAP-SCOPE, "Project::map_scope(N) builds DOM-MAP-SCOPE-PLAN. Read the cycle N manifest (touched_files, scope). REVERSE (touched_files): for each touched file, scan trace.yml source_links for entries whose path matches (reuse CMP-TRACE-ENGINE path matching); collect their model_id @ids; map each current-side @id to the current diagram file declaring it; add to affected_files. A touched file matching no source_link is pushed to scope_escapes. FORWARD (scope): for each objective scope @id, add the current-side concept file <kind>/<name> that realizes it to affected_files. full_remap = scope_escapes non-empty. The /mdd-cycle loop runs the verb each iteration and hands affected_files (or 'whole tree' on full_remap) to /mdd-map; /mdd-validate then runs whole-tree regardless.")
+' Objective sequence realizing USE-SCOPED-REMAP (cycle 0030). The same
+' source_link inversion that backs SEQ-MAP-STATUS, turned around to emit
+' a cheaper re-map plan rather than a freshness verdict.
+title Scoped re-map — map-scope plan (objective)
+
+participant "/mdd-cycle loop\n(CMP-CYCLE-ORCHESTRATOR)" as Cycle
+participant "mdd map-scope\n(CMP-MAP-SCOPE-CLI)" as Cli
+participant "Project::map_scope()\n(CMP-MAP-SCOPE-ENGINE)" as Engine
+participant "CycleRegistry\nmanifest" as Manifest
+participant "trace.yml\nsource_links" as Trace
+participant "path matcher\n(CMP-TRACE-ENGINE)" as Matcher
+participant "MapScopePlan" as Plan
+participant "/mdd-map" as Map
+
+Cycle -> Cli : map-scope --cycle N --json
+Cli -> Engine : map_scope(N)
+Engine -> Manifest : read cycle N (touched_files, scope)
+Manifest --> Engine : touched_files, scope
+
+== Reverse (touched_files since last iteration) ==
+loop each touched file
+  Engine -> Trace : source_links with matching path
+  Trace --> Engine : (model_id, path)*
+  alt at least one source_link matches
+    Engine -> Matcher : path match
+    Matcher --> Engine : model_ids
+    Engine -> Plan : add current diagram file(s) for those @ids
+  else no source_link
+    Engine -> Plan : push scope_escape (forces full_remap)
+  end
+end
+
+== Forward (objective scope @ids) ==
+loop each scope @id in manifest
+  Engine -> Plan : add current-side concept file realizing it
+end
+
+Plan --> Engine : { cycle, affected_files, scope_escapes, full_remap }
+Engine --> Cli : DOM-MAP-SCOPE-PLAN
+Cli --> Cycle : JSON plan
+
+alt full_remap
+  Cycle -> Map : re-derive whole current/ tree
+else narrowed
+  Cycle -> Map : re-derive only affected_files (rest byte-identical)
+end
+@enduml

@@ -1,0 +1,23 @@
+@startuml
+' @id(DOM-MAP-SCOPE-PLAN)
+' @desc(DOM-MAP-SCOPE-PLAN, "Outcome of Project::map_scope(cycle): { cycle: u32, affected_files: Vec<String>, scope_escapes: Vec<String>, full_remap: bool }. affected_files are repo-relative current-side diagram paths (.mdd/models/current/<kind>/<name>.puml) the cycle's edits could have changed, sorted + deduped. scope_escapes are touched_files entries that resolved to no source_link. full_remap = true when scope_escapes is non-empty (a touched file maps to no diagram, so the narrowed set cannot be trusted -> /mdd-map must re-derive the whole tree). This is the stable JSON contract the /mdd-map and /mdd-cycle skills consume; pure data, no execution.")
+' Objective-side domain for scoped re-map (cycle 0030). The small plan
+' object the deterministic verb emits and the two skills read. Reuses
+' DOM-SOURCE-LINK (the inversion input) from the traceability domain.
+title MDD scoped re-map — domain (objective)
+
+class MapScopePlan {
+  + cycle : u32
+  + affected_files : Vec<String>
+  + scope_escapes : Vec<String>
+  + full_remap : bool
+}
+
+note bottom of MapScopePlan
+  full_remap = !scope_escapes.is_empty(). When true the
+  consumer ignores affected_files and re-maps the whole
+  current/ tree (never silently narrow). Built by inverting
+  DOM-SOURCE-LINK over the cycle manifest's touched_files
+  and resolving the objective scope @ids to current concepts.
+end note
+@enduml

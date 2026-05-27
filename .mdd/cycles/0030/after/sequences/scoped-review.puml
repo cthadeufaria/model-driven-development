@@ -1,0 +1,38 @@
+@startuml
+' @id(SEQ-SCOPED-REVIEW)
+' @ref(USE-REALIZE-SLICE)
+' @desc(SEQ-SCOPED-REVIEW, "Implemented in Project::review: it calls Project::open_cycle_scope (highest-numbered Open cycle's manifest.scope, else empty), then filters objective-minus-current by the scope when non-empty, and passes the scope to Project::review_security_scoped, which skips @sec markers whose host is out of scope. ids_matched = missing.is_empty(); extra is filtered the same way so a slice review annotates only its slice. Empty scope is byte-identical to the prior whole-model gate. The scope is echoed on ReviewReport.scope and printed by `mdd review`.")
+' Current-side sequence for the scoped-parity core (cycle 0026). Derived from
+' crates/mdd-core/src/lib.rs (Project::review, Project::review_security_scoped,
+' Project::open_cycle_scope) and crates/mdd-core/src/cycle.rs (CycleManifest.scope).
+title Scoped parity review (current)
+
+participant "mdd review\n(Commands::Review)" as CLI
+participant "Project::review" as Review
+participant "Project::open_cycle_scope" as Scope
+participant "CycleRegistry::scan" as Cycles
+participant "Project::review_security_scoped" as Sec
+participant "ReviewReport" as Rep
+
+CLI -> Review : review()
+Review -> Scope : open_cycle_scope()
+Scope -> Cycles : scan(.mdd/cycles)
+Cycles --> Scope : cycles
+Scope --> Review : scope = highest Open cycle's manifest.scope (else empty)
+
+alt scope non-empty
+  Review -> Review : missing = (objective minus current).filter(in scope)
+  Review -> Review : extra filtered to scope the same way
+  Review -> Sec : review_security_scoped(scope)
+  Sec -> Sec : skip markers whose host id is out of scope
+  Sec --> Review : scoped security report
+else scope empty (whole-model, default)
+  Review -> Review : missing = objective minus current
+  Review -> Sec : review_security_scoped(empty)
+  Sec --> Review : whole-model security report
+end
+
+Review -> Review : ids_matched = missing.is_empty()
+Review -> Rep : matched = ids_matched AND security_gate AND traceability_gate
+Rep --> CLI : ReviewReport { scope, missing_ids, .. }
+@enduml

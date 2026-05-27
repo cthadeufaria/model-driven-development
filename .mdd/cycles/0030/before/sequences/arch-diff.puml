@@ -1,0 +1,28 @@
+@startuml
+' @id(SEQ-ARCH-DIFF)
+' @ref(USE-TRACK-ARCH)
+' @desc(SEQ-ARCH-DIFF, "Implemented as Project::arch_diff + Project::arch_status (crates/mdd-core/src/lib.rs) over the architecture.rs engine. diff: load_architecture parses the working .mdd/architecture/*.yml, read_text_at_ref reads the base via `git show <ref>:<path>` (default HEAD; absent = empty), then architecture::diff. status: load + architecture::check vs the model registry ids, exit non-zero on any violation. The same check() is folded into Project::validate_inner as WARNING-level OCL-ARCH-* rules (inert when no spec). CLI: mdd-cli Commands::Arch (diff/status, --json).")
+' Current-side sequence for mdd arch diff / status (cycle 0029).
+title mdd arch diff and status (current)
+
+actor "Developer / Agent" as Agent
+participant "mdd arch (CLI)" as CLI
+participant "Project::load_architecture" as Load
+participant "git show ref" as Git
+participant "architecture::diff / check" as Core
+
+alt mdd arch diff
+  Agent -> CLI : mdd arch diff [--base ref]
+  CLI -> Load : parse working .mdd/architecture
+  CLI -> Git : read .mdd/architecture at base ref
+  Git --> CLI : base spec (empty if absent)
+  CLI -> Core : diff(base, head)
+  Core --> CLI : ArchDiff (added / removed / changed)
+else mdd arch status
+  Agent -> CLI : mdd arch status
+  CLI -> Load : parse working .mdd/architecture
+  CLI -> Core : check(spec, model ids)
+  Core --> CLI : violations (non-zero exit if any)
+end
+CLI --> Agent : report (text or --json)
+@enduml

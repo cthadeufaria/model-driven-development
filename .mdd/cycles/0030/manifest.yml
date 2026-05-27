@@ -1,0 +1,18 @@
+number: 30
+slug: scoped-remap-map-scope
+entry: generate
+description: "Add deterministic `mdd map-scope --cycle N` verb computing the minimal current-side diagram set a cycle's re-map must touch (invert trace.yml source_links over manifest touched_files + scope; report scope_escapes forcing full remap); teach /mdd-map to honor the scope and /mdd-cycle to call it each loop iteration."
+status: closed
+opened_at: "2026-05-27T00:00:00Z"
+closed_at: "2026-05-27T00:00:00Z"
+touched_files:
+  - .mdd/models/objective/use-cases/scoped-remap.puml
+  - .mdd/models/objective/domain/scoped-remap.puml
+  - .mdd/models/objective/components/scoped-remap.puml
+  - .mdd/models/objective/sequences/map-scope.puml
+  - .mdd/models/current/use-cases/scoped-remap.puml
+  - .mdd/models/current/domain/scoped-remap.puml
+  - .mdd/models/current/components/scoped-remap.puml
+  - .mdd/models/current/sequences/map-scope.puml
+  - .mdd/trace.yml
+scope: []

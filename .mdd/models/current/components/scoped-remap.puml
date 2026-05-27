@@ -1,0 +1,30 @@
+@startuml
+' @id(CMP-MAP-SCOPE-ENGINE)
+' @desc(CMP-MAP-SCOPE-ENGINE, "Project::map_scope(cycle_number, base) -> MapScopePlan in crates/mdd-core/src/lib.rs. Reads model_registry (current @id -> diagram file), read_trace (source_links), and cycle_registry().cycle(N).manifest (scope). REVERSE: traceability::changed_code(root, base) -> changed source files; for each, source_links filtered by path -> model_ids -> current diagram files into a BTreeSet; a changed file with no matching source_link -> scope_escape. FORWARD: each manifest scope @id -> current concept file (mirror current path when not yet on current side). full_remap = !scope_escapes.is_empty(). Pure/read-only; reuses the existing changed_code engine — no new git/syn machinery. Unit-tested (map_scope_narrows_to_diagrams_linked_to_changed_source, map_scope_unlinked_change_forces_full_remap).")
+' @id(CMP-MAP-SCOPE-CLI)
+' @desc(CMP-MAP-SCOPE-CLI, "Commands::MapScope { cycle, base (default HEAD), json } in crates/mdd-cli/src/main.rs -> Project::map_scope(cycle, &base). --json prints MapScopePlan; text mode prints full-remap escapes, the empty case, or the affected diagram list. Always exits 0 (a plan, not a gate).")
+title MDD scoped re-map — ownership (current)
+
+actor "Developer / Agent" as Dev
+
+component "mdd map-scope\n(CMP-MAP-SCOPE-CLI)" as Cli
+component "Project::map_scope\n(CMP-MAP-SCOPE-ENGINE)" as Engine
+component "CycleRegistry\n(CMP-CORE-CYCLE-MODEL)" as CycleModel
+component "trace.yml source_links" as Trace
+component "changed_code\n(CMP-TRACE-ENGINE)" as TraceEngine
+component "/mdd-map skill\n(CMP-MAP-SKILL)" as MapSkill
+component "/mdd-cycle skill\n(CMP-CYCLE-ORCHESTRATOR)" as Cycle
+
+Dev --> Cli : mdd map-scope --cycle N [--base REF] [--json]
+Cli --> Engine : map_scope(N, base)
+Engine --> CycleModel : cycle(N).manifest.scope
+Engine --> Trace : source_links by path
+Engine --> TraceEngine : changed_code(root, base)
+Cycle --> Cli : each loop iteration
+Cycle --> MapSkill : pass affected_files / full_remap
+
+note bottom of Engine
+  Reuses traceability::changed_code (Rust/src diff).
+  full_remap forces a whole-tree re-map. Realized by SEQ-MAP-SCOPE.
+end note
+@enduml

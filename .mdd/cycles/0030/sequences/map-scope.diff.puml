@@ -1,0 +1,73 @@
+@startuml
+skinparam usecase {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam class {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam component {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam state {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam rectangle {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam actor {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+skinparam participant {
+  BackgroundColor<<added>> #90EE90
+  BackgroundColor<<removed>> #FFB6C1
+}
+' @id(SEQ-MAP-SCOPE)
+' @ref(USE-SCOPED-REMAP)
+' @desc(SEQ-MAP-SCOPE, "Project::map_scope(N, base): build model_registry + read_trace + cycle_registry; manifest = cycle(N).manifest. REVERSE: changed = traceability::changed_code(root, base); changed_files = union of symbol.path + glue.path; for each file, links = source_links with l.path == file; if empty -> scope_escapes.insert(file); else for each link insert current_file_for(link.model_id) into affected. FORWARD: for each manifest.scope id, insert current_file_for(id), else the objective file's mirror current path. full_remap = !scope_escapes.is_empty(). Return MapScopePlan. The /mdd-cycle loop runs the verb each iteration and hands affected_files (or whole-tree on full_remap) to /mdd-map; /mdd-validate then runs whole-tree.")
+title Scoped re-map — map-scope plan (current)
+
+participant "/mdd-cycle loop\n(CMP-CYCLE-ORCHESTRATOR)" as Cycle <<added>>
+participant "mdd map-scope\n(CMP-MAP-SCOPE-CLI)" as Cli
+participant "Project::map_scope()\n(CMP-MAP-SCOPE-ENGINE)" as Engine
+participant "CycleRegistry\nmanifest" as Manifest
+participant "trace.yml\nsource_links" as Trace
+participant "changed_code\n(CMP-TRACE-ENGINE)" as Changed
+participant "MapScopePlan" as Plan
+participant "/mdd-map" as Map
+
+Cycle -> Cli : map-scope --cycle N --json
+Cli -> Engine : map_scope(N, base)
+Engine -> Manifest : cycle(N).manifest (scope)
+Engine -> Changed : changed_code(root, base)
+Changed --> Engine : changed source files
+
+loop each changed source file
+  Engine -> Trace : source_links where path matches
+  alt at least one matches
+    Trace --> Engine : (model_id, path)*
+    Engine -> Plan : insert current diagram file(s)
+  else none
+    Engine -> Plan : push scope_escape (forces full_remap)
+  end
+end
+
+loop each scope @id in manifest
+  Engine -> Plan : insert current-side concept file
+end
+
+Plan --> Engine : { cycle, affected_files, scope_escapes, full_remap }
+Engine --> Cli : MapScopePlan
+Cli --> Cycle : JSON plan
+
+alt full_remap
+  Cycle -> Map : re-derive whole current/ tree
+else narrowed
+  Cycle -> Map : re-derive only affected_files
+end
+@enduml

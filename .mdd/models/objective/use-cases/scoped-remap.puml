@@ -1,0 +1,28 @@
+@startuml
+' @id(USE-SCOPED-REMAP)
+' @desc(USE-SCOPED-REMAP, "`mdd map-scope --cycle N` answers 'which current-side diagrams could this cycle's edits have changed?' so /mdd-cycle's loop stops re-deriving the whole current/ tree on every iteration. It reads the cycle manifest (touched_files + scope), inverts trace.yml source_links to map each touched source file to the current @ids that link it and thus their diagram files, unions the current-side concepts realizing the objective scope @ids, and emits the affected file set. A touched file resolving to NO source_link is reported as a scope_escape that forces a full remap of that area — never silently narrowed. The verb computes the plan (deterministic); /mdd-map executes the narrowed re-map and /mdd-validate still runs whole-tree as the safety net.")
+' Objective-side use case for scoped re-map (cycle 0030). Mirrors how
+' map-status reuses the trace engine: this is a second consumer of the
+' same source_link inversion, turned around to drive a cheaper re-map.
+title MDD scoped re-map — use case (objective)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Compute the minimal current-side\nre-map set for a cycle\n(mdd map-scope)" as ScopedRemap
+}
+
+Dev --> ScopedRemap
+
+note bottom of ScopedRemap
+  Objective (USE-SCOPED-REMAP): deterministic plan
+  verb. affected_files = (touched_files -> source_link
+  inversion -> @ids -> diagram files) UNION (objective
+  scope @ids -> current-side concepts). A touched file
+  with no source_link -> scope_escape -> full_remap.
+  Realized by SEQ-MAP-SCOPE; owned by CMP-MAP-SCOPE-ENGINE
+  + CMP-MAP-SCOPE-CLI; consumed by /mdd-map + /mdd-cycle.
+end note
+@enduml

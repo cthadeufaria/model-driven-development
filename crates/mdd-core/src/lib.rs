@@ -630,6 +630,22 @@ pub struct MapDrift {
     pub model_id: String,
 }
 
+/// DOM-MAP-SCOPE-PLAN: the deterministic plan emitted by
+/// [`Project::map_scope`]. Tells `/mdd-map` (driven by the `/mdd-cycle` loop)
+/// the minimal set of current-side diagram files a cycle's edits could have
+/// changed, so the loop stops re-deriving the whole `current/` tree each
+/// iteration. `affected_files` are repo-relative current diagram paths,
+/// sorted and deduped. `scope_escapes` are changed source files that resolve
+/// to no `source_link` — when any exist `full_remap` is true and the consumer
+/// must re-map the whole tree (never silently narrow).
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+pub struct MapScopePlan {
+    pub cycle: u32,
+    pub affected_files: Vec<String>,
+    pub scope_escapes: Vec<String>,
+    pub full_remap: bool,
+}
+
 /// DOM-SESSION-CONTEXT: the session-start brief printed by `mdd context` and
 /// injected by the SessionStart hook — a whole-map table of contents plus the
 /// freshness verdict (mirrored from [`MapStatusReport`]). A brief, not a gate.
@@ -2000,6 +2016,89 @@ impl Project {
             fresh: drift.is_empty(),
             source_revision: Some(source_revision),
             drift,
+        })
+    }
+
+    /// SEQ-MAP-SCOPE / CMP-MAP-SCOPE-ENGINE: compute the minimal current-side
+    /// re-map set for a cycle so the `/mdd-cycle` loop stops re-deriving the
+    /// whole `current/` tree each iteration.
+    ///
+    /// REVERSE: ask the shared trace engine for the source files changed since
+    /// `base` (default `HEAD`, so mid-loop the still-uncommitted
+    /// `/mdd-implement` edits are exactly the changeset), invert
+    /// `trace.yml` `source_links` by path to the current-side `@id`s that
+    /// depend on each file, and collect their declaring diagram files. A
+    /// changed source file with no `source_link` becomes a `scope_escape`.
+    /// FORWARD: resolve the cycle manifest's objective `scope` `@id`s to the
+    /// current-side concept file that realizes each (the mirror current path
+    /// when the id is not yet on the current side).
+    ///
+    /// `full_remap` is true whenever any `scope_escape` exists — the narrowed
+    /// set cannot be trusted, so the consumer must re-map the whole tree.
+    /// Pure and read-only; reuses [`traceability::changed_code`] — no new
+    /// git/syn machinery. `/mdd-validate` still runs whole-tree afterward.
+    pub fn map_scope(&self, cycle_number: u32, base: &str) -> Result<MapScopePlan> {
+        let registry = self.model_registry()?;
+        let trace = self.read_trace()?;
+        let cycle_registry = self.cycle_registry()?;
+        let manifest = cycle_registry.cycle(cycle_number).map(|c| c.manifest.clone());
+
+        // current-side @id -> the diagram file that declares it.
+        let current_file_for = |id: &str| -> Option<String> {
+            registry
+                .ids
+                .iter()
+                .find(|e| e.side == ModelSide::Current && e.id == id)
+                .map(|e| e.file.clone())
+        };
+
+        let mut affected: BTreeSet<String> = BTreeSet::new();
+        let mut scope_escapes: BTreeSet<String> = BTreeSet::new();
+
+        // REVERSE: changed source files -> source_links (by path) -> current diagrams.
+        let changed = traceability::changed_code(&self.root, base)?;
+        let mut changed_files: BTreeSet<String> = BTreeSet::new();
+        for sym in &changed.symbols {
+            changed_files.insert(sym.path.clone());
+        }
+        for glue in &changed.glue {
+            changed_files.insert(glue.path.clone());
+        }
+        for file in &changed_files {
+            let links: Vec<&SourceLink> =
+                trace.source_links.iter().filter(|l| &l.path == file).collect();
+            if links.is_empty() {
+                scope_escapes.insert(file.clone());
+                continue;
+            }
+            for link in links {
+                if let Some(diagram) = current_file_for(&link.model_id) {
+                    affected.insert(diagram);
+                }
+            }
+        }
+
+        // FORWARD: objective scope @ids -> current-side concept file.
+        if let Some(manifest) = &manifest {
+            for sid in &manifest.scope {
+                if let Some(diagram) = current_file_for(sid) {
+                    affected.insert(diagram);
+                } else if let Some(obj) = registry
+                    .ids
+                    .iter()
+                    .find(|e| e.side == ModelSide::Objective && &e.id == sid)
+                {
+                    affected.insert(obj.file.replacen("models/objective/", "models/current/", 1));
+                }
+            }
+        }
+
+        let full_remap = !scope_escapes.is_empty();
+        Ok(MapScopePlan {
+            cycle: cycle_number,
+            affected_files: affected.into_iter().collect(),
+            scope_escapes: scope_escapes.into_iter().collect(),
+            full_remap,
         })
     }
 
@@ -6950,6 +7049,97 @@ mod tests {
             relation: "realizes".to_string(),
         });
         project.write_trace(&trace).unwrap();
+    }
+
+    fn git(root: &std::path::Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?} failed");
+    }
+
+    /// Lay down two current-side domain diagrams, two `src/*.rs` files, a
+    /// source_link from `DOM-FOO` to `src/foo.rs`, an open cycle 1, and a git
+    /// baseline commit. Returns the project; the caller then edits source to
+    /// simulate a mid-loop `/mdd-implement` change.
+    fn project_for_map_scope() -> (tempfile::TempDir, Project) {
+        let dir = tempdir().unwrap();
+        let project = Project::at(dir.path());
+        project.init().unwrap();
+        let root = dir.path();
+
+        fs::write(
+            root.join(".mdd/models/current/domain/foo.puml"),
+            "@startuml\n' @id(DOM-FOO)\nclass Foo\n@enduml\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join(".mdd/models/current/domain/bar.puml"),
+            "@startuml\n' @id(DOM-BAR)\nclass Bar\n@enduml\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("crates/demo/src")).unwrap();
+        fs::write(root.join("crates/demo/src/foo.rs"), "pub fn foo() -> u32 {\n    1\n}\n").unwrap();
+        fs::write(root.join("crates/demo/src/bar.rs"), "pub fn bar() -> u32 {\n    2\n}\n").unwrap();
+
+        let mut trace = project.read_trace().unwrap();
+        trace.source_links.push(SourceLink {
+            model_id: "DOM-FOO".to_string(),
+            path: "crates/demo/src/foo.rs".to_string(),
+            symbol: Some("foo".to_string()),
+        });
+        project.write_trace(&trace).unwrap();
+
+        fs::create_dir_all(root.join(".mdd/cycles/0001/before")).unwrap();
+        fs::write(
+            root.join(".mdd/cycles/0001/manifest.yml"),
+            "number: 1\nslug: t\nentry: generate\ndescription: t\nstatus: open\nopened_at: \"1\"\ntouched_files: []\n",
+        )
+        .unwrap();
+
+        git(root, &["init", "-q"]);
+        git(root, &["config", "user.email", "t@t"]);
+        git(root, &["config", "user.name", "t"]);
+        git(root, &["add", "-A"]);
+        git(root, &["commit", "-q", "-m", "base"]);
+
+        (dir, project)
+    }
+
+    #[test]
+    fn map_scope_narrows_to_diagrams_linked_to_changed_source() {
+        let (dir, project) = project_for_map_scope();
+        // /mdd-implement edits foo.rs (uncommitted) — exactly the mid-loop state.
+        fs::write(dir.path().join("crates/demo/src/foo.rs"), "pub fn foo() -> u32 {\n    42\n}\n").unwrap();
+
+        let plan = project.map_scope(1, "HEAD").unwrap();
+
+        assert!(!plan.full_remap, "a linked change must not force a full remap");
+        assert!(plan.scope_escapes.is_empty());
+        assert_eq!(
+            plan.affected_files,
+            vec![".mdd/models/current/domain/foo.puml".to_string()],
+            "only the diagram linked to the changed source is in scope"
+        );
+        assert!(
+            !plan.affected_files.iter().any(|f| f.contains("bar")),
+            "an untouched diagram stays out of the re-map scope"
+        );
+    }
+
+    #[test]
+    fn map_scope_unlinked_change_forces_full_remap() {
+        let (dir, project) = project_for_map_scope();
+        // bar.rs has no source_link — the narrowed set cannot be trusted.
+        fs::write(dir.path().join("crates/demo/src/bar.rs"), "pub fn bar() -> u32 {\n    99\n}\n").unwrap();
+
+        let plan = project.map_scope(1, "HEAD").unwrap();
+
+        assert!(plan.full_remap, "a changed source with no source_link forces a full remap");
+        assert_eq!(plan.scope_escapes, vec!["crates/demo/src/bar.rs".to_string()]);
     }
 
     fn write_login_mockup(project: &Project, model_id: &str, ui_id: &str, route: &str) {

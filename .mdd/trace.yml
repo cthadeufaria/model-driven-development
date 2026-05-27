@@ -699,6 +699,31 @@ links:
   - from: SEQ-OPEN-RENDER
     to: CMP-MOCKUP-LAUNCH
     relation: depends_on
+  # cycle 0030 — scoped re-map (mdd map-scope verb)
+  - from: USE-SCOPED-REMAP
+    to: SEQ-MAP-SCOPE
+    relation: realizes
+  - from: USE-SCOPED-REMAP
+    to: CMP-MAP-SCOPE-ENGINE
+    relation: realized_by
+  - from: USE-SCOPED-REMAP
+    to: CMP-MAP-SCOPE-CLI
+    relation: realized_by
+  - from: SEQ-MAP-SCOPE
+    to: DOM-MAP-SCOPE-PLAN
+    relation: depends_on
+  - from: CMP-MAP-SCOPE-CLI
+    to: CMP-MAP-SCOPE-ENGINE
+    relation: depends_on
+  - from: CMP-MAP-SCOPE-ENGINE
+    to: CMP-CORE-CYCLE-MODEL
+    relation: depends_on
+  - from: CMP-MAP-SCOPE-ENGINE
+    to: CMP-TRACE-ENGINE
+    relation: depends_on
+  - from: CMP-MAP-SCOPE-ENGINE
+    to: DOM-MAP-SCOPE-PLAN
+    relation: depends_on
 generated_tests:
   - id: AT-USE-VIEW-DIAGRAMS
     path: .mdd/tests/acceptance/use-view-diagrams.feature
@@ -1472,3 +1497,16 @@ source_links:
   - model_id: SEQ-TEST-TDD-LOOP
     path: crates/mdd-core/src/lib.rs
     symbol: Project::evaluate_red_green_gate
+  # cycle 0030 — scoped re-map (mdd map-scope verb)
+  - model_id: CMP-MAP-SCOPE-ENGINE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::map_scope
+  - model_id: SEQ-MAP-SCOPE
+    path: crates/mdd-core/src/lib.rs
+    symbol: Project::map_scope
+  - model_id: DOM-MAP-SCOPE-PLAN
+    path: crates/mdd-core/src/lib.rs
+    symbol: MapScopePlan
+  - model_id: CMP-MAP-SCOPE-CLI
+    path: crates/mdd-cli/src/main.rs
+    symbol: Commands::MapScope

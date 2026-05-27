@@ -1,0 +1,19 @@
+@startuml
+' @id(CMP-KICKOFF)
+' @desc(CMP-KICKOFF, "Implemented as the /mdd-kickoff skill (templates::MDD_KICKOFF_SKILL in WORKFLOW_SKILLS, shipped to .claude/ and .codex/) plus the mdd-core PLAN @scope parser (extract_scope_ids, Project::plan_scope_ids) with its two validate rules, and the brief.md scaffold (templates::brief, written create-if-missing by mdd init). Orchestrates /mdd-generate + /mdd-validate and writes brief.md + PLAN.md. Utility front door outside the parity gate; opens no cycle.")
+' Current-side component for the greenfield kickoff (cycle 0027).
+title Greenfield kickoff component (current)
+
+component "/mdd-kickoff skill\n(templates::MDD_KICKOFF_SKILL)" as Skill
+component "PLAN @scope parser +\nvalidate (mdd-core)" as Parser
+component "/mdd-generate" as Gen
+component "/mdd-validate" as Val
+artifact ".mdd/docs/brief.md" as Brief
+artifact ".mdd/ralph/PLAN.md" as Plan
+
+Skill --> Gen : generate full objective
+Skill --> Val : validate
+Skill --> Brief : writes (signed off)
+Skill --> Plan : writes (@scope per model item)
+Parser --> Plan : extract_scope_ids; check ids exist + coverage
+@enduml

@@ -1,0 +1,55 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(USE-TRACE-PARITY, 0013)
+' @cycle(USE-MAP-FRESHNESS, 0013)
+' @cycle(USE-VERIFY-SOURCE-LINK, 0013)
+' @id(USE-TRACE-PARITY)
+' @desc(USE-TRACE-PARITY, "Implemented as Project::review_traceability (pass 3 of Project::review, after ID + security). FORWARD: every implementable current-side @id (CMP-/SEQ-/DOM-/STM-) with a source_link is resolved via the syn index; a link pointing at code that doesn't exist is a forward error. REVERSE: traceability::changed_code(base) yields symbols changed since the cycle base_revision; uncovered behaviour-bearing symbols -> bucket B (error), uncovered glue -> bucket A (warn). matched = forward_errors empty AND bucket_b empty, gated by config traceability.parity_check (default error; this repo is warn during transition).")
+' @id(USE-MAP-FRESHNESS)
+' @desc(USE-MAP-FRESHNESS, "Implemented as Project::map_status, exposed by `mdd map-status`. Reads .mdd/map/manifest.yml source_revision; with none it returns fresh+no_baseline. Otherwise it runs traceability::changed_code(source_revision) and intersects changed symbols with trace.yml source_links, reporting each drifted (path, symbol, model_id). Exit 0 fresh / non-zero stale.")
+' @id(USE-VERIFY-SOURCE-LINK)
+' @desc(USE-VERIFY-SOURCE-LINK, "Implemented: validate_inner now loops trace.yml source_links and calls Project::resolve_source_link — a missing file, an unknown model_id, or (for a .rs file) a symbol syn cannot find is a structural error. Honors the /mdd-validate checklist item 5 that was previously documented but unenforced.")
+' Current-side use cases for the traceability + freshness engine
+' (cycle 0013), derived from the implemented code in mdd-core
+' (traceability.rs + Project methods) and the mdd-cli subcommands.
+title MDD traceability + freshness — use cases (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Gate code<->diagram\ntraceability (review pass 3)" as TraceParity
+  usecase "Check whether diagrams\nhave drifted from code\n(mdd map-status)" as Freshness
+  usecase "Verify source_links resolve\nto real symbols (validate)" as VerifyLink
+}
+
+Dev --> TraceParity
+Dev --> Freshness
+Dev --> VerifyLink
+
+TraceParity ..> VerifyLink : <<include>>
+Freshness ..> VerifyLink : <<extend>>
+
+note bottom of TraceParity
+  Code (USE-TRACE-PARITY): Project::review_traceability
+  in crates/mdd-core/src/lib.rs, folded into review()
+  as pass 3. FORWARD resolves implementable @ids'
+  source_links; REVERSE classifies changed_code(base)
+  into bucket A (warn) / B (error). Realized by
+  SEQ-TRACE-REVIEW; owned by CMP-TRACE-GATE.
+end note
+
+note bottom of Freshness
+  Code (USE-MAP-FRESHNESS): Project::map_status, run by
+  `mdd map-status`. Reuses traceability::changed_code on
+  the recorded source_revision. Realized by SEQ-MAP-STATUS.
+end note
+
+note bottom of VerifyLink
+  Code (USE-VERIFY-SOURCE-LINK): validate_inner calls
+  Project::resolve_source_link per source_link; dangling
+  link -> error. Realized by SEQ-TRACE-REVIEW (shared
+  resolution path).
+end note
+@enduml

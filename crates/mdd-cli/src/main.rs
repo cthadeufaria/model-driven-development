@@ -63,6 +63,24 @@ enum Commands {
     /// whole-map's recorded source_revision.
     #[command(name = "map-status")]
     MapStatus,
+    /// Emit the minimal set of current-side diagram files a cycle's re-map must
+    /// touch, so the /mdd-cycle loop stops re-deriving the whole current/ tree
+    /// each iteration. Inverts trace.yml source_links over the source files
+    /// changed since `--base` (default HEAD) and unions the cycle's objective
+    /// `scope`. A changed file with no source_link forces a full remap. Pure
+    /// data; the skill executes the narrowed re-map. Always exits 0 (a plan).
+    #[command(name = "map-scope")]
+    MapScope {
+        /// The open cycle number whose scope + changeset to compute the plan for.
+        #[arg(long)]
+        cycle: u32,
+        /// Git ref to diff the working tree against for the changed-source set.
+        #[arg(long, default_value = "HEAD")]
+        base: String,
+        /// Emit the plan as JSON ({cycle, affected_files, scope_escapes, full_remap}).
+        #[arg(long)]
+        json: bool,
+    },
     /// Emit the deterministic, ordered test plan: one step per configured-layer
     /// test, with its runner command and the gap subset flagged. Pure data; no
     /// execution. The /mdd-cycle loop runs these steps and gates on green.
@@ -285,6 +303,36 @@ fn main() -> Result<()> {
             }
             if !report.fresh {
                 std::process::exit(1);
+            }
+        }
+        Commands::MapScope { cycle, base, json } => {
+            let project = Project::discover(env::current_dir()?)?;
+            let plan = project.map_scope(cycle, &base)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&plan)?);
+            } else if plan.full_remap {
+                println!(
+                    "map-scope cycle {}: FULL REMAP — {} changed source file(s) have no source_link:",
+                    plan.cycle,
+                    plan.scope_escapes.len()
+                );
+                for f in &plan.scope_escapes {
+                    println!("  (escape) {f}");
+                }
+            } else if plan.affected_files.is_empty() {
+                println!(
+                    "map-scope cycle {}: no affected current-side diagrams (no changed source maps to a diagram, empty scope)",
+                    plan.cycle
+                );
+            } else {
+                println!(
+                    "map-scope cycle {}: {} affected current-side diagram(s):",
+                    plan.cycle,
+                    plan.affected_files.len()
+                );
+                for f in &plan.affected_files {
+                    println!("  {f}");
+                }
             }
         }
         Commands::TestPlan { json } => {

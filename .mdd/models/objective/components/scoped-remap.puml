@@ -1,0 +1,43 @@
+@startuml
+' @id(CMP-MAP-SCOPE-ENGINE)
+' @desc(CMP-MAP-SCOPE-ENGINE, "The deterministic scope layer in mdd-core: Project::map_scope(cycle_number) -> DOM-MAP-SCOPE-PLAN. Reads the cycle manifest (CMP-CORE-CYCLE-MODEL: number, touched_files, scope), then (a) inverts trace.yml source_links — for each touched_files entry find the source_links whose path matches and collect their model_id @ids, map each current-side @id to the diagram file that declares it; (b) resolves the manifest's objective `scope` @ids to the current-side concept files that realize them (same <kind>/<name>); unions both into affected_files. Any touched_files entry matching no source_link becomes a scope_escape -> full_remap. Pure and read-only; reuses the path/symbol matching of CMP-TRACE-ENGINE, no new git/syn machinery. Surfaced by the `mdd map-scope` CLI verb. Unit-tested so the narrowing rule is precise.")
+' @id(CMP-MAP-SCOPE-CLI)
+' @desc(CMP-MAP-SCOPE-CLI, "New mdd-cli subcommand in crates/mdd-cli/src/main.rs: `mdd map-scope --cycle <N> [--json]` (Commands::MapScope -> Project::map_scope(N)). Text mode prints affected files, scope_escapes, and the full_remap verdict; --json emits DOM-MAP-SCOPE-PLAN verbatim. Exits 0 (a plan, not a gate). The plan-deterministic half of the plan-deterministic / execute-in-skill split, mirroring `mdd test-plan`.")
+' Objective ownership for scoped re-map (cycle 0030). One deterministic
+' mdd-core function + one CLI verb; the /mdd-map skill executes the
+' narrowed re-map and the /mdd-cycle loop calls the verb each iteration
+' (Bucket C), mirroring test-plan's plan-deterministic / execute-in-skill split.
+title MDD scoped re-map — ownership (objective)
+
+actor "Developer / Agent" as Dev
+
+component "mdd map-scope\n(CMP-MAP-SCOPE-CLI)" as Cli
+component "Project::map_scope\n(CMP-MAP-SCOPE-ENGINE)" as Engine
+component "mdd-core CycleRegistry\n(CMP-CORE-CYCLE-MODEL)" as CycleModel
+component "trace.yml\nsource_links" as Trace
+component "path/symbol matcher\n(CMP-TRACE-ENGINE)" as TraceEngine
+component "/mdd-map skill\n(CMP-MAP-SKILL)" as MapSkill
+component "/mdd-cycle skill\n(CMP-CYCLE-ORCHESTRATOR)" as Cycle
+
+Dev --> Cli : mdd map-scope --cycle N [--json]
+Cli --> Engine : map_scope(N)
+Engine --> CycleModel : read manifest (touched_files, scope)
+Engine --> Trace : source_links
+Engine --> TraceEngine : path match (reuse)
+Cycle --> Cli : each loop iteration: get the plan
+Cycle --> MapSkill : pass affected_files / full_remap
+MapSkill --> Engine : (via the verb) narrowed re-derive set
+
+note bottom of Engine
+  Pure inversion + union; no execution. full_remap when
+  any touched file has no source_link. Reuses CMP-TRACE-ENGINE
+  path matching — no new git/syn machinery. Realized by SEQ-MAP-SCOPE.
+end note
+
+note bottom of MapSkill
+  Executes: re-derive only affected_files, leave the rest of
+  current/ byte-identical (ids/refs preserved by construction).
+  full_remap -> fall back to whole-tree map. mdd validate still
+  runs whole-tree afterward as the safety net.
+end note
+@enduml

@@ -1,0 +1,42 @@
+@startuml
+' @id(USE-TEST-PROFILE-DETECT)
+' @desc(USE-TEST-PROFILE-DETECT, "Resolve the per-layer test runner for THIS repo by DETECTION then OPERATOR CONFIRMATION — never a silent default (the /mdd-deploy dialect rule applied to test tooling). `mdd test-detect` reads the build files (Cargo.toml, package.json devDeps, pyproject.toml/setup.py, go.mod, pom.xml/build.gradle, *.csproj, Gemfile) and RECOMMENDS a framework+command per layer per the §5.3 detection table; genuine ambiguity (two unit frameworks, no clear home) is surfaced as a blocking question, never guessed. The /mdd-cycle skill presents the recommendation, the operator confirms, and the confirmed profile is written to config.test.layers. Detection recommends; the operator decides. Realized by SEQ-TEST-PROFILE; owned by CMP-TEST-DETECT.")
+' @id(USE-TEST-PLAN)
+' @desc(USE-TEST-PLAN, "Emit a deterministic, ordered test PLAN from config.test.layers + the unified trace tests — the test analog of the deploy runbook. `mdd test-plan --json` resolves each configured-layer test link into a step { layer, id, model_id, command, cwd, expect, is_gap }, ordered by layer then id, with the gap subset (expect=red-until-implemented) flagged. Pure data, no execution, unit-testable — so the loop has a stable contract to run and the run is reproducible. Realized by SEQ-TEST-PROFILE; owned by CMP-TEST-PLAN.")
+' @id(USE-TEST-GREEN-GATE)
+' @desc(USE-TEST-GREEN-GATE, "At /mdd-cycle CLOSE, after parity matches, run the test plan and gate on green. The deterministic verdict (Project::evaluate_green_gate) takes the per-step run results and config.test.gate and reports whether a still-red test BLOCKS closure (gate=error) or merely WARNS and allows a user-accepted close (gate=warn) — the opt-down mirroring security.parity_check. This is the GREEN side only; the red->green requirement (Cycle C) is non-negotiable and separate. Execution is agent-Bash in the skill; the gate decision is deterministic core. Realized by SEQ-TEST-PROFILE; owned by CMP-TEST-GREEN-GATE.")
+' Current use cases for Cycle B of diagram-driven tests
+' (docs/proposals/tdd-and-test-assertion.md §9): detect-then-confirm the
+' test profile, emit a deterministic plan, and gate on green at close.
+' Still no red phase (Cycle C); green gate is the opt-down side.
+title MDD diagram-driven tests — profile, plan, green gate (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd test tooling" {
+  usecase "Detect the per-layer runner,\nthen confirm\n(no silent default)" as Detect
+  usecase "Emit a deterministic\nordered test plan\n(mdd test-plan)" as Plan
+  usecase "Run the plan at close,\ngate on green\n(test.gate)" as Green
+}
+
+Dev --> Detect
+Dev --> Plan
+Dev --> Green
+
+Detect ..> Plan : <<precedes>>
+Plan ..> Green : <<precedes>>
+
+note bottom of Detect
+  USE-TEST-PROFILE-DETECT: build-file detection RECOMMENDS;
+  the operator CONFIRMS into config.test.layers. Ambiguity
+  is a blocking question, never guessed.
+end note
+
+note bottom of Green
+  USE-TEST-GREEN-GATE: still-red at close BLOCKS when
+  test.gate=error, WARNS when warn. Green side only; the
+  red->green gate (Cycle C) is non-negotiable and separate.
+end note
+@enduml

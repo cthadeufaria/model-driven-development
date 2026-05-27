@@ -1,0 +1,21 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(DOM-MAP-SCOPE-PLAN, 0030)
+' @id(DOM-MAP-SCOPE-PLAN)
+' @desc(DOM-MAP-SCOPE-PLAN, "MapScopePlan in crates/mdd-core/src/lib.rs: { cycle: u32, affected_files: Vec<String>, scope_escapes: Vec<String>, full_remap: bool }, Serialize. affected_files and scope_escapes are repo-relative paths from a BTreeSet (sorted, deduped). full_remap = !scope_escapes.is_empty(). Returned by Project::map_scope; emitted verbatim by `mdd map-scope --json`.")
+title MDD scoped re-map — domain (current)
+
+class MapScopePlan {
+  + cycle : u32
+  + affected_files : Vec<String>
+  + scope_escapes : Vec<String>
+  + full_remap : bool
+}
+
+note bottom of MapScopePlan
+  full_remap is derived as !scope_escapes.is_empty()
+  in Project::map_scope; the consumer re-maps the whole
+  tree when true. Built by inverting trace.yml
+  source_links over the git changeset since base.
+end note
+@enduml

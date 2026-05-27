@@ -1,0 +1,24 @@
+@startuml
+' --- whole-map provenance: cycle that introduced each @id ---
+' @cycle(USE-SCOPED-REMAP, 0030)
+' @id(USE-SCOPED-REMAP)
+' @desc(USE-SCOPED-REMAP, "`mdd map-scope --cycle N [--base REF] [--json]` (Commands::MapScope) computes which current-side diagrams a cycle's edits could have changed. Project::map_scope diffs source since base (default HEAD) via traceability::changed_code, inverts trace.yml source_links by path to the current @ids that depend on each changed file -> their diagram files, and unions the current-side concepts realizing the manifest's objective scope ids. A changed source file with no source_link is a scope_escape -> full_remap. Exits 0 (a plan).")
+title MDD scoped re-map — use case (current)
+
+left to right direction
+
+actor "Developer / Agent" as Dev
+
+rectangle "mdd toolchain" {
+  usecase "Compute the minimal current-side\nre-map set for a cycle\n(mdd map-scope)" as ScopedRemap
+}
+
+Dev --> ScopedRemap
+
+note bottom of ScopedRemap
+  Current (USE-SCOPED-REMAP): implemented as
+  Project::map_scope + the `mdd map-scope` verb.
+  Realized by SEQ-MAP-SCOPE; owned by
+  CMP-MAP-SCOPE-ENGINE + CMP-MAP-SCOPE-CLI.
+end note
+@enduml

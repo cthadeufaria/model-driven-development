@@ -16,6 +16,17 @@ Use this skill to derive the current view from existing code. Diagrams go into `
 - Code must exist for the scope being mapped. If the repository (or the area the user mentioned) is empty, do not run; suggest `/mdd-generate` instead.
 - Default scope: produce or refresh the **use-case diagram only**. Extend to other diagram types only when the user asks (e.g. "map domain and components") or when the existing use-case view is already current and they need more detail.
 
+## Scoped re-map (driven by `mdd map-scope`)
+
+When a caller hands you a **scope** — a set of current-side diagram files (as the `/mdd-cycle` loop does each iteration, from `mdd map-scope --cycle <N> --json`) — re-derive **only those files** and leave the rest of `.mdd/models/current/` **byte-identical**. This is the common case inside a cycle's implement→map loop, where only the source `/mdd-implement` just wrote can have changed; re-deriving the whole tree every pass is wasted work. Rules:
+
+- **`full_remap: true`** in the plan (a changed source file resolved to **no** `source_link`, listed under `scope_escapes`) means the narrowed set cannot be trusted → ignore `affected_files` and re-map the **whole** current tree. Never silently narrow past an escape.
+- **`full_remap: false`** → re-derive exactly the `affected_files`. Do not touch, reformat, or re-emit any other current file (preserving their `@id`s and `@ref`s by leaving them untouched).
+- The plan's changeset comes from the same Rust/`src/` engine as `mdd map-status` (`git diff` of `.rs` files under a crate `src/`). A model-bearing change **outside** that surface (rare in this repo) won't appear in the plan — if you know you edited such a file, widen the re-map to cover it.
+- `/mdd-validate` runs whole-tree afterward regardless, so a too-narrow scope is caught as a structural error rather than silently shipped — but prefer correctness up front via `full_remap`.
+
+Outside a scope (a bare `/mdd-map`, or no plan handed in) behave exactly as before: default to the use-case view, extend on request.
+
 ## Workflow
 
 1. Identify the scope: a feature, a module, or the whole repository. Confirm the scope contains code; otherwise stop and report.
