@@ -1,28 +1,30 @@
-# Ralph loop — per-iteration prompt
+# Ralph loop — per-iteration prompt (for `/ralph-loop`)
 
-You are running one iteration of the **Ralph loop** for this repo. The plan pointer for this run is `$PLAN_PATH` (default: `.mdd/ralph/PLAN.md`). Read `.claude/skills/mdd-ralph/SKILL.md` for the full contract; this file is the per-loop instruction.
+Run with: `/ralph-loop "$(cat .mdd/ralph/PROMPT.md)" --completion-promise 'RALPH-DONE' --max-iterations 40`
+(Plan defaults to `.mdd/ralph/PLAN.md`; point at a different plan by editing the path below.)
 
-Do **exactly one** iteration, then return so the loop can re-fire.
+This prompt is re-fed unchanged every iteration — state lives in the files and git
+history, not here. So re-orient from the plan each time. Do **exactly one** item, then stop.
 
 ## This iteration
 
-1. **Read the plan** at `$PLAN_PATH` and the objective models under `.mdd/models/objective/`. If the plan has no unfinished items, emit `RALPH-DONE` and stop the loop.
-2. **Pick the single highest-priority unfinished item.** One item. No batching.
-3. **Search before assuming.** Verify it isn't already implemented — search `current/` and the code, fanning reads out to `Explore`/`Agent` subagents. Keep build/validate serialized.
-4. **Route to the right action** for that one item:
-   - feature/change from a description -> `/mdd-cycle "<item>"`
-   - diagrams drifted from code -> `/mdd-map`, then re-plan
-   - objective spec wrong/missing -> `/mdd-generate`
-   - targeted code gap, intent already agreed -> `/mdd-implement` then `/mdd-map`
-   - inspection / infra -> `/mdd-render` or `/mdd-deploy`
-   - anything else -> general tools (Read, Grep, Bash, Edit)
-5. **Pass the parity gate — mandatory before commit.** If you did not run `/mdd-cycle` (which gates internally), run `/mdd-validate` and `/mdd-review` now and make them pass. Do not commit on a gate failure; do not loosen `.mdd/config.yml`.
-6. **Update the plan and commit.** Check off the completed item in `$PLAN_PATH`, append any bugs found mid-flight, and commit with a clear message. If the gate can't be made to pass after a reasonable attempt, record the blocker, skip the item, and continue. If every remaining item is blocked, emit `RALPH-DONE` with the blocked list and stop.
-7. **Self-tune** if you learned a better build/run/validate command: record it in `AGENTS.md` / `CLAUDE.md`.
+1. **Read the plan** at `.mdd/ralph/PLAN.md`. If it has no unfinished `- [ ]` items,
+   output `<promise>RALPH-DONE</promise>` as your final message and do nothing else.
+2. **Pick the single topmost unfinished `- [ ]` item.** One item only — no batching.
+3. **Search before assuming.** Confirm it isn't already done — check the code and
+   `.mdd/models/current/`. Fan reads out to `Explore`/`Agent` subagents; keep build/validate serialized.
+4. **Do that one item end-to-end** with general tools (Read/Grep/Edit/Bash).
+5. **Verify — mandatory before commit.** Run the build and tests until green, then run the
+   deterministic parity gate via the CLI: `mdd validate` and `mdd review`. Do not commit on a
+   failure; do not loosen `.mdd/config.yml`. (These are CLI verbs — you do not need the `/mdd-*` skills.)
+6. **Update the plan and commit.** Check the item off (`- [x]`) in `.mdd/ralph/PLAN.md`, append any
+   new bugs/work found as new `- [ ]` items, and commit with a clear message. Feature branch only — never `main`.
+7. If the item can't be finished after a reasonable attempt, note the blocker under it, leave it
+   unchecked, and stop (next iteration moves on). If every remaining item is blocked, output `<promise>RALPH-DONE</promise>`.
 
-## Rules (do not break)
+## Rules
 
-- Full unattended for **modeling and implementation** decisions: resolve ordinary ambiguity yourself, never pause for it. The parity gate is the safety net.
-- **BUT still stop for irreversible / outward-facing actions.** Full-unattended never overrides these — anything hard to undo or that publishes externally needs explicit human confirmation: a `/mdd-deploy` apply / provision / migration / go-live cutover (the go-live gate is **never** auto-confirmed), force-pushes, deletes, or sending to an external service. Pause and ask for these even though everything else runs unattended.
-- Never commit to `main`; this loop runs on a feature branch.
 - One item per iteration — context discipline.
+- Resolve ordinary implementation ambiguity yourself; keep going. The parity gate is the safety net.
+- **Stop for irreversible / outward-facing actions** — force-pushes, deletes, deploys, publishing externally — these still need explicit human confirmation.
+- Only output `<promise>RALPH-DONE</promise>` when the plan is genuinely exhausted (or fully blocked). Do not emit it to escape the loop.
